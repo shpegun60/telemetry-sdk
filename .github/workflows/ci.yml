@@ -1253,7 +1253,7 @@ jobs:
       - name: Install the current SDK for cross-repository Qt consumers
         run: |
           cmake -S . -B "$RUNNER_TEMP/ux-sdk-build" -G Ninja \
-            '-DTELEMETRY_COMPONENTS=inspector;workbench;read_many_workbench;encoded_backend;encoded_server;core;tcp_server;qt_serial_transport;resource_adapter;rpc_backend;rpc_sessions' \
+            '-DTELEMETRY_COMPONENTS=inspector;workbench;read_many_workbench;encoded_backend;encoded_server;core;tcp_server;qt_serial_transport;qt_connection;resource_adapter;rpc_backend;rpc_sessions' \
             -DCOBS_ROOT="$GITHUB_WORKSPACE/build/dependencies/cobs" -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER=/usr/bin/clang++-18 \
             '-DCMAKE_CXX_FLAGS_RELEASE=-O1 -g -DNDEBUG -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer' \

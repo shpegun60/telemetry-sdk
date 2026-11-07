@@ -231,3 +231,11 @@ overlap, error precedence, family statuses and exact bytes. Runtime sanitizers
 and the existing CI matrix remain required. All build outputs and receipts
 belong outside the source repository. Historical hardware evidence retains its
 original source identity; this refactoring does not establish new board results.
+
+## Optional owned Qt connection
+
+`qt_connection` exports [ConnectionSession](QtConnectionSession.md), one host
+owner/FIFO and its Resource/Encoded TCP reference profile. `qt_tcp_transport`
+exports only the Qt Network carrier; `tcp_wire` holds framing without native
+server dependencies. These components are explicit opt-ins and are absent from
+the portable default selection. QML/HTML presentation remains in Telemetry UX.

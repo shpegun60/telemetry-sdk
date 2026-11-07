@@ -11,7 +11,7 @@
 #define TELEMETRY_INTEGRATION_TCP_SERVER_HPP
 #pragma once
 
-#include "Framing.hpp"
+#include <integration/tcp/Framing.hpp>
 #include <integration/encoded/Dispatcher.hpp>
 #include <resource/protocol/Protocol.hpp>
 

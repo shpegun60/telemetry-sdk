@@ -5,6 +5,12 @@ contains(CONFIG, telemetry_qt_transport) {
 contains(CONFIG, telemetry_qt_serial_transport) {
     include($$PWD/qt/qt_serial_transport.pri)
 }
+contains(CONFIG, telemetry_qt_tcp_transport) {
+    include($$PWD/qt/qt_tcp_transport.pri)
+}
+contains(CONFIG, telemetry_qt_connection) {
+    include($$PWD/qt/qt_connection.pri)
+}
 contains(CONFIG, telemetry_batch_server) {
     include($$PWD/batch/batch_server.pri)
 }

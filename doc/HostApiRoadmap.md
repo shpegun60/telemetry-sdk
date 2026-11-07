@@ -42,29 +42,39 @@ implementations remain unchanged.
 
 ## Stage 2: UX session and independent views
 
-Still planned: connect an installed UX adapter/provider to the owned Session,
-then provide independent endpoint selection, drafts, response snapshots and
-diagnostics over the same owner/FIFO. Views borrow execution and own presentation
-state; destroying a view does not shut down the shared Session. A mutation must
-have an explicit sibling-freshness policy. Write plus readback stays two ordered
-operations, not an atomic compare-and-write transaction.
+Implemented: Web `mountConfigurator({session})` and independent Session views
+reuse one owned Session/FIFO. Installed Dynamic QML providers borrow native
+Workbench views without a second client; each panel owns its selection, draft,
+response snapshot and diagnostics. View removal leaves accepted work with the
+Session owner until drain. Accepted mutations invalidate sibling presentation
+without hidden extra reads. Write/readback stays two ordered operations, not an
+atomic compare-and-write transaction.
 
-The installed Dynamic QML provider needs a compatible borrowing boundary in the
-current Workbench/Inspector ownership. It must not instantiate a second client
-inside each view. Static QML providers already have per-instance presentation
-state; actual downstream tests must establish what can be reused before adding
-new wrappers. User-facing QML and Web remain in Telemetry UX.
+The optional [owned Qt connection](QtConnectionSession.md) now factors the
+Inspector's TCP transport/bootstrap/state/progress into SDK `qt_connection`.
+Telemetry UX's `QtConnectionBinding` automatically follows its admission and
+retirement. Native users no longer need to copy InspectorController or a private
+pump to attach two QML panels to one real reference-profile TCP connection.
 
-Acceptance: two panels with different selection/drafts, one active exchange;
-view destruction during an accepted operation; session replacement and stale
-callbacks; exact U64/S64/open enum; no automatic mutation replay; installed
-downstream application without knowledge of source-internal paths.
+Web Session optional ReadMany/Batch presentation and complete starter generation
+are separate UX changes under active qualification; their release status belongs
+to the exact paired SDK/UX revision. Existing backend capabilities and limits
+still apply. No new wire operation or second DTO generator is added by these
+host conveniences.
+
+Acceptance includes two independent panels on one FIFO, view removal during an
+accepted operation, stale callbacks/session replacement, exact U64/S64/open enum,
+no automatic mutation replay and installed downstream applications. Native Qt
+connection checks additionally cover real TCP EOF and phase-specific disconnect;
+hardware qualification is separate.
 
 ## Stage 3: starters, semantic metadata and diagnostics
 
-Still planned: complete application starters that select a documented connection
-profile and mount existing shared views. Keep labels, units, ranges, initial
-editor values and help as optional presentation metadata, separate from the
+Complete installed application starters and the UX project-creation tool are
+implemented/being qualified separately from this SDK connection component. They
+select documented profiles and reuse existing views and generator outputs.
+Optional labels, units, ranges, initial editor values and help remain a proposed
+presentation-metadata layer, separate from the
 structural Descriptor and wire compatibility. Unknown metadata must not weaken
 Codec validation. Initial editor values are not device defaults.
 
