@@ -9,6 +9,9 @@
 #ifdef TEST_SERIAL
 #include <integration/qt/SerialTransport.hpp>
 #endif
+#ifdef TEST_CONNECTION
+#include <integration/qt/ConnectionSession.hpp>
+#endif
 #include <QCoreApplication>
 #include <QString>
 #include <array>
@@ -129,6 +132,22 @@ int main(int argc, char** argv)
 	serial.close();
 	CHECK(!serial.ready() && !serial.canStage() && serial.locallyQuiescent());
 #endif
+#ifdef TEST_CONNECTION
+	qt::ConnectionSession connection;
+	CHECK(!connection.ready() && !connection.connecting() && !connection.recoveryRequired());
+	CHECK(!connection.workbench() && !connection.storage());
+	CHECK(!connection.connectTcpReference(QString{}, 0));
+	CHECK(!connection.lastError().isEmpty());
+	CHECK(connection.reserveSessionsThrough(42));
+	CHECK(!connection.reserveSessionsThrough(UINT32_MAX));
+	connection.process();
+	connection.disconnect();
+	CHECK(!connection.ready() && !connection.recoveryRequired());
+	connection.close();
+	CHECK(!connection.connectTcpReference(QStringLiteral("127.0.0.1"), 5577));
+	CHECK(!connection.workbench() && !connection.storage());
+#endif
+
 	std::printf("Installed Qt transport checks=%u\n", checks);
 }
 

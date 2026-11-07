@@ -25,6 +25,41 @@ export type Operation = 'FieldWrite'|'Command'|'Service'|'FieldRead'|'ReadMany'|
 export const Operations = Object.freeze(
     {FieldWrite : 1, Command : 2, Service : 3, FieldRead : 4, ReadMany : 5, Batch : 6} as const);
 export type ByteInput = ArrayBuffer|ArrayBufferView;
+export interface ReadManyCapability {
+	readonly itemLimit: number;
+	readonly requestLimit: number;
+	readonly replyLimit: number;
+	readonly session: number;
+	readonly fingerprint: bigint;
+}
+
+// Pure inspection for host planning. This never admits a session or bypasses
+// bindReadMany(), which still checks identity, field types and byte budgets.
+export function inspectReadManyCapability(input: ByteInput): ReadManyCapability|undefined
+{
+	try {
+		const record = new Uint8Array(bytes(input));
+		if (record.length !== 24)
+			return undefined;
+		const cap = new DataView(record.buffer);
+		const itemLimit = record[5], requestLimit = cap.getUint16(8, true),
+		      replyLimit = cap.getUint16(10, true), session = cap.getUint32(12, true);
+		if (cap.getUint32(0, true) !== 0x314d5254 || record[4] !== 1 || record[6] !== 1 ||
+		    record[7] !== 1 || itemLimit < 1 || itemLimit > 32 || requestLimit < 6 ||
+		    requestLimit > 130 || replyLimit < 10 || replyLimit > 514 || session === 0)
+			return undefined;
+		return Object.freeze({
+			itemLimit,
+			requestLimit,
+			replyLimit,
+			session,
+			fingerprint : cap.getBigUint64(16, true)
+		});
+	} catch {
+		return undefined;
+	}
+}
+
 export interface ReadBinding<T> {
 	readonly fingerprint: bigint;
 	readonly operation: 'FieldRead';
@@ -550,18 +585,11 @@ export class DeviceClient {
 		const session = this.epoch, fingerprint = this.fingerprint;
 		let entries: ReadManyEntry[], payload: Uint8Array, responseBytes = 2;
 		try {
-			const record = bytes(capability).slice();
-			if (record.length !== 24)
+			const cap = inspectReadManyCapability(capability);
+			if (!cap)
 				return refused(Status.InvalidArgument);
-			const cap = new DataView(record.buffer);
-			const itemLimit = record[5], requestLimit = cap.getUint16(8, true),
-			      replyLimit = cap.getUint16(10, true);
-			if (cap.getUint32(0, true) !== 0x314d5254 || record[4] !== 1 || record[6] !== 1 ||
-			    record[7] !== 1 || itemLimit < 1 || itemLimit > 32 || requestLimit < 6 ||
-			    requestLimit > 130 || replyLimit < 10 || replyLimit > 514 ||
-			    cap.getUint32(12, true) === 0)
-				return refused(Status.InvalidArgument);
-			if (cap.getUint32(12, true) !== session || cap.getBigUint64(16, true) !== fingerprint)
+			const {itemLimit, requestLimit, replyLimit} = cap;
+			if (cap.session !== session || cap.fingerprint !== fingerprint)
 				return refused(Status.NotAdmitted);
 			if (!Array.isArray(fields))
 				return refused(Status.InvalidArgument);

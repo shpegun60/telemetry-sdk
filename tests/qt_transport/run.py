@@ -102,6 +102,7 @@ def main():
                                  '-DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON'])
         for name, components, extras in (
                 ('base', 'qt_transport', ['-DCMAKE_DISABLE_FIND_PACKAGE_Qt6SerialPort=ON']),
+                ('connection', 'qt_connection', ['-DCMAKE_DISABLE_FIND_PACKAGE_Qt6SerialPort=ON']),
                 ('serial', 'qt_serial_transport;read_many_client;encoded_backend',
                  ['-DCOBS_ROOT='+str(private_cobs)])):
             run(name+'-configure', [args.cmake, '-S', source, '-B', out/(name+'-build'), *common,
@@ -112,7 +113,7 @@ def main():
         refusal = run('missing-cobs', [args.cmake, '-S', source, '-B', out/'missing-cobs', *common,
                       '-DTELEMETRY_COMPONENTS=qt_serial_transport', '-DCOBS_ROOT='], success=False)
         check('COBS_ROOT' in refusal, 'Missing COBS refused for the intended reason')
-        for prefix in (out/'base-relocated', out/'serial-relocated'):
+        for prefix in (out/'base-relocated', out/'serial-relocated', out/'connection-relocated'):
             for path in prefix.rglob('*.cmake'):
                 text = path.read_text().replace('\\', '/')
                 check(str(private_cobs).replace('\\', '/') not in text, 'COBS build path not exported')
@@ -122,15 +123,17 @@ def main():
         source.rename(out/'unavailable-sdk')
         private_cobs.rename(out/'unavailable-cobs')
 
-        def consumer(name, prefix, mode, options=(), serial=False, optional=False):
+        def consumer(name, prefix, mode, options=(), serial=False, optional=False, connection=False):
             name += '-consumer'
             directory = out/(name+'-source')
             directory.mkdir()
             if mode == 'base':
                 shutil.copy2(HERE/'Consumer.cpp', directory/'Consumer.cpp')
                 body = 'set(CMAKE_AUTOMOC ON)\nadd_executable(consumer Consumer.cpp)\n'
-                target = 'qt_serial_transport' if serial else 'qt_transport'
+                target = 'qt_connection' if connection else ('qt_serial_transport' if serial else 'qt_transport')
                 body += 'target_link_libraries(consumer PRIVATE Telemetry::'+target+')\n'
+                if connection:
+                    body += 'target_compile_definitions(consumer PRIVATE TEST_CONNECTION)\n'
                 if serial:
                     body += 'target_compile_definitions(consumer PRIVATE TEST_SERIAL)\n'
             else:
@@ -138,7 +141,7 @@ def main():
                 body = 'add_executable(consumer Consumer.cpp)\ntarget_link_libraries(consumer PRIVATE Telemetry::client)\n'
             request = mode if mode != 'none' else ''
             if mode == 'base':
-                request = 'qt_serial_transport' if serial else 'qt_transport'
+                request = 'qt_connection' if connection else ('qt_serial_transport' if serial else 'qt_transport')
             find = ('COMPONENTS '+request) if request else ''
             if optional:
                 find += ' OPTIONAL_COMPONENTS qt_serial_transport'
@@ -172,6 +175,8 @@ def main():
         consumer('base-optional-serial', mixed, 'base', noserial, optional=True)
         consumer('base-only', out/'base-relocated', 'base', noserial)
         consumer('serial', mixed, 'base', serial=True)
+        consumer('connection', out/'connection-relocated', 'base', connection=True)
+        consumer('connection-client-noqt', out/'connection-relocated', 'client', noqt)
         build = out/'cli-build'
         search = str(mixed)+(';' + args.qt_prefix if args.qt_prefix else '')
         run('actual-cli-configure', [args.cmake, '-S', example, '-B', build, *common,

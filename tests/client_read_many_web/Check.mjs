@@ -35,6 +35,37 @@ const field = (id = 7, scalar = 6, decode = u32Value) => ({
 	readManyScalar : scalar,
 	decode
 });
+// Planning uses the same SDK parser as admission, including offset byte views.
+{
+	const source = capability(17, 0xfedcba9876543210n);
+	const copy = new Uint8Array(31);
+	copy.set(source, 3);
+	const info = R.inspectReadManyCapability(copy.subarray(3, 27));
+	equal(info, {
+		itemLimit : 32,
+		requestLimit : 130,
+		replyLimit : 514,
+		session : 17,
+		fingerprint : 0xfedcba9876543210n
+	});
+	truth(Object.isFrozen(info));
+	source.fill(0);
+	equal(info.session, 17);
+	for (const bad of [new Uint8Array(23), new Uint8Array(25), null, {}, 1])
+		equal(R.inspectReadManyCapability(bad), undefined);
+	for (const [offset, value] of [[ 0, 0 ], [ 4, 0 ], [ 5, 0 ], [ 5, 33 ], [ 6, 0 ], [ 7, 0 ],
+	                               [ 8, 5 ], [ 8, 131 ], [ 10, 9 ], [ 12, 0 ]]) {
+		const bad = capability();
+		bad[offset] = value;
+		equal(R.inspectReadManyCapability(bad), undefined);
+	}
+	const small = capability();
+	small[5] = 7;
+	new DataView(small.buffer).setUint16(8, 14, true);
+	new DataView(small.buffer).setUint16(10, 34, true);
+	equal(R.inspectReadManyCapability(small),
+	      {itemLimit : 7, requestLimit : 14, replyLimit : 34, session : 1, fingerprint : 0n});
+}
 const reply = items => {
 	const output = new Uint8Array(2 + items.reduce((size, i) => size + 8 + (i[2]?.length ?? 0), 0));
 	const data = new DataView(output.buffer);

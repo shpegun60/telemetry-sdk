@@ -30,6 +30,14 @@ export declare const Operations: Readonly<{
     readonly Batch: 6;
 }>;
 export type ByteInput = ArrayBuffer | ArrayBufferView;
+export interface ReadManyCapability {
+    readonly itemLimit: number;
+    readonly requestLimit: number;
+    readonly replyLimit: number;
+    readonly session: number;
+    readonly fingerprint: bigint;
+}
+export declare function inspectReadManyCapability(input: ByteInput): ReadManyCapability | undefined;
 export interface ReadBinding<T> {
     readonly fingerprint: bigint;
     readonly operation: 'FieldRead';

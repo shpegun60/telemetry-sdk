@@ -59,8 +59,8 @@
         "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
         "js/device.js": "bec012625fc0e3fa3380322ecb7c518142111b6019e0af52012e62b4ad6d0537",
         "js/device.d.ts": "1d11f97b84a773bcce89b6ecc31ddc4654d924c932d4256603397c5f63d46dae",
-        "js/client.js": "7ff5475ef6ac24dc24f50226caf3c7680f79cdb84a1efc67ed278ba5c7cc2979",
-        "js/client.d.ts": "bdeb14083387324df722c68e0670a0771a20351d63b860d9e48372ad39a3e177",
+        "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+        "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "qml/DeviceApi.hpp": "3eaf83d75996a9c68edb718218b18971a1b8777dfa5f06a91d1a196f58f9bd03",
         "qml/DeviceApi.cpp": "305e49c722a6a91662f0ee91757b777e92a323a282a197fbca3f6ecd4c38b7a8",
         "qml/QmlValues.hpp": "4d605c88e2add7070208f98a8052dc361f5394603f9c97e8a5aeb0bdc81a85d2",
@@ -69,13 +69,13 @@
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
         "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
         "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
-        "ts/client.ts": "9e6670a9a4b847cecf0dc0a9f28e883b73924a270f4a10bceaa71c6002803cf2",
+        "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "19e6c032fc636ff8bc92a3f8fdc81d681d6644a8f1c823c718228bf153df93f7",
         "cpp/device_api/Metadata.hpp": "1a00b8eda0c6ad73dbf73666bd876e904a900dd01c21f4dbca89ac308d5063e9",
         "js/device.metadata.js": "809d308190ac777b58ece3eed99b7caafe733ef41dfa6874d992606ea8119c77",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "0f0fcbd9fb56fda3b29558a69da65c76add6ef0309274e13d680022380b16216",
-        "manifest.json": "7b42aa2b9e0fb4591d3352fe87f18eb9bcb33227b42e664a29e729eea12a5fbb"
+        "manifest.json": "a49b52a6c839ceac524bbf0d26ab12d5d130bae4289a840485e43bd9b8e209cc"
       }
     },
     "empty-core": {
@@ -108,16 +108,16 @@
         "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
         "js/device.js": "bec012625fc0e3fa3380322ecb7c518142111b6019e0af52012e62b4ad6d0537",
         "js/device.d.ts": "1d11f97b84a773bcce89b6ecc31ddc4654d924c932d4256603397c5f63d46dae",
-        "js/client.js": "7ff5475ef6ac24dc24f50226caf3c7680f79cdb84a1efc67ed278ba5c7cc2979",
-        "js/client.d.ts": "bdeb14083387324df722c68e0670a0771a20351d63b860d9e48372ad39a3e177",
+        "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+        "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
-        "ts/client.ts": "9e6670a9a4b847cecf0dc0a9f28e883b73924a270f4a10bceaa71c6002803cf2",
+        "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "19e6c032fc636ff8bc92a3f8fdc81d681d6644a8f1c823c718228bf153df93f7",
         "cpp/device_api/Metadata.hpp": "1a00b8eda0c6ad73dbf73666bd876e904a900dd01c21f4dbca89ac308d5063e9",
         "js/device.metadata.js": "809d308190ac777b58ece3eed99b7caafe733ef41dfa6874d992606ea8119c77",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "0f0fcbd9fb56fda3b29558a69da65c76add6ef0309274e13d680022380b16216",
-        "manifest.json": "2aae912e1656be65d8217e14d7207c19020a53e9bbd920de6831b01008c41dd3"
+        "manifest.json": "152992b970502fb1a877b4d6bb41dca0579601e879071b080000b4ada7cd3bc6"
       }
     },
     "mixed-qml": {
@@ -178,8 +178,8 @@
         "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
         "js/device.js": "5087b5339d377fef8c35decfc0d341f3fc2add0ce4e8140e42a8f3804d454285",
         "js/device.d.ts": "22ef9e06daf8ddf28f7ee4b8763f71cf93356506df6e1d3cbdb60ce3fdc47792",
-        "js/client.js": "7ff5475ef6ac24dc24f50226caf3c7680f79cdb84a1efc67ed278ba5c7cc2979",
-        "js/client.d.ts": "bdeb14083387324df722c68e0670a0771a20351d63b860d9e48372ad39a3e177",
+        "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+        "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "qml/DeviceApi.hpp": "85a696c2d19327e4b9c183d15c7522838f9e353f6f761ded0e1b45e7697bcfdd",
         "qml/DeviceApi.cpp": "5d1f171cd0a88e7b3ea4842cd4985a26526b91928b11780800d0d8543be4a799",
         "qml/QmlValues.hpp": "9ff02ce9e2ba2fd8e09ac8eb15ff1eda3180176aa6efcdd878729e5e2dfb4a49",
@@ -188,13 +188,13 @@
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
         "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
         "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
-        "ts/client.ts": "9e6670a9a4b847cecf0dc0a9f28e883b73924a270f4a10bceaa71c6002803cf2",
+        "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "473b9593997147a142f8b6fc58cd7eb759a65794b7bf1e8a8c70645742dfa5e7",
         "cpp/device_api/Metadata.hpp": "4699ef46df0883897d6e3a0bfea44f982e9048cd83e5b34ba71e89619d609696",
         "js/device.metadata.js": "57389832f54c7b2c84b2a3dee65bd0fd15f67e8e0b3aa5629ef37ee774dd2531",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "055b03b9957a8d4bbec8da0d7ecfa57e4204b29aaae05d4ea1a28fa8e5afa6f8",
-        "manifest.json": "bfab3ed3533597292393f759b6f70d41d87a8013ba413147b84a937b0bedb271"
+        "manifest.json": "dc9646bc5049618fb123f3a2be9cbe83314b01575f20f2a16207ba1cf94cb66e"
       }
     },
     "mixed-core": {
@@ -227,16 +227,16 @@
         "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
         "js/device.js": "5087b5339d377fef8c35decfc0d341f3fc2add0ce4e8140e42a8f3804d454285",
         "js/device.d.ts": "22ef9e06daf8ddf28f7ee4b8763f71cf93356506df6e1d3cbdb60ce3fdc47792",
-        "js/client.js": "7ff5475ef6ac24dc24f50226caf3c7680f79cdb84a1efc67ed278ba5c7cc2979",
-        "js/client.d.ts": "bdeb14083387324df722c68e0670a0771a20351d63b860d9e48372ad39a3e177",
+        "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+        "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
-        "ts/client.ts": "9e6670a9a4b847cecf0dc0a9f28e883b73924a270f4a10bceaa71c6002803cf2",
+        "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "473b9593997147a142f8b6fc58cd7eb759a65794b7bf1e8a8c70645742dfa5e7",
         "cpp/device_api/Metadata.hpp": "4699ef46df0883897d6e3a0bfea44f982e9048cd83e5b34ba71e89619d609696",
         "js/device.metadata.js": "57389832f54c7b2c84b2a3dee65bd0fd15f67e8e0b3aa5629ef37ee774dd2531",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "055b03b9957a8d4bbec8da0d7ecfa57e4204b29aaae05d4ea1a28fa8e5afa6f8",
-        "manifest.json": "a6dceaef4251da96cc1328f3bd2051ccb1b89555786e03b95637a46b8ce49346"
+        "manifest.json": "1fc541943152f1d6ac1b2da82e8b85074d85b7614bda115bdc599ad90639d817"
       }
     },
     "edge-qml": {
@@ -297,8 +297,8 @@
         "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
         "js/device.js": "566524f08f072ceef70ec95e4f978627f3cb6027ca3b49a588644ce1c73a88c9",
         "js/device.d.ts": "62500765e11b1b08fd3f658d4a715aa9bb6a02d6f297775f3cf1129ddbc4fb15",
-        "js/client.js": "7ff5475ef6ac24dc24f50226caf3c7680f79cdb84a1efc67ed278ba5c7cc2979",
-        "js/client.d.ts": "bdeb14083387324df722c68e0670a0771a20351d63b860d9e48372ad39a3e177",
+        "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+        "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "qml/DeviceApi.hpp": "ce268fe270375875c7b0ee5cf9cb085790724442a9f5c1de71e78a764ed42d8a",
         "qml/DeviceApi.cpp": "2ce89d77bb8bd418bdde13d3423f84d7b889818f9e194ad2de4d35ac48ae4360",
         "qml/QmlValues.hpp": "65b43e14b5908d7bf5b15b94e240105b2b11c31d28988eb1078ea3932502d2ec",
@@ -307,13 +307,13 @@
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
         "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
         "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
-        "ts/client.ts": "9e6670a9a4b847cecf0dc0a9f28e883b73924a270f4a10bceaa71c6002803cf2",
+        "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "ba145e4873976df659e34ace0dae4e02a6f3c8646a11a53bada18a731484edfb",
         "cpp/device_api/Metadata.hpp": "8bcc61546dbd68acfeef2d6c38cb8a5744b847fc812a8659847c452eea904156",
         "js/device.metadata.js": "8b4bb626f787249d5336ff8dae7d809f63430eb67c0a6aeb2ec820f07ec0a65f",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "5fca4b887c6590b2750464b9f88fcd9669a40dfa6b22d25263330ebd7ca642eb",
-        "manifest.json": "a7d5f76f9e65a05c716c5166a57c258f0ee2bbe0efcc10831bc7c10e5ecb6696"
+        "manifest.json": "2a52e3c31747254ca7e3abd1f62282287773f837d68739169312c57ffc96a432"
       }
     },
     "edge-core": {
@@ -346,17 +346,23 @@
         "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
         "js/device.js": "566524f08f072ceef70ec95e4f978627f3cb6027ca3b49a588644ce1c73a88c9",
         "js/device.d.ts": "62500765e11b1b08fd3f658d4a715aa9bb6a02d6f297775f3cf1129ddbc4fb15",
-        "js/client.js": "7ff5475ef6ac24dc24f50226caf3c7680f79cdb84a1efc67ed278ba5c7cc2979",
-        "js/client.d.ts": "bdeb14083387324df722c68e0670a0771a20351d63b860d9e48372ad39a3e177",
+        "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+        "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
-        "ts/client.ts": "9e6670a9a4b847cecf0dc0a9f28e883b73924a270f4a10bceaa71c6002803cf2",
+        "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "ba145e4873976df659e34ace0dae4e02a6f3c8646a11a53bada18a731484edfb",
         "cpp/device_api/Metadata.hpp": "8bcc61546dbd68acfeef2d6c38cb8a5744b847fc812a8659847c452eea904156",
         "js/device.metadata.js": "8b4bb626f787249d5336ff8dae7d809f63430eb67c0a6aeb2ec820f07ec0a65f",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "5fca4b887c6590b2750464b9f88fcd9669a40dfa6b22d25263330ebd7ca642eb",
-        "manifest.json": "553a92854729e702b7fef46b228094abe717febedb7de1298bf64e2f75d3b0bb"
+        "manifest.json": "af285202f92febc11002e8181bcdf23ad3b8c11a3545c3d26251dabf9da8ddef"
       }
     }
+  },
+  "runtime_commit": "70556bf3e19b83b2eec1b333009bd12e9d0a699b",
+  "runtime_sha256": {
+    "Client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
+    "Client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
+    "Client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61"
   }
 }
