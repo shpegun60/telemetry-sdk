@@ -4,6 +4,14 @@ The optional Encoded operation 5 uses the existing JS/TS `DeviceClient` FIFO.
 Generate the normal SDK with `--targets js --client-runtime`; scalar/open-enum
 Fields carry explicit eligibility metadata. No RuntimeSchema or UI is required.
 
+Host code can inspect discovered limits with
+`inspectReadManyCapability(bytes)` from `telemetry-sdk/client`. It returns an
+immutable `itemLimit`, `requestLimit`, `replyLimit`, `session` and `fingerprint`,
+or `undefined` for an invalid record. This pure function performs no I/O or
+admission. A long watchlist can plan successive bounded requests using those
+limits; `bindReadMany()` still validates each request against the current session,
+field types and complete byte budget. There is no atomic snapshot across chunks.
+
 ```ts
 import {DeviceClient, EncodedBackend, Status, ReadManyStatus}
     from './generated/js/client.js';

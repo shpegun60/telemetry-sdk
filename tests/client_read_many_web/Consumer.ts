@@ -3,11 +3,20 @@ import {
 	DeviceClient,
 	EncodedBackend,
 	Status,
+	inspectReadManyCapability,
 	type ReadManyItem,
 	type RequestPromise,
 	type ReadBinding
 } from './runtime/Client.js';
 import {scalar, extra, control, matchesHeader} from './sdk/device.js';
+
+const capacity = inspectReadManyCapability(new Uint8Array(24));
+if (capacity) {
+	const exact: bigint = capacity.fingerprint;
+	void exact;
+	// @ts-expect-error Planning metadata is immutable and does not grant admission.
+	capacity.itemLimit = 32;
+}
 
 const client = new DeviceClient({
 	backend : new EncodedBackend(
