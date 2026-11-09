@@ -166,8 +166,8 @@ FileView/iterator позичають descriptor table напряму, а не м
 таблицю; його `view/begin/end/operator[]` для rvalue відхилені.
 Не розіменовуйте end і не збільшуйте його далі.
 
-У Qt demo runtime facade
-[DeviceResources.hpp](../../app/resources/DeviceResources.hpp) надає
+У тестовому прикладі runtime facade
+[DeviceResources.hpp](../../tests/resources/fixtures/resources/DeviceResources.hpp) надає
 `device::resources::files()` із типом `resource::FileSystemView`.
 Transport/UI може перебрати цей view без telemetry templates:
 

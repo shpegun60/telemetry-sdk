@@ -3,7 +3,7 @@
 // Checks the application DeviceResources facade through its public resource protocol.
 // The consumer includes no telemetry API and validates listing plus both generated descriptor streams.
 
-#include "../../app/resources/DeviceResources.hpp"
+#include "fixtures/resources/DeviceResources.hpp"
 #include <array>
 #include <cstdio>
 #include <cstdlib>

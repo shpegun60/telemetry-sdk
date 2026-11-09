@@ -32,7 +32,7 @@
 [Mixed Encoded Batch](MixedBatchEncoded.md) ·
 [Mixed Batch host example](../examples/batch/README.md) ·
 [Qt/QML scalar Watchlist](ReadManyWatchlist.md) ·
-[Qt/QML Inspector example](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md) ·
+[Qt/QML Inspector example](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md) ·
 [NUCLEO-H7S3L8 UART/DMA](../examples/nucleo_h7s3l8/README.md) ·
 [SDK and UX roadmap](SdkUxRoadmap.md) ·
 [Усі приклади та build entry points](../examples/README.md)

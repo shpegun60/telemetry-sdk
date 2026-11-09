@@ -2,10 +2,11 @@
 
 Author: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 
-Choose an application here before selecting its build project. The repository's
-root `CMakeLists.txt` builds and installs the library, while `telemetry.pro`
-builds the separate [Qt Widgets playground](../app/README.md). The Universal
-Inspector has its own CMake project in `telemetry-ux/apps/inspector`.
+Choose an example here before selecting its build project. The repository's
+root `CMakeLists.txt` builds and installs the library. Ready-to-run windows live
+in Telemetry UX; the Universal Inspector has its own CMake project in
+`telemetry-ux/examples/inspector`. Application-specific Qt windows do not belong
+to the SDK.
 
 Run commands in each linked README from the Telemetry repository root unless
 that README explicitly changes directory. Put generated SDKs, build directories
@@ -25,8 +26,8 @@ required only by the examples that explicitly select them.
 | Read 1–32 selected scalar Fields in one Encoded operation | [ReadMany](read_many/README.md), `read_many/CMakeLists.txt` |
 | Compare individual, aggregate and Resource reads before ReadMany | [Read comparison](read_comparison/README.md), `read_comparison/CMakeLists.txt` |
 | Use a portable read-only model without Qt | [InspectorModel](inspector/README.md), `inspector/CMakeLists.txt` |
-| Open the Universal Inspector window | [Qt/QML Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md), `telemetry-ux/apps/inspector/CMakeLists.txt` |
-| Edit a Field and read back its applied value | [FieldWrite Workbench](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md#read-edit-write-and-refresh), same Qt/QML project; choose Writable demo |
+| Open the Universal Inspector window | [Qt/QML Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md), `telemetry-ux/examples/inspector/CMakeLists.txt` |
+| Edit a Field and read back its applied value | [FieldWrite Workbench](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md#read-edit-write-and-refresh), same Qt/QML project; choose Writable demo |
 | Connect that window to NUCLEO-H7S3L8 over UART/DMA | [Board firmware](nucleo_h7s3l8/README.md), `nucleo_h7s3l8/Build.ps1`; enable serial in the Inspector project |
 
 The Inspector starts with an in-process Demo device. TCP can also be exercised

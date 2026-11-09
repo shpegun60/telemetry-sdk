@@ -12,7 +12,7 @@
 Якщо ви пишете клієнт, а не firmware Model, оберіть
 [типізований DeviceClient](../AsyncClient.md) або
 [DynamicClient для runtime-схеми](../DynamicClientUsage.md).
-Для готового вікна починайте з [Qt/QML Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md),
+Для готового вікна починайте з [Qt/QML Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md),
 а для вибору build-проєкту — з [індексу прикладів](../../examples/README.md).
 Маршрут нижче присвячений інтеграції Model у власний застосунок.
 

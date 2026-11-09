@@ -25,7 +25,7 @@ def sources(cobs, ux, sdk):
     # The GUI consumes the installed SDK. Only the maintained board peer and
     # its private serial profile remain SDK source fixtures in this gate.
     for base, label, directories in ((ROOT, 'sdk-fixture/', (HERE,)),
-            (ux, 'ux/', (ux / 'apps/inspector',)),
+            (ux, 'ux/', (ux / 'examples/inspector',)),
             (cobs, 'COBS_ROOT/', (cobs / 'src',)),
             (sdk, 'installed-sdk/', (sdk,))):
         for directory in directories:
@@ -66,7 +66,7 @@ def main():
     parser.add_argument('--qt-prefix', type=Path, required=True)
     parser.add_argument('--cobs-root', type=Path, required=True)
     parser.add_argument('--ux-root', type=Path, required=True,
-                        help='External telemetry-ux checkout containing apps/inspector')
+                        help='External telemetry-ux checkout containing examples/inspector')
     parser.add_argument('--sdk-prefix', type=Path, required=True,
                         help='Installed Telemetry SDK; the GUI never builds SDK sources')
     parser.add_argument('--serial-prefix', type=Path)
@@ -78,7 +78,7 @@ def main():
     args = parser.parse_args()
     output, cobs = args.build_dir.resolve(), args.cobs_root.resolve()
     ux, sdk = args.ux_root.resolve(), args.sdk_prefix.resolve()
-    if not (ux / 'apps/inspector/CMakeLists.txt').is_file() or ux == ROOT:
+    if not (ux / 'examples/inspector/CMakeLists.txt').is_file() or ux == ROOT:
         parser.error('--ux-root must contain the external UX Inspector application')
     if not sdk.is_dir() or sdk == ROOT or ROOT in sdk.parents or sdk == ux or ux in sdk.parents:
         parser.error('--sdk-prefix must be an installed SDK outside both source repositories')

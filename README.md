@@ -12,19 +12,19 @@
 | Описати свій пристрій і викликати Field / Command / Service локально | [Перша інтеграція](doc/user/GettingStarted.md), [NativeOnly.cpp](examples/user_guide/NativeOnly.cpp) |
 | Віддалені виклики з відомими типами та Codec; Generated SDK необов'язковий | [Асинхронний DeviceClient](doc/AsyncClient.md) |
 | Віддалений клієнт для невідомих наперед структур | [RuntimeSchema](doc/RuntimeSchema.md) → [DynamicClient](doc/DynamicClientUsage.md) |
-| Запустити готовий універсальний GUI | [Qt/QML Inspector: Demo, TCP або UART](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md) |
-| Редагувати Field і прочитати застосоване значення | [FieldWrite Workbench: Writable demo та TCP](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md#read-edit-write-and-refresh) |
-| Виконати Command через універсальну форму аргументів | [Command Workbench: аргументи та Execute](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md#command-arguments-and-execute) |
-| Викликати Service і переглянути відповідь без Generated SDK | [Service Workbench: Request та Response](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md#service-requests-and-responses) |
+| Запустити готовий універсальний GUI | [Qt/QML Inspector: Demo, TCP або UART](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md) |
+| Редагувати Field і прочитати застосоване значення | [FieldWrite Workbench: Writable demo та TCP](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md#read-edit-write-and-refresh) |
+| Виконати Command через універсальну форму аргументів | [Command Workbench: аргументи та Execute](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md#command-arguments-and-execute) |
+| Викликати Service і переглянути відповідь без Generated SDK | [Service Workbench: Request та Response](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md#service-requests-and-responses) |
 | Виконати кілька Read / Write / Command / Service одним Encoded-запитом | [Mixed Batch: контракт і повтори](doc/MixedBatchEncoded.md), [готовий host-приклад](examples/batch/README.md) |
 | Порівняти читання окремих полів, aggregate Field та ValuesFile | [Вимірювальний приклад](examples/read_comparison/README.md) |
-| Підключити NUCLEO-H7S3L8 через UART/DMA | [Прошивка плати](examples/nucleo_h7s3l8/README.md), [serial-збірка Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md#nucleo-h7s3l8-through-st-link-serial) |
+| Підключити NUCLEO-H7S3L8 через UART/DMA | [Прошивка плати](examples/nucleo_h7s3l8/README.md), [serial-збірка Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md#nucleo-h7s3l8-through-st-link-serial) |
 | Підключити окремі модулі до CMake або qmake | [Модулі, залежності та build targets](doc/Modules.md) |
 
 [Усі приклади та їхні точки збирання](examples/README.md).
-`CMakeLists.txt` у корені збирає бібліотеку; `telemetry.pro` — окремий
-[Qt Widgets playground](app/README.md). Для Universal Inspector відкривайте
-`telemetry-ux/apps/inspector/CMakeLists.txt`.
+`CMakeLists.txt` у корені збирає бібліотеку. Вікна застосунків відділені від SDK.
+Для Universal Inspector відкривайте
+`telemetry-ux/examples/inspector/CMakeLists.txt`.
 
 [![CI](https://github.com/shpegun60/telemetry-sdk/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shpegun60/telemetry-sdk/actions/workflows/ci.yml)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)](lib/telemetry/README.md)
@@ -371,12 +371,11 @@ Client-only qmake підключає `lib/client/client.pri` із
 Результати перевірок і межі доказів зібрано в
 [RPC extensions qualification](doc/RpcExtensionsQualification.md).
 
-Qt playground: відкрийте [telemetry.pro](telemetry.pro) встановленим Qt 6
-MinGW kit. Він використовує симульовані дані; до приладу не підключається.
-Про known clangd issue і перевірений editor executable читайте
-[editor checks](tests/editor/README.md).
+Для власного Qt-застосунку використовуйте [ConnectionSession](doc/QtConnectionSession.md)
+і готові QML-компоненти Telemetry UX. SDK не збирає демонстраційне Widgets-вікно.
+Про перевірений editor executable читайте [editor checks](tests/editor/README.md).
 
-[Qt/QML Universal Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md) працює без
+[Qt/QML Universal Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md) працює без
 Generated SDK: дерево endpoint-ів, асинхронне читання Field, точні 64-бітні
 значення та порційний перегляд масивів. TCP-адаптер або optional UART/COBS-адаптер
 завантажує Descriptor через Resource і читає поля пристрою через Encoded.
@@ -412,7 +411,6 @@ objdump не є виміром cycles/live stack: [H7S qualification](tests/stru
 | `examples` | Native, resource, protocol та Qt/browser clients |
 | `doc/user` | Актуальний посібник користувача |
 | `tests` | Підтримувані checks та evidence |
-| `app` | Qt playground |
 
 Власний код — [MIT](LICENSE). Included dependencies мають свої незмінені
 ліцензії: [Boost.PFR](lib/boost_pfr/VERSION.md) — BSL-1.0,

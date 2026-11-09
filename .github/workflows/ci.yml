@@ -900,7 +900,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: shpegun60/telemetry-ux
-          ref: a336b8c2984d5adf235b0791b545a37d3da3cc8b
+          ref: 1f6856b8a7cb8a7e67d4807d29a26fa326bacf2b
           path: .ci/telemetry-ux
       - name: Relocated CMake, packed ESM and installed Python consumers
         if: matrix.mode == 'release'
@@ -1218,7 +1218,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: shpegun60/telemetry-ux
-          ref: a336b8c2984d5adf235b0791b545a37d3da3cc8b
+          ref: 1f6856b8a7cb8a7e67d4807d29a26fa326bacf2b
           path: .ci/telemetry-ux
       - name: Install current core and pinned UX generator wheels outside checkouts
         run: |
@@ -1318,7 +1318,7 @@ jobs:
           if-no-files-found: error
 
   qt:
-    name: Qt playground
+    name: Qt module selections
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -1329,14 +1329,6 @@ jobs:
           node-version: '22'
       - name: Install Qt
         run: sudo apt-get update && sudo apt-get install -y qt6-base-dev
-      - name: Build
-        run: |
-          mkdir -p build/qt
-          cd build/qt
-          qmake6 ../../telemetry.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror
-          make -j2
-      - name: Startup check
-        run: build/qt/telemetry_playground -platform offscreen --smoke-test
       - name: Independent resource qmake configurations
         run: python3 tests/structured/resources/run_qmake.py --qmake qmake6 --build-dir build/resource-qmake
       - name: Optional ReadMany qmake selections and include ordering

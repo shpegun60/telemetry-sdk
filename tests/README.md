@@ -6,7 +6,7 @@ actual local close fences and native Encoded parity over the existing FIFO.
 
 The active checks use the final C++20 telemetry API. Core tests do not require
 Qt. The resource, protocol and client suites have separate runners; the CI
-matrix also builds Cortex-M7 objects and the Qt playground and client.
+matrix also builds Cortex-M7 objects and the optional Qt transport and client modules.
 
 The UX-owned [Qt/QML generator suite](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/tests/codegen_qml/README.md) executes the optional Qt
 module in a real QML runtime, with native Encoded operations, existing RpcClient

@@ -106,11 +106,12 @@ Encoded dispatcher. Its values are demonstration data, not live board readings.
 The [host suite](../tests/inspector/README.md) checks the same model contracts
 through Encoded and RPC.
 
-For a ready-to-run interface, use the [Qt/QML Universal Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md).
+For a ready-to-run interface, use the [Qt/QML Universal Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md).
 It provides the device tree, selected-Field viewer, local demo, TCP discovery and
 optional COBS/UART connection. Qt models, connection policy and the executable
 stay in that application; this portable component remains independent of Qt.
-The root `telemetry.pro` builds a separate Qt Widgets playground.
+The SDK root builds library components; Qt application windows live in UX or
+in the consuming application's project.
 
 The [NUCLEO-H7S3L8 example](../examples/nucleo_h7s3l8/README.md) supplies the
 matching read-only UART device. Its [published hardware evidence](evidence/inspector-serial-h7s-2026-10-28/README.md)

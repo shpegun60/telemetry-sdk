@@ -78,7 +78,8 @@ def main():
         # that consumer separately to catch real provider composition errors.
         device = out / ('DeviceCheck' + ('.exe' if os.name == 'nt' else ''))
         run(flags + ['-O2', ROOT / 'tests/resources/DeviceCheck.cpp',
-                     ROOT / 'app/resources/DeviceResources.cpp', ROOT / 'app/demo/DemoCatalog.cpp',
+                     ROOT / 'tests/resources/fixtures/resources/DeviceResources.cpp',
+                     ROOT / 'tests/resources/fixtures/demo/DemoCatalog.cpp',
                      ROOT / 'lib/telemetry/model/Adapter.cpp',
                      ROOT / 'lib/telemetry/abi/StructuredAbi.cpp', READER, PROTOCOL, '-o', device],
             'build-device-facade')
