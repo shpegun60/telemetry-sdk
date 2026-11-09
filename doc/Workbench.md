@@ -169,7 +169,7 @@ device value.
 `SnapshotBytes` independently bounds the read snapshot. Only Workbench pays for
 the draft, committed request, Writer and Apply completion storage. There are
 no dynamic allocations, virtual interfaces or additional FIFO in these classes.
-The [Qt example](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md#read-edit-write-and-refresh)
+The [Qt example](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md#read-edit-write-and-refresh)
 provides the complete runnable GUI workflow.
 
 ## Apply results

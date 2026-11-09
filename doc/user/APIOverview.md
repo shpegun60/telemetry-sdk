@@ -28,7 +28,7 @@ Descriptor/Values — окремі providers, які додаються за п�
 | --- | --- |
 | Відомі DTO та Codec, асинхронні виклики через Encoded або RPC | [DeviceClient](../AsyncClient.md); Generated SDK необов'язковий |
 | Типи й endpoints отримано з Descriptor під час роботи | [DynamicClient](../DynamicClientUsage.md), [RuntimeSchema](../RuntimeSchema.md) |
-| Готовий read-only GUI для невідомого пристрою | [Qt/QML Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md) |
+| Готовий read-only GUI для невідомого пристрою | [Qt/QML Inspector](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md) |
 | Потрібен лише низькорівневий RPC packet engine | [RpcClient](../RpcClientV1.md) |
 
 На сервері [RpcSessionPool](../RpcSessionsV1.md) керує N окремими mailbox-ами.

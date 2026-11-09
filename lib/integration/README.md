@@ -42,7 +42,7 @@ The TCP component contains no socket implementation. The reusable Qt serial
 adapter belongs to the optional SDK components described in
 [Qt transport](../../doc/QtTransport.md). Socket implementations, serial-port
 selection and GUI controllers belong to the application; maintained
-examples are [Inspector QML](https://github.com/shpegun60/telemetry-ux/blob/main/apps/inspector/README.md),
+examples are [Inspector QML](https://github.com/shpegun60/telemetry-ux/blob/main/examples/inspector/README.md),
 [COBS integration](../../examples/cobs_integration/README.md) and
 [NUCLEO-H7S3L8](../../examples/nucleo_h7s3l8/README.md).
 

@@ -1,8 +1,8 @@
 /*
- * Advance the simulated measurements displayed by the Qt playground.
+ * Advance the simulated measurements used by Resource facade checks.
  *
- * Keep changing sample state separate from the endpoint definitions. The GUI
- * timer calls advance() serially, so readers and commands observe ordinary
+ * Keep changing sample state separate from the endpoint definitions. The test
+ * consumer calls advance() serially, so readers and commands observe ordinary
  * application objects without an internal synchronization layer.
  *
  * Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.

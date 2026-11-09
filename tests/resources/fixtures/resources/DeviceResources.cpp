@@ -3,7 +3,7 @@
  * @brief Runtime facade for the demo's v3 descriptor and live values.
  * @author Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
  *
- * Build descriptor bytes and a live values provider for the Qt playground.
+ * Build descriptor bytes and a live values provider for facade tests.
  * Static owners and model-sized scratch give the generic facade stable
  * bindings without a separate initialization phase.
  */

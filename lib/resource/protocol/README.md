@@ -135,7 +135,7 @@ A runnable in-process transport example is
 [ResourceClient.cpp](../../../examples/user_guide/ResourceClient.cpp).
 
 See [tests](../../../tests/resources/README.md) and the small
-[application facade](../../../app/resources/DeviceResources.hpp).
+[application facade fixture](../../../tests/resources/fixtures/resources/DeviceResources.hpp).
 
 The C++ API lives in `resource::protocol`. Users of the former global
 `resource_protocol` spelling must update their calls and rebuild

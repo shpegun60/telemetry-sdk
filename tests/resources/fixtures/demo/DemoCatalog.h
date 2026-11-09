@@ -1,5 +1,5 @@
 /*
- * Native demo types and stable bindings for the Qt playground.
+ * Native test types and stable bindings for Resource facade checks.
  *
  * Make application validation visible beside ordinary C++ getters and setters.
  * Inline owners outlive the tables that borrow them; reflected member shapes
