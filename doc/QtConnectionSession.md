@@ -168,6 +168,12 @@ rejected. Replies remain within the capability, 65535-byte wire limit and owned
 transport buffers. `HostWorkbench` explicitly selects 1536 callback bytes for
 the copied 32-item binding and small host callable; portable defaults are intact.
 
+Use a matching SDK/UX pair for this optional Qt integration. Native adapters
+that explicitly instantiate `WorkbenchModel`/`WorkbenchView` must use this host
+callback budget too; older UX adapters hard-code 768 bytes and are not compatible
+with the 1536-byte host type. Applications using `ConnectionSession` and the
+matching `QtConnectionBinding::createProvider()` do not manage this budget.
+
 A rejected submission preserves editor, snapshot and pending state. An accepted
 mutating Batch retires the owner's old snapshots/editor under the same native
 publication guard. `dataInvalidated()` then lets sibling presentation views
