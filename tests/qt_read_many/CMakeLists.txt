@@ -1,3 +1,4 @@
+# Installed optional TCP/Qt ReadMany profile and session consumers. MIT.
 cmake_minimum_required(VERSION 3.21)
 project(InstalledQtReadMany LANGUAGES CXX)
 find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS qt_connection tcp_server)
