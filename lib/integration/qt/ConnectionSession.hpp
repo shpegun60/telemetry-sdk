@@ -41,6 +41,7 @@ public:
 	bool busy() const noexcept;
 	bool readManySupported() const noexcept;
 	std::optional<read_many::wire::Capability> readManyCapability() const noexcept;
+
 	// Snapshot-preserving operations over the same Workbench/FIFO. Result views
 	// borrow storage only during callback; accepted callbacks retain that storage
 	// through Session retirement. These guards never advance process().
@@ -48,8 +49,8 @@ public:
 	client::Submission readMany(std::span<const std::uint32_t> ids, F&& callback,
 	                            std::uint32_t timeoutMs = 30000) noexcept
 	{
-		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&,
-		                                         const read_many::ReadManyResult&>);
+		static_assert(
+		    std::is_nothrow_invocable_v<std::decay_t<F>&, const read_many::ReadManyResult&>);
 		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
 		client::Status status;
 		auto owner = operationStorage(status);
@@ -62,21 +63,24 @@ public:
 		if constexpr (std::is_pointer_v<std::decay_t<F>>)
 			if (!callback)
 				return {client::Status::InvalidArgument, {}};
-		const auto binding = read_many::bindReadMany(owner->inspector, owner->backend,
-		                                              *owner->readMany, ids);
+		const auto binding =
+		    read_many::bindReadMany(owner->inspector, owner->backend, *owner->readMany, ids);
 		if (!binding)
 			return {binding.status, {}};
-		return read_many::readMany(owner->inspector, binding.binding,
+		return read_many::readMany(
+		    owner->inspector, binding.binding,
 		    [owner, callable = std::forward<F>(callback)](
-		        const read_many::ReadManyResult& result) mutable noexcept { callable(result); },
+		        const read_many::ReadManyResult& result) mutable noexcept {
+			    callable(result);
+		    },
 		    timeoutMs);
 	}
+
 	template<class F>
 	client::Submission readFieldValue(std::uint32_t id, F&& callback,
 	                                  std::uint32_t timeoutMs = 30000) noexcept
 	{
-		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&,
-		                                         const dynamic::DynamicResult&>);
+		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&, const dynamic::DynamicResult&>);
 		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
 		client::Status status;
 		auto owner = operationStorage(status);
@@ -90,11 +94,15 @@ public:
 		const auto binding = owner->inspector.bindField(id);
 		if (!binding)
 			return {binding.status, {}};
-		return read_many::readFieldValue(owner->inspector, binding.endpoint,
+		return read_many::readFieldValue(
+		    owner->inspector, binding.endpoint,
 		    [owner, callable = std::forward<F>(callback)](
-		        const dynamic::DynamicResult& result) mutable noexcept { callable(result); },
+		        const dynamic::DynamicResult& result) mutable noexcept {
+			    callable(result);
+		    },
 		    timeoutMs);
 	}
+
 	std::shared_ptr<ConnectionStorage> storage() const;
 	HostWorkbench* workbench() const;
 	// Useful when one host also admits other explicit transport profiles. It

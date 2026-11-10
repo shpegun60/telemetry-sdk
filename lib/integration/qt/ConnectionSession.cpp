@@ -129,7 +129,8 @@ struct ConnectionSession::Impl {
 				     static_cast<std::size_t>(bytes.size())});
 				if (!parsed || parsed.value.session != lastSession + 1 ||
 				    parsed.value.fingerprint != candidate->schema.fingerprint())
-					failure = QStringLiteral("ReadMany capability does not match the requested session and Descriptor");
+					failure = QStringLiteral(
+					    "ReadMany capability does not match the requested session and Descriptor");
 				else
 					candidate->readMany = parsed.value;
 			}
@@ -364,7 +365,8 @@ std::optional<read_many::wire::Capability> ConnectionSession::readManyCapability
 	return readManySupported() ? d->current->readMany : std::nullopt;
 }
 
-std::shared_ptr<ConnectionStorage> ConnectionSession::operationStorage(client::Status& status) const noexcept
+std::shared_ptr<ConnectionStorage>
+ConnectionSession::operationStorage(client::Status& status) const noexcept
 {
 	Q_ASSERT(thread() == QThread::currentThread());
 	if (d->terminal)

@@ -71,8 +71,9 @@ public:
 			return sessionIndex_ ? rc::makeWrite(output, *sessionIndex_, 0, bytes, true)
 			                     : rc::BuildResult{rc::BuildStatus::BufferTooSmall, 0};
 		}
-		const auto index = checkingSession_ ? sessionIndex_
-		                 : readingCapability_ ? capabilityIndex_ : index_;
+		const auto index = checkingSession_     ? sessionIndex_
+		                   : readingCapability_ ? capabilityIndex_
+		                                        : index_;
 		if (!index)
 			return {rc::BuildStatus::BufferTooSmall, 0};
 		return operation_ == Op::Stat ? rc::makeStat(output, *index)
@@ -118,8 +119,8 @@ public:
 			cursor_ = reply.response.next;
 			if (reply.response.eof) {
 				if (!index_ || (requireReadMany_ && !capabilityIndex_) ||
-				    (optionalReadMany_ && (!requestedSession_ ||
-				                          bool(capabilityIndex_) != bool(sessionIndex_))))
+				    (optionalReadMany_ &&
+				     (!requestedSession_ || bool(capabilityIndex_) != bool(sessionIndex_))))
 					return false;
 				operation_ = Op::Stat;
 			}
@@ -183,10 +184,12 @@ public:
 					size_ = 0;
 				} else {
 					if (readingCapability_) {
-						const auto parsed = telemetry::protocol::encoded::read_many::parseCapability(
-						    {reinterpret_cast<const std::byte*>(capability_.constData()),
-						     static_cast<std::size_t>(capability_.size())});
-						if (!parsed || (optionalReadMany_ && parsed.value.session != requestedSession_))
+						const auto parsed =
+						    telemetry::protocol::encoded::read_many::parseCapability(
+						        {reinterpret_cast<const std::byte*>(capability_.constData()),
+						         static_cast<std::size_t>(capability_.size())});
+						if (!parsed ||
+						    (optionalReadMany_ && parsed.value.session != requestedSession_))
 							return false;
 					}
 					complete_ = true;
@@ -195,7 +198,8 @@ public:
 		} else if (operation_ == Op::Write && writingSession_) {
 			const auto reply = rc::parseWrite(bytes, 4);
 			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
-			    reply.response.consumed != 4 || !reply.response.complete || reply.response.next != 4)
+			    reply.response.consumed != 4 || !reply.response.complete ||
+			    reply.response.next != 4)
 				return false;
 			writingSession_ = false;
 			readingCapability_ = true;

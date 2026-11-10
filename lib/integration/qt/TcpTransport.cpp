@@ -163,7 +163,8 @@ struct TcpTransport::Impl {
 
 	void bootstrap()
 	{
-		if (phase != Phase::List && phase != Phase::Stat && phase != Phase::Read && phase != Phase::Write)
+		if (phase != Phase::List && phase != Phase::Stat && phase != Phase::Read &&
+		    phase != Phase::Write)
 			return;
 		if (awaiting || !tx.isEmpty()) {
 			scheduleBootstrap(1);
@@ -234,11 +235,11 @@ struct TcpTransport::Impl {
 	{
 		if (!discovery.accept(bytes))
 			return false;
-		phase = discovery.complete()                ? Phase::Encoded
-		        : discovery.operation() == Op::List ? Phase::List
-		        : discovery.operation() == Op::Stat ? Phase::Stat
+		phase = discovery.complete()                 ? Phase::Encoded
+		        : discovery.operation() == Op::List  ? Phase::List
+		        : discovery.operation() == Op::Stat  ? Phase::Stat
 		        : discovery.operation() == Op::Write ? Phase::Write
-		                                            : Phase::Read;
+		                                             : Phase::Read;
 		return true;
 	}
 
@@ -327,11 +328,13 @@ void TcpTransport::connectTo(const QString& host, quint16 port)
 	impl_->connectProfile(host, port, 0);
 }
 
-void TcpTransport::connectToWithReadMany(const QString& host, quint16 port, quint32 requestedSession)
+void TcpTransport::connectToWithReadMany(const QString& host, quint16 port,
+                                         quint32 requestedSession)
 {
 	if (!requestedSession) {
 		impl_->close();
-		Q_EMIT transportError(QStringLiteral("Optional ReadMany discovery requires a nonzero session"));
+		Q_EMIT transportError(
+		    QStringLiteral("Optional ReadMany discovery requires a nonzero session"));
 		return;
 	}
 	impl_->connectProfile(host, port, requestedSession);
