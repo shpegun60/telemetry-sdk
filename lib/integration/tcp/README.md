@@ -65,3 +65,13 @@ telemetry::integration::tcp::Server server(model.view(), workspace, files.view()
 
 CMake links `Telemetry::tcp_server`. qmake includes `tcp.pri` explicitly.
 See the maintained [host tests](../../../tests/tcp_stream/README.md).
+
+For explicit TRM1 and TBM1 discovery together, select
+`Telemetry::tcp_encoded_profile` and include `EncodedProfile.hpp` before creating
+the optional Server constructor. qmake selects `telemetry_tcp_encoded_profile`
+or includes `tcp_encoded_profile.pri`. One Resource session WRITE binds both
+capabilities; op5 routes ReadMany and op6 routes Mixed Batch using that same
+session and replay guard. `ReadManyProfile` keeps its previous read-only profile.
+The legacy constructors do not acquire Batch link roots. See
+[Qt connection](../../../doc/QtConnectionSession.md#optional-mixed-batch) and
+[installed consumer tests](../../../tests/qt_batch/README.md).

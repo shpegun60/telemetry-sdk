@@ -22,7 +22,9 @@ public:
 	void connectTo(const QString& host, quint16 port);
 	// Explicit optional named profile, preserving the original carrier method.
 	void connectToWithReadMany(const QString& host, quint16 port, quint32 requestedSession);
+	void connectToWithEncoded(const QString& host, quint16 port, quint32 requestedSession);
 	QByteArray readManyCapability() const;
+	QByteArray batchCapability() const;
 	void close() override;
 	bool ready() const noexcept override;
 	bool canStage() const noexcept override;

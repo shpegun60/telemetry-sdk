@@ -1254,6 +1254,10 @@ jobs:
         run: |
           python3 -B tests/qt_read_many/run.py --build-dir "$RUNNER_TEMP/qt-read-many" \
             --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
+      - name: Sanitized installed TCP and Qt Mixed Batch session
+        run: |
+          python3 -B tests/qt_batch/run.py --build-dir "$RUNNER_TEMP/qt-batch" \
+            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Install the current SDK for cross-repository Qt consumers
         run: |
           cmake -S . -B "$RUNNER_TEMP/ux-sdk-build" -G Ninja \
@@ -1314,6 +1318,7 @@ jobs:
             ${{ runner.temp }}/inspector-serial/
             ${{ runner.temp }}/qt-transport-packages/
             ${{ runner.temp }}/qt-read-many/
+            ${{ runner.temp }}/qt-batch/
             ${{ runner.temp }}/nucleo-host/
             ${{ runner.temp }}/read-many-serial/
             ${{ runner.temp }}/read-comparison-gcc/

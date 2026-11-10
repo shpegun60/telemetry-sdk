@@ -57,10 +57,12 @@ They do not own a request FIFO; asynchronous JS/TS operations use `lib/client/we
 | Runtime client | `integration/dynamic/DynamicClient.hpp` | `telemetry::integration::dynamic` |
 | Optional ReadMany | `integration/read_many/Client.hpp` | `telemetry::integration::read_many` |
 | Optional Mixed Batch client | `integration/batch/Client.hpp` | `telemetry::integration::batch` |
+| Optional Mixed Batch Workbench bridge | `integration/batch/Workbench.hpp` | `telemetry::integration::batch` |
 | Optional Mixed Batch server | `integration/encoded/BatchDispatcher.hpp` | `telemetry::integration::encoded` |
 | Read-only Inspector Model | `integration/inspector/InspectorModel.hpp` | `telemetry::integration::inspector` |
 | FieldWrite, Command and Service Workbench | `integration/workbench/WorkbenchModel.hpp` | `telemetry::integration::workbench` |
 | Native TCP framing/server | `integration/tcp/Server.hpp` | `telemetry::integration::tcp` |
+| Optional combined TCP capabilities | `integration/tcp/EncodedProfile.hpp` | `telemetry::integration::tcp` |
 | Optional Qt transport/bootstrap | `integration/qt/DeviceTransport.hpp`, `DescriptorBootstrap.hpp` | `telemetry::integration::qt` |
 | Optional Qt UART transport | `integration/qt/SerialTransport.hpp` | `telemetry::integration::qt` |
 
@@ -95,7 +97,8 @@ target_link_libraries(application PRIVATE Telemetry::core)
 Available components are `core`, `runtime`, `resource`, `resource_protocol`, `client`,
 `codec`, `resource_adapter`, `encoded_server`, `rpc_server`, `rpc_sessions`,
 `encoded_backend`, `rpc_client`, `rpc_backend`, `dynamic_client`, `read_many_client`, `read_many_static_client`, `batch_client`, `batch_static_client`, `batch_server`, `inspector`, `workbench`, `read_many_workbench` and
-`tcp_server`, `qt_transport` and `qt_serial_transport`. Shared header components
+`tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `qt_connection`,
+`qt_tcp_transport`, `qt_transport` and `qt_serial_transport`. Shared header components
 `common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire` and `rpc_wire`
 are selected automatically as needed. Multiple components use a semicolon list.
 The native RPC engine is `rpc_client`; its DeviceClient adapter is `rpc_backend`.

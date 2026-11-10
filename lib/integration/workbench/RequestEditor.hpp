@@ -277,6 +277,39 @@ public:
 		return {runtime::Status::Ok, bytes};
 	}
 
+	// Capture canonical staging without consuming the writer or changing dirty.
+	// Both refusals and successful captures preserve the editor and source.
+	[[nodiscard]] runtime::Result<std::uint32_t>
+	copyDraft(std::span<std::byte> output) const noexcept
+	{
+		if (!current())
+			return {runtime::Status::Stale, 0};
+		if (identity_.type != 0 && writer_.status() != runtime::Status::Ok)
+			return {writer_.status(), 0};
+		if (output.size() < identity_.bytes)
+			return {runtime::Status::Capacity, 0};
+		const auto target = output.first(identity_.bytes);
+		const auto original = source_->bytes();
+		if (runtime::writer_detail::overlaps(target, draft_) ||
+		    runtime::writer_detail::overlaps(target, request_) ||
+		    runtime::writer_detail::overlaps(target, runtime::writer_detail::objectBytes(*this)) ||
+		    runtime::writer_detail::overlaps(target,
+		                                     runtime::writer_detail::objectBytes(*source_)) ||
+		    runtime::writer_detail::overlaps(target,
+		                                     runtime::writer_detail::objectBytes(schema_)) ||
+		    runtime::writer_detail::overlapsSchema(schema_, target) ||
+		    (original && runtime::writer_detail::overlaps(target, original.value)))
+			return {runtime::Status::Overlap, 0};
+		const runtime::Input bytes = runtime::Input{draft_}.first(identity_.bytes);
+		if (identity_.type != 0) {
+			const auto validated = schema_.view(identity_.type, bytes);
+			if (!validated)
+				return {validated.status, 0};
+		}
+		std::copy(bytes.begin(), bytes.end(), target.begin());
+		return {runtime::Status::Ok, static_cast<std::uint32_t>(identity_.bytes)};
+	}
+
 	[[nodiscard]] runtime::Status rearm() noexcept
 	{
 		if (!current())
