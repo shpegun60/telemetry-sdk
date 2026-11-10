@@ -135,6 +135,20 @@ struct ConnectionSession::Impl {
 					candidate->readMany = parsed.value;
 			}
 		}
+		if (failure.isEmpty()) {
+			const auto bytes = transport->batchCapability();
+			if (!bytes.isEmpty()) {
+				const auto parsed = batch::wire::parseCapability(
+				    {reinterpret_cast<const std::byte*>(bytes.constData()),
+				     static_cast<std::size_t>(bytes.size())});
+				if (!parsed || parsed.value.session != lastSession + 1 ||
+				    parsed.value.fingerprint != candidate->schema.fingerprint())
+					failure = QStringLiteral(
+					    "Batch capability does not match the requested session and Descriptor");
+				else
+					candidate->batch = parsed.value;
+			}
+		}
 		if (failure.isEmpty() && retired) {
 			// This named server profile serializes each client and completes old
 			// native work before allowing the next full Resource transcript. TCP
@@ -202,6 +216,24 @@ ConnectionSession::ConnectionSession(QObject* parent)
           },
           parent)
 {}
+
+ConnectionSession::SubmissionScope::SubmissionScope(ConnectionSession& owner) noexcept
+    : state(owner.d)
+{
+	state->working = state->nativeActive = true;
+}
+
+ConnectionSession::SubmissionScope::~SubmissionScope()
+{
+	state->nativeActive = false;
+	if (mutation && state->owner)
+		Q_EMIT state->owner->dataInvalidated();
+	state->working = false;
+	if (state->closeRequested || !state->owner)
+		state->retire();
+	else
+		state->notify();
+}
 
 ConnectionSession::ConnectionSession(StorageFactory factory, QObject* parent)
     : QObject(parent), d(std::make_shared<Impl>(*this, std::move(factory)))
@@ -307,7 +339,7 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 		    }
 	    },
 	    Qt::QueuedConnection);
-	state->transport->connectToWithReadMany(normalized, inputPort, state->lastSession + 1);
+	state->transport->connectToWithEncoded(normalized, inputPort, state->lastSession + 1);
 	state->working = false;
 	state->notify();
 	return true;
@@ -363,6 +395,16 @@ bool ConnectionSession::readManySupported() const noexcept
 std::optional<read_many::wire::Capability> ConnectionSession::readManyCapability() const noexcept
 {
 	return readManySupported() ? d->current->readMany : std::nullopt;
+}
+
+bool ConnectionSession::batchSupported() const noexcept
+{
+	return ready() && bool(d->current->batch);
+}
+
+std::optional<batch::wire::Capability> ConnectionSession::batchCapability() const noexcept
+{
+	return batchSupported() ? d->current->batch : std::nullopt;
 }
 
 std::shared_ptr<ConnectionStorage>

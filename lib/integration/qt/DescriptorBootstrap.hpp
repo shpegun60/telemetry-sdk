@@ -11,6 +11,7 @@
 #include <resource/protocol/Packets.hpp>
 #include <telemetry/type/WireTypes.hpp>
 #include <wire/ReadManyWire.hpp>
+#include <wire/BatchWire.hpp>
 #include <QtCore/QByteArray>
 #include <limits>
 #include <optional>
@@ -32,6 +33,12 @@ public:
 		reset();
 		optionalReadMany_ = true;
 		requestedSession_ = requestedSession;
+	}
+
+	void resetOptionalEncoded(std::uint32_t requestedSession)
+	{
+		resetOptionalReadMany(requestedSession);
+		optionalBatch_ = true;
 	}
 
 	resource::protocol::Op operation() const noexcept
@@ -56,6 +63,11 @@ public:
 		return capability_;
 	}
 
+	const QByteArray& batchCapability() const noexcept
+	{
+		return batchCapability_;
+	}
+
 	resource::protocol::client::BuildResult request(std::span<std::byte> output) const noexcept
 	{
 		namespace rc = resource::protocol::client;
@@ -72,7 +84,7 @@ public:
 			                     : rc::BuildResult{rc::BuildStatus::BufferTooSmall, 0};
 		}
 		const auto index = checkingSession_     ? sessionIndex_
-		                   : readingCapability_ ? capabilityIndex_
+		                   : readingCapability_ ? (readingBatch_ ? batchIndex_ : capabilityIndex_)
 		                                        : index_;
 		if (!index)
 			return {rc::BuildStatus::BufferTooSmall, 0};
@@ -112,6 +124,11 @@ public:
 						return false;
 					sessionIndex_ = static_cast<resource::FileIndex>(index);
 				}
+				if (optionalBatch_ && path == "/telemetry/batch.bin") {
+					if (batchIndex_)
+						return false;
+					batchIndex_ = static_cast<resource::FileIndex>(index);
+				}
 				++index;
 			}
 			if (!reply.response.eof && reply.response.next == cursor_)
@@ -120,7 +137,8 @@ public:
 			if (reply.response.eof) {
 				if (!index_ || (requireReadMany_ && !capabilityIndex_) ||
 				    (optionalReadMany_ &&
-				     (!requestedSession_ || bool(capabilityIndex_) != bool(sessionIndex_))))
+				     (!requestedSession_ ||
+				      bool(capabilityIndex_ || batchIndex_) != bool(sessionIndex_))))
 					return false;
 				operation_ = Op::Stat;
 			}
@@ -145,7 +163,8 @@ public:
 			                          reply.response.size > telemetry::Limits::maxDescriptorBytes))
 				return false;
 			size_ = reply.response.size;
-			auto& destination = readingCapability_ ? capability_ : descriptor_;
+			auto& destination =
+			    readingCapability_ ? (readingBatch_ ? batchCapability_ : capability_) : descriptor_;
 			destination.reserve(static_cast<qsizetype>(size_));
 			cursor_ = 0;
 			cursorOnlyReads_ = 0;
@@ -154,7 +173,8 @@ public:
 			const auto reply = rc::parseRead(bytes);
 			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok)
 				return false;
-			auto& destination = readingCapability_ ? capability_ : descriptor_;
+			auto& destination =
+			    readingCapability_ ? (readingBatch_ ? batchCapability_ : capability_) : descriptor_;
 			const auto received = static_cast<resource::FileSize>(destination.size());
 			const auto count = reply.response.data.size();
 			const auto next = reply.response.next;
@@ -172,7 +192,7 @@ public:
 				                   static_cast<qsizetype>(count));
 			cursor_ = next;
 			if (reply.response.eof) {
-				if (!readingCapability_ && optionalReadMany_ && capabilityIndex_) {
+				if (!readingCapability_ && optionalReadMany_ && (capabilityIndex_ || batchIndex_)) {
 					checkingSession_ = true;
 					operation_ = Op::Stat;
 					cursor_ = 0;
@@ -184,13 +204,29 @@ public:
 					size_ = 0;
 				} else {
 					if (readingCapability_) {
-						const auto parsed =
-						    telemetry::protocol::encoded::read_many::parseCapability(
-						        {reinterpret_cast<const std::byte*>(capability_.constData()),
-						         static_cast<std::size_t>(capability_.size())});
-						if (!parsed ||
-						    (optionalReadMany_ && parsed.value.session != requestedSession_))
-							return false;
+						const auto& bytes = readingBatch_ ? batchCapability_ : capability_;
+						const std::span<const std::byte> input{
+						    reinterpret_cast<const std::byte*>(bytes.constData()),
+						    static_cast<std::size_t>(bytes.size())};
+						if (readingBatch_) {
+							const auto parsed =
+							    telemetry::protocol::encoded::batch::parseCapability(input);
+							if (!parsed || parsed.value.session != requestedSession_)
+								return false;
+						} else {
+							const auto parsed =
+							    telemetry::protocol::encoded::read_many::parseCapability(input);
+							if (!parsed ||
+							    (optionalReadMany_ && parsed.value.session != requestedSession_))
+								return false;
+						}
+						if (!readingBatch_ && batchIndex_) {
+							readingBatch_ = true;
+							operation_ = Op::Stat;
+							cursor_ = 0;
+							size_ = 0;
+							return true;
+						}
 					}
 					complete_ = true;
 				}
@@ -203,6 +239,7 @@ public:
 				return false;
 			writingSession_ = false;
 			readingCapability_ = true;
+			readingBatch_ = !capabilityIndex_;
 			operation_ = Op::Stat;
 			cursor_ = 0;
 			size_ = 0;
@@ -213,14 +250,15 @@ public:
 	}
 
 private:
-	QByteArray descriptor_, capability_;
-	std::optional<resource::FileIndex> index_, capabilityIndex_, sessionIndex_;
+	QByteArray descriptor_, capability_, batchCapability_;
+	std::optional<resource::FileIndex> index_, capabilityIndex_, batchIndex_, sessionIndex_;
 	resource::Cursor cursor_ = 0;
 	resource::FileSize size_ = 0;
 	unsigned pages_ = 0, cursorOnlyReads_ = 0;
 	resource::protocol::Op operation_ = resource::protocol::Op::List;
 	bool complete_ = false, requireReadMany_ = false, readingCapability_ = false;
 	bool optionalReadMany_ = false, checkingSession_ = false, writingSession_ = false;
+	bool optionalBatch_ = false, readingBatch_ = false;
 	std::uint32_t requestedSession_ = 0;
 };
 } // namespace telemetry::integration::qt

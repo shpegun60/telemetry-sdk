@@ -11,6 +11,7 @@
 #include <integration/encoded/Backend.hpp>
 #include <integration/workbench/WorkbenchModel.hpp>
 #include <wire/ReadManyWire.hpp>
+#include <wire/BatchWire.hpp>
 #include <QtCore/QElapsedTimer>
 #include <array>
 #include <memory>
@@ -18,7 +19,7 @@
 #include <vector>
 
 namespace telemetry::integration::qt {
-using HostWorkbench = workbench::WorkbenchModel<8, 4096, 65536, 768>;
+using HostWorkbench = workbench::WorkbenchModel<8, 4096, 65536, 1536>;
 
 // Advanced host storage seam. It is shared only to retain native callback
 // backing; there is one Workbench, DynamicClient and FIFO. Qt allocations never
@@ -58,11 +59,13 @@ public:
 	std::unique_ptr<runtime::RuntimeSchemaWorkspace> storage;
 	runtime::RuntimeSchema schema;
 	std::optional<protocol::encoded::read_many::Capability> readMany;
+	std::optional<protocol::encoded::batch::Capability> batch;
+	std::array<std::byte, 4096> batchScratch{};
 	std::array<std::byte, 65568> tx{}, rx{};
 	client::Clock clock{this, +[](void* owner) noexcept {
 		                    return static_cast<ConnectionStorage*>(owner)->now();
 	                    }};
-	encoded::EncodedBackend backend{tx, rx, clock, 30000, true};
+	encoded::EncodedBackend backend{tx, rx, clock, 30000, true, true};
 	std::array<std::byte, 65536> serviceStorage{};
 	HostWorkbench inspector{backend, clock, serviceStorage};
 	std::vector<Reply> replies;

@@ -17,6 +17,12 @@ contains(CONFIG, telemetry_batch_server) {
 contains(CONFIG, telemetry_batch_client) {
     include($$PWD/batch/batch.pri)
 }
+contains(CONFIG, telemetry_batch_workbench) {
+    include($$PWD/batch/batch_workbench.pri)
+}
+contains(CONFIG, telemetry_tcp_encoded_profile) {
+    include($$PWD/tcp/tcp_encoded_profile.pri)
+}
 contains(CONFIG, telemetry_batch_static_client) {
     include($$PWD/batch/static_client.pri)
 }

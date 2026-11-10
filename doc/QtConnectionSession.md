@@ -130,8 +130,85 @@ used as a session token. Plain `TcpTransport::connectTo(host, port)` keeps its
 Descriptor-only behavior; `connectToWithReadMany(host, port, requestedSession)`
 selects this optional discovery. `ConnectionSession` supplies the session itself.
 The existing `Server` constructor taking a file table remains legacy operations
-1–4. TRM1 does not authorize Mixed Batch; this Qt convenience API adds no TBM1
-operation or automatic retry.
+1–4. TRM1 does not authorize Mixed Batch; TBM1 is admitted independently as below.
+
+## Optional Mixed Batch
+
+`batchSupported()` and `batchCapability()` describe a separately discovered
+`/telemetry/batch.bin` TBM1. The same Resource session WRITE binds TRM1 and TBM1;
+each present capability must be canonical and match the requested session and
+Descriptor fingerprint. A ReadMany-only or legacy peer remains usable and
+returns `Unsupported` for Batch, without fan-out or probing any endpoint.
+
+```cpp
+using Session = telemetry::integration::qt::ConnectionSession;
+namespace cl = telemetry::client;
+const std::array<Session::BatchRequest, 3> requests{{
+    {cl::Operation::FieldWrite, configId, canonicalConfig},
+    {cl::Operation::Command, setModeId, canonicalArguments},
+    {cl::Operation::FieldRead, powerId, {}}
+}};
+const auto submitted = device.batch(requests,
+    [](const telemetry::integration::batch::BatchResult& result) noexcept {
+        // Check outer operation, then each independent item operation/valueStatus.
+        // Copy payloads while here; DynamicValueViews end with this callback.
+    });
+```
+
+There are 1–32 ordered items; repeated endpoint IDs are allowed. FieldWrite,
+Command and Service payloads use the admitted runtime request type. The existing
+Batch client validates all contracts and canonical request DTOs before enqueue,
+and the complete response before publishing any runtime value view. Command
+`Accepted` remains distinct from `Executed`. Endpoint failures are independent;
+this operation provides neither rollback nor an atomic application snapshot.
+
+Request spans are borrowed until `batch()` returns. A bounded 4096-byte host
+scratch is copied into the same FIFO before return; a larger encoded body is
+rejected. Replies remain within the capability, 65535-byte wire limit and owned
+transport buffers. `HostWorkbench` explicitly selects 1536 callback bytes for
+the copied 32-item binding and small host callable; portable defaults are intact.
+
+Use a matching SDK/UX pair for this optional Qt integration. Native adapters
+that explicitly instantiate `WorkbenchModel`/`WorkbenchView` must use this host
+callback budget too; older UX adapters hard-code 768 bytes and are not compatible
+with the 1536-byte host type. Applications using `ConnectionSession` and the
+matching `QtConnectionBinding::createProvider()` do not manage this budget.
+
+A rejected submission preserves editor, snapshot and pending state. An accepted
+mutating Batch retires the owner's old snapshots/editor under the same native
+publication guard. `dataInvalidated()` then lets sibling presentation views
+retire their caches; it does not revoke schema/session admission. UI hosts apply
+their shared mutation permission before submission. The SDK's explicit call is
+authorization; `ConnectionStorage::mutationAuthorized` is transport handoff
+evidence used for recovery, not a permission flag.
+
+Callbacks run on the owner thread, storing owned results for `progressed()`.
+Disconnect/close preserves native outcomes, including `OutcomeUnknown` after an
+uncertain mutating handoff. Reconnect never replays a Batch. Closed precedes
+RecoveryRequired, which precedes NotAdmitted; gates do not call `process()`.
+Callable ownership and `dataInvalidated` reentries defer close/drain until native
+submission publication has finished.
+
+`WorkbenchModel::copyDraft(output)` and `WorkbenchView::copyDraft(output)` capture
+the current canonical editor bytes without consuming/rearming its writer or
+changing dirty state. Exact NaN payloads and signed zero are retained. Void
+captures zero bytes; capacity, alias, stale and invalid-payload refusals leave
+the destination/editor unchanged.
+
+For the matching native server, explicitly select `tcp_encoded_profile`:
+
+```cpp
+#include <integration/tcp/EncodedProfile.hpp>
+#include <integration/tcp/Server.hpp>
+telemetry::integration::tcp::EncodedProfile profile{descriptorBytes, fingerprint};
+telemetry::integration::tcp::Server server{model, workspace, profile, rx, tx};
+```
+
+It shares the existing one-time Resource session provider with ReadMany and adds
+the TBM1 file and Batch dispatch route. The old `ReadManyProfile` constructor
+keeps its ReadMany-only behavior and no Batch dispatcher link root. See the
+[installed Qt Batch tests](../tests/qt_batch/README.md). RPC and UART bootstrap
+are not extended by this optional TCP profile.
 
 ## Validation boundary
 

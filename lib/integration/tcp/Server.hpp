@@ -15,8 +15,11 @@
 #include <integration/tcp/ReadManyProfile.hpp>
 #include <integration/encoded/Dispatcher.hpp>
 #include <resource/protocol/Protocol.hpp>
+#include <type_traits>
 
 namespace telemetry::integration::tcp {
+class EncodedProfile;
+
 // Public methods:
 // - Server(): Borrow one stable Model, Workspace, file table and disjoint RX/TX buffers.
 // - receive(): Assemble one request and dispatch only when a complete reply fits.
@@ -40,17 +43,15 @@ public:
 	       Output tx) noexcept
 	    : Server(model, workspace, profile.files(), rx, tx)
 	{
-		readMany_ = &profile;
-		readManyDispatch_ =
-		    +[](ModelView model, Workspace& workspace, std::uint32_t session, Input request,
-		        Output response, const ReadManyProfile& value) noexcept {
-			    return encoded::dispatchEncoded(model, workspace, session, request, response,
-			                                    value.capability());
-		    };
-		const Input control{reinterpret_cast<const std::byte*>(&profile), sizeof(profile)};
-		if (buffersOverlap(rx, control) || buffersOverlap(tx, control) ||
-		    buffersOverlap(workspace.storage(), control))
-			close();
+		configureProfile(profile, rx);
+	}
+
+	template<class Profile>
+	    requires std::is_same_v<Profile, EncodedProfile>
+	Server(ModelView model, Workspace& workspace, Profile& profile, Output rx, Output tx) noexcept
+	    : Server(model, workspace, profile.files(), rx, tx)
+	{
+		configureProfile(profile, rx);
 	}
 
 	Server(const Server&) = delete;
@@ -78,21 +79,21 @@ public:
 		if (request[0] == std::byte{0x54}) {
 			const auto parsed = protocol::encoded::parse(request);
 			if (!parsed || parsed.header.reply ||
-			    (readMany_ && (!readMany_->bound() ||
-			                   parsed.header.session != readMany_->capability().session)) ||
+			    (profile_ && (!profileOps_->bound(profile_) ||
+			                  parsed.header.session != profileOps_->session(profile_))) ||
 			    (session_ != 0 && parsed.header.session != session_) ||
 			    parsed.header.requestId <= lastRequestId_) {
 				result.status = Status::Invalid;
 			} else {
-				if (readMany_)
-					readMany_->frozen_ = true;
+				if (profile_)
+					profileOps_->freeze(profile_);
 				if (session_ == 0)
 					session_ = parsed.header.session;
 				lastRequestId_ = parsed.header.requestId;
 				const auto dispatched =
-				    readMany_
-				        ? readManyDispatch_(model_, workspace_, session_, request, tx_, *readMany_)
-				        : encoded::dispatchEncoded(model_, workspace_, session_, request, tx_);
+				    profile_ ? profileOps_->dispatch(model_, workspace_, session_, request, tx_,
+				                                     profile_)
+				             : encoded::dispatchEncoded(model_, workspace_, session_, request, tx_);
 				if (dispatched)
 					written = dispatched.written;
 				else
@@ -162,12 +163,53 @@ private:
 	Output tx_;
 	std::size_t txBytes_ = 0;
 	std::uint32_t session_ = 0, lastRequestId_ = 0;
-	ReadManyProfile* readMany_ = nullptr;
-	// Populate only in the opt-in constructor: legacy source-only users do not
-	// acquire an unresolved reference to the optional compiled dispatcher.
-	encoded::EncodedDispatchResult (*readManyDispatch_)(ModelView, Workspace&, std::uint32_t, Input,
-	                                                    Output,
-	                                                    const ReadManyProfile&) noexcept = nullptr;
+
+	struct ProfileOps {
+		bool (*bound)(const void*) noexcept;
+		std::uint32_t (*session)(const void*) noexcept;
+		void (*freeze)(void*) noexcept;
+		encoded::EncodedDispatchResult (*dispatch)(ModelView, Workspace&, std::uint32_t, Input,
+		                                           Output, const void*) noexcept;
+	};
+
+	void* profile_ = nullptr;
+	const ProfileOps* profileOps_ = nullptr;
+
+	// Only instantiated by the chosen optional constructor. A legacy server
+	// acquires no Batch dispatcher link root merely by including this header.
+	template<class Profile>
+	void configureProfile(Profile& profile, Output rx) noexcept
+	{
+		static const ProfileOps operations{
+		    +[](const void* value) noexcept {
+			    return static_cast<const Profile*>(value)->bound();
+		    },
+		    +[](const void* value) noexcept {
+			    if constexpr (std::is_same_v<Profile, ReadManyProfile>)
+				    return static_cast<const Profile*>(value)->capability().session;
+			    else
+				    return static_cast<const Profile*>(value)->batchCapability().session;
+		    },
+		    +[](void* value) noexcept {
+			    static_cast<Profile*>(value)->frozen_ = true;
+		    },
+		    +[](ModelView model, Workspace& workspace, std::uint32_t session, Input request,
+		        Output response, const void* value) noexcept {
+			    const auto& selected = *static_cast<const Profile*>(value);
+			    if constexpr (std::is_same_v<Profile, ReadManyProfile>)
+				    return encoded::dispatchEncoded(model, workspace, session, request, response,
+				                                    selected.capability());
+			    else
+				    return selected.dispatch(model, workspace, session, request, response);
+		    }};
+		profile_ = &profile;
+		profileOps_ = &operations;
+		const Input control{reinterpret_cast<const std::byte*>(&profile), sizeof(profile)};
+		if (buffersOverlap(rx, control) || buffersOverlap(tx_, control) ||
+		    buffersOverlap(workspace_.storage(), control))
+			close();
+	}
+
 	bool closed_ = false, handling_ = false;
 };
 } // namespace telemetry::integration::tcp

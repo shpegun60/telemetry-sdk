@@ -20,6 +20,7 @@ remain under `lib/integration`.
 | `batch_static_client` | `integration/batch/StaticClient.hpp` | `client`, `encoded_wire` | Typed mixed operations with caller-owned DTO storage over the same FIFO |
 | `batch_server` | `integration/encoded/BatchDispatcher.hpp` | `core`, `encoded_wire`, `encoded_server` | Global preflight and independent per-item outcomes for Mixed Batch |
 | `read_many_workbench` | `integration/read_many/Workbench.hpp` | `workbench`, `read_many_client` | Background read values without replacing the selected snapshot or draft |
+| `batch_workbench` | `integration/batch/Workbench.hpp` | `workbench`, `batch_client` | Optional mixed requests through the same private FIFO; accepted mutations retire old editor/snapshots |
 | `inspector` | `integration/inspector/InspectorModel.hpp` | `dynamic_client` | Read-only discovery and one owned selected-Field snapshot |
 | `workbench` | `integration/workbench/WorkbenchModel.hpp` | `inspector` | Fixed-storage Field editing and one Write/Refresh workflow on the same FIFO |
 | `encoded_backend` | `integration/encoded/Backend.hpp`, `integration/encoded/RetryingBackend.hpp` | `client`, `encoded_wire` | Client-side TEQ1 packets, with optional explicit retries |
@@ -29,6 +30,7 @@ remain under `lib/integration`.
 | `rpc_server` | `integration/telemetry/v3/RpcMailbox.hpp` | `core`, `resource`, `rpc_wire` | One deferred RPC mailbox provider |
 | `rpc_sessions` | `integration/telemetry/v3/RpcSessionPool.hpp` | `rpc_server`, `resource_protocol` | Independently owned mailboxes and Resource packet routing |
 | `tcp_server` | `integration/tcp/Server.hpp` | `encoded_server`, `resource_protocol` | Frame Resource/TEQ1 streams in caller-owned storage |
+| `tcp_encoded_profile` | `integration/tcp/EncodedProfile.hpp` | `tcp_server`, `batch_server` | Optional TRM1/TBM1 discovery with one write-once Resource session |
 | `qt_transport` | `integration/qt/DeviceTransport.hpp`, `DescriptorBootstrap.hpp` | `client`, `resource_wire`, `encoded_wire`, Qt Core | Optional host transport boundary and sequential Descriptor discovery |
 | `qt_serial_transport` | `integration/qt/SerialTransport.hpp` | `qt_transport`, Qt SerialPort | Optional UART adapter with privately built COBS framing |
 

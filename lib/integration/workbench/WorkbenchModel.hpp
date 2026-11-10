@@ -23,6 +23,10 @@ namespace telemetry::integration::read_many::detail {
 struct WorkbenchAccess;
 }
 
+namespace telemetry::integration::batch::detail {
+struct WorkbenchAccess;
+}
+
 namespace telemetry::integration::workbench {
 
 enum class Phase : std::uint8_t {
@@ -422,6 +426,15 @@ public:
 		return !publishing_ && !requestSelected_ && editing() && dirty() && !completionActive_;
 	}
 
+	[[nodiscard]] runtime::Result<std::uint32_t> copyDraft(client::Output output) const noexcept
+	{
+		if (publishing_ || completionActive_ || !editing())
+			return {runtime::Status::Stale, 0};
+		if (runtime::writer_detail::overlaps(output, runtime::writer_detail::objectBytes(*this)))
+			return {runtime::Status::Overlap, 0};
+		return editor_.copyDraft(output);
+	}
+
 	[[nodiscard]] runtime::Status beginEdit() noexcept
 	{
 		if (publishing_ || requestSelected_ || phase_ != Phase::Idle || !model_.isCurrent())
@@ -671,6 +684,7 @@ public:
 
 private:
 	friend struct ::telemetry::integration::read_many::detail::WorkbenchAccess;
+	friend struct ::telemetry::integration::batch::detail::WorkbenchAccess;
 	template<std::size_t, std::size_t, std::size_t, std::size_t, bool>
 	friend class WorkbenchState;
 
@@ -1070,6 +1084,7 @@ public:
 	using Base::canEdit;
 	using Base::dirty;
 	using Base::canApply;
+	using Base::copyDraft;
 	using Base::beginEdit;
 	using Base::setScalar;
 	using Base::editScalar;

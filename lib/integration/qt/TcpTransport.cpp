@@ -140,11 +140,14 @@ struct TcpTransport::Impl {
 		fail(std::move(reason));
 	}
 
-	void connectProfile(const QString& host, quint16 port, quint32 requestedSession)
+	void connectProfile(const QString& host, quint16 port, quint32 requestedSession,
+	                    bool batch = false)
 	{
 		close();
 		reader.reset();
-		if (requestedSession)
+		if (requestedSession && batch)
+			discovery.resetOptionalEncoded(requestedSession);
+		else if (requestedSession)
 			discovery.resetOptionalReadMany(requestedSession);
 		else
 			discovery.reset();
@@ -343,6 +346,22 @@ void TcpTransport::connectToWithReadMany(const QString& host, quint16 port,
 QByteArray TcpTransport::readManyCapability() const
 {
 	return ready() ? impl_->discovery.capability() : QByteArray{};
+}
+
+void TcpTransport::connectToWithEncoded(const QString& host, quint16 port, quint32 requestedSession)
+{
+	if (!requestedSession) {
+		impl_->close();
+		Q_EMIT transportError(
+		    QStringLiteral("Optional Encoded discovery requires a nonzero session"));
+		return;
+	}
+	impl_->connectProfile(host, port, requestedSession, true);
+}
+
+QByteArray TcpTransport::batchCapability() const
+{
+	return ready() ? impl_->discovery.batchCapability() : QByteArray{};
 }
 
 void TcpTransport::close()
