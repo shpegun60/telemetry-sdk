@@ -1250,6 +1250,10 @@ jobs:
           python3 -B tests/qt_transport/run.py --build-dir "$RUNNER_TEMP/qt-transport-packages" \
             --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix /usr \
             --cxx /usr/bin/g++ --cmake cmake --ninja ninja
+      - name: Sanitized installed TCP and Qt ReadMany session
+        run: |
+          python3 -B tests/qt_read_many/run.py --build-dir "$RUNNER_TEMP/qt-read-many" \
+            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Install the current SDK for cross-repository Qt consumers
         run: |
           cmake -S . -B "$RUNNER_TEMP/ux-sdk-build" -G Ninja \
@@ -1309,6 +1313,7 @@ jobs:
             ${{ runner.temp }}/ux-sdk-prefix/share/telemetry/SDKMetadata.json
             ${{ runner.temp }}/inspector-serial/
             ${{ runner.temp }}/qt-transport-packages/
+            ${{ runner.temp }}/qt-read-many/
             ${{ runner.temp }}/nucleo-host/
             ${{ runner.temp }}/read-many-serial/
             ${{ runner.temp }}/read-comparison-gcc/

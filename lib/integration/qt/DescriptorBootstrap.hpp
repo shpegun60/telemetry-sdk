@@ -25,6 +25,15 @@ public:
 		requireReadMany_ = requireReadMany;
 	}
 
+	// Optional named TCP profile. Both control/capability files must be present
+	// together; their absence retains the Descriptor-only legacy contract.
+	void resetOptionalReadMany(std::uint32_t requestedSession)
+	{
+		reset();
+		optionalReadMany_ = true;
+		requestedSession_ = requestedSession;
+	}
+
 	resource::protocol::Op operation() const noexcept
 	{
 		return operation_;
@@ -55,7 +64,16 @@ public:
 			return {rc::BuildStatus::BufferTooSmall, 0};
 		if (operation_ == Op::List)
 			return rc::makeList(output, cursor_);
-		const auto index = readingCapability_ ? capabilityIndex_ : index_;
+		if (writingSession_) {
+			std::array<std::byte, 4> bytes{};
+			for (unsigned i = 0; i < 4; ++i)
+				bytes[i] = std::byte((requestedSession_ >> (8 * i)) & 0xffu);
+			return sessionIndex_ ? rc::makeWrite(output, *sessionIndex_, 0, bytes, true)
+			                     : rc::BuildResult{rc::BuildStatus::BufferTooSmall, 0};
+		}
+		const auto index = checkingSession_     ? sessionIndex_
+		                   : readingCapability_ ? capabilityIndex_
+		                                        : index_;
 		if (!index)
 			return {rc::BuildStatus::BufferTooSmall, 0};
 		return operation_ == Op::Stat ? rc::makeStat(output, *index)
@@ -84,10 +102,15 @@ public:
 						return false;
 					index_ = static_cast<resource::FileIndex>(index);
 				}
-				if (requireReadMany_ && path == "/telemetry/read-many.bin") {
+				if ((requireReadMany_ || optionalReadMany_) && path == "/telemetry/read-many.bin") {
 					if (capabilityIndex_)
 						return false;
 					capabilityIndex_ = static_cast<resource::FileIndex>(index);
+				}
+				if (optionalReadMany_ && path == "/telemetry/session.bin") {
+					if (sessionIndex_)
+						return false;
+					sessionIndex_ = static_cast<resource::FileIndex>(index);
 				}
 				++index;
 			}
@@ -95,12 +118,24 @@ public:
 				return false;
 			cursor_ = reply.response.next;
 			if (reply.response.eof) {
-				if (!index_ || (requireReadMany_ && !capabilityIndex_))
+				if (!index_ || (requireReadMany_ && !capabilityIndex_) ||
+				    (optionalReadMany_ &&
+				     (!requestedSession_ || bool(capabilityIndex_) != bool(sessionIndex_))))
 					return false;
 				operation_ = Op::Stat;
 			}
 		} else if (operation_ == Op::Stat) {
 			const auto reply = rc::parseStat(bytes);
+			if (checkingSession_) {
+				if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
+				    reply.response.size != 4 ||
+				    !resource::has(reply.response.flags, resource::FileFlag::Writable))
+					return false;
+				checkingSession_ = false;
+				writingSession_ = true;
+				operation_ = Op::Write;
+				return true;
+			}
 			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
 			    !resource::has(reply.response.flags, resource::FileFlag::Readable))
 				return false;
@@ -137,20 +172,40 @@ public:
 				                   static_cast<qsizetype>(count));
 			cursor_ = next;
 			if (reply.response.eof) {
-				if (!readingCapability_ && requireReadMany_) {
+				if (!readingCapability_ && optionalReadMany_ && capabilityIndex_) {
+					checkingSession_ = true;
+					operation_ = Op::Stat;
+					cursor_ = 0;
+					size_ = 0;
+				} else if (!readingCapability_ && requireReadMany_) {
 					readingCapability_ = true;
 					operation_ = Op::Stat;
 					cursor_ = 0;
 					size_ = 0;
 				} else {
-					if (readingCapability_ &&
-					    !telemetry::protocol::encoded::read_many::parseCapability(
-					        {reinterpret_cast<const std::byte*>(capability_.constData()),
-					         static_cast<std::size_t>(capability_.size())}))
-						return false;
+					if (readingCapability_) {
+						const auto parsed =
+						    telemetry::protocol::encoded::read_many::parseCapability(
+						        {reinterpret_cast<const std::byte*>(capability_.constData()),
+						         static_cast<std::size_t>(capability_.size())});
+						if (!parsed ||
+						    (optionalReadMany_ && parsed.value.session != requestedSession_))
+							return false;
+					}
 					complete_ = true;
 				}
 			}
+		} else if (operation_ == Op::Write && writingSession_) {
+			const auto reply = rc::parseWrite(bytes, 4);
+			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
+			    reply.response.consumed != 4 || !reply.response.complete ||
+			    reply.response.next != 4)
+				return false;
+			writingSession_ = false;
+			readingCapability_ = true;
+			operation_ = Op::Stat;
+			cursor_ = 0;
+			size_ = 0;
 		} else {
 			return false;
 		}
@@ -159,12 +214,14 @@ public:
 
 private:
 	QByteArray descriptor_, capability_;
-	std::optional<resource::FileIndex> index_, capabilityIndex_;
+	std::optional<resource::FileIndex> index_, capabilityIndex_, sessionIndex_;
 	resource::Cursor cursor_ = 0;
 	resource::FileSize size_ = 0;
 	unsigned pages_ = 0, cursorOnlyReads_ = 0;
 	resource::protocol::Op operation_ = resource::protocol::Op::List;
 	bool complete_ = false, requireReadMany_ = false, readingCapability_ = false;
+	bool optionalReadMany_ = false, checkingSession_ = false, writingSession_ = false;
+	std::uint32_t requestedSession_ = 0;
 };
 } // namespace telemetry::integration::qt
 #endif

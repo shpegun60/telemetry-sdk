@@ -10,9 +10,11 @@
 #include <integration/qt/DeviceTransport.hpp>
 #include <integration/encoded/Backend.hpp>
 #include <integration/workbench/WorkbenchModel.hpp>
+#include <wire/ReadManyWire.hpp>
 #include <QtCore/QElapsedTimer>
 #include <array>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace telemetry::integration::qt {
@@ -55,6 +57,7 @@ public:
 	std::vector<runtime::RuntimeEndpoint> endpoints;
 	std::unique_ptr<runtime::RuntimeSchemaWorkspace> storage;
 	runtime::RuntimeSchema schema;
+	std::optional<protocol::encoded::read_many::Capability> readMany;
 	std::array<std::byte, 65568> tx{}, rx{};
 	client::Clock clock{this, +[](void* owner) noexcept {
 		                    return static_cast<ConnectionStorage*>(owner)->now();
