@@ -8,7 +8,9 @@
 #pragma once
 
 #include <integration/qt/ConnectionStorage.hpp>
+#include <integration/read_many/Workbench.hpp>
 #include <functional>
+#include <optional>
 
 namespace telemetry::integration::qt {
 // Host-only convenience owner. TCP here means the documented, exclusive
@@ -20,6 +22,8 @@ class ConnectionSession final : public QObject {
 	Q_PROPERTY(bool connecting READ connecting NOTIFY stateChanged)
 	Q_PROPERTY(bool recoveryRequired READ recoveryRequired NOTIFY stateChanged)
 	Q_PROPERTY(QString lastError READ lastError NOTIFY stateChanged)
+	Q_PROPERTY(bool readManySupported READ readManySupported NOTIFY admissionChanged)
+	Q_PROPERTY(bool busy READ busy NOTIFY progressed)
 public:
 	using StorageFactory = std::function<std::shared_ptr<ConnectionStorage>(QByteArray)>;
 	explicit ConnectionSession(QObject* parent = nullptr);
@@ -34,6 +38,63 @@ public:
 	bool connecting() const;
 	bool recoveryRequired() const;
 	QString lastError() const;
+	bool busy() const noexcept;
+	bool readManySupported() const noexcept;
+	std::optional<read_many::wire::Capability> readManyCapability() const noexcept;
+	// Snapshot-preserving operations over the same Workbench/FIFO. Result views
+	// borrow storage only during callback; accepted callbacks retain that storage
+	// through Session retirement. These guards never advance process().
+	template<class F>
+	client::Submission readMany(std::span<const std::uint32_t> ids, F&& callback,
+	                            std::uint32_t timeoutMs = 30000) noexcept
+	{
+		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&,
+		                                         const read_many::ReadManyResult&>);
+		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
+		client::Status status;
+		auto owner = operationStorage(status);
+		if (!owner)
+			return {status, {}};
+		if (!owner->readMany)
+			return {client::Status::Unsupported, {}};
+		if (!timeoutMs || timeoutMs > client::maxTimeoutMs)
+			return {client::Status::InvalidArgument, {}};
+		if constexpr (std::is_pointer_v<std::decay_t<F>>)
+			if (!callback)
+				return {client::Status::InvalidArgument, {}};
+		const auto binding = read_many::bindReadMany(owner->inspector, owner->backend,
+		                                              *owner->readMany, ids);
+		if (!binding)
+			return {binding.status, {}};
+		return read_many::readMany(owner->inspector, binding.binding,
+		    [owner, callable = std::forward<F>(callback)](
+		        const read_many::ReadManyResult& result) mutable noexcept { callable(result); },
+		    timeoutMs);
+	}
+	template<class F>
+	client::Submission readFieldValue(std::uint32_t id, F&& callback,
+	                                  std::uint32_t timeoutMs = 30000) noexcept
+	{
+		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&,
+		                                         const dynamic::DynamicResult&>);
+		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
+		client::Status status;
+		auto owner = operationStorage(status);
+		if (!owner)
+			return {status, {}};
+		if (!timeoutMs || timeoutMs > client::maxTimeoutMs)
+			return {client::Status::InvalidArgument, {}};
+		if constexpr (std::is_pointer_v<std::decay_t<F>>)
+			if (!callback)
+				return {client::Status::InvalidArgument, {}};
+		const auto binding = owner->inspector.bindField(id);
+		if (!binding)
+			return {binding.status, {}};
+		return read_many::readFieldValue(owner->inspector, binding.endpoint,
+		    [owner, callable = std::forward<F>(callback)](
+		        const dynamic::DynamicResult& result) mutable noexcept { callable(result); },
+		    timeoutMs);
+	}
 	std::shared_ptr<ConnectionStorage> storage() const;
 	HostWorkbench* workbench() const;
 	// Useful when one host also admits other explicit transport profiles. It
@@ -54,6 +115,7 @@ Q_SIGNALS:
 	void stateChanged();
 
 private:
+	std::shared_ptr<ConnectionStorage> operationStorage(client::Status& status) const noexcept;
 	struct Impl;
 	std::shared_ptr<Impl> d;
 };

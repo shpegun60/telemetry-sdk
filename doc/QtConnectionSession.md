@@ -66,6 +66,73 @@ can prove recovery of an earlier mutation. Arbitrary profiles, physical DMA,
 concurrent native producers, configurable embedded storage and remote exactly-once
 execution are outside this host convenience component.
 
+## Optional scalar ReadMany
+
+The same connection can discover the optional ReadMany profile. A server with
+neither `/telemetry/session.bin` nor `/telemetry/read-many.bin` remains usable
+for ordinary endpoint operations; `readManySupported()` is false. A partial
+profile, malformed capability, wrong session or wrong Descriptor fingerprint
+fails admission. It is never silently replaced with Individual reads.
+
+```cpp
+const std::array<std::uint32_t, 3> ids{voltageId, currentId, powerId};
+const auto submitted = device.readMany(ids,
+    [](const telemetry::integration::read_many::ReadManyResult& result) noexcept {
+        // Check result.operation and each item's status. Copy/format any value
+        // here: the DynamicValueViews are borrowed only during this callback.
+    });
+if (!submitted) {
+    // QueueFull, Unsupported, NotAdmitted, RecoveryRequired, etc. are immediate.
+}
+```
+
+`readManyCapability()` returns an optional copied capability for the current
+admission; reacquire it after reconnect. One request accepts at most its item
+limit (at most 32) distinct scalar/enum Fields of 1, 2, 4 or 8 wire bytes. Larger
+watchlists belong to a host scheduler that submits sequential chunks with one
+pending chunk, skips excess timer ticks and treats Stop as drain, not replay.
+Chunks are independent observations, not an atomic application snapshot.
+
+`readFieldValue(id, callback, timeoutMs)` explicitly selects an Individual read
+through the same FIFO. Both methods preserve the selected Field snapshot and
+editor; neither selects a Field or creates another client. `busy()` reports
+pending native work. Guards return Closed before RecoveryRequired before
+NotAdmitted without calling `process()`. Accepted callbacks retain their
+generation's owned storage through disconnect/drain. Native callbacks must not
+publish Qt model changes directly; consume copied results after `progressed`.
+
+For an owned native server, the optional helper removes bootstrap boilerplate:
+
+```cpp
+#include <integration/tcp/Server.hpp>
+telemetry::integration::tcp::ReadManyProfile profile{descriptorBytes, fingerprint};
+telemetry::integration::tcp::Server server{model, workspace, profile, rx, tx};
+```
+
+Create one noncopyable profile per accepted physical connection, before its
+Server, and destroy it after that Server and transport leases retire. It borrows
+the stable Descriptor and owns the Resource provider table and canonical TRM1.
+The named optional handshake uses existing Resource operations:
+
+1. LIST discovers Descriptor plus both optional files; Descriptor is read first.
+2. STAT verifies a four-byte writable session control file. WRITE starts at
+   cursor zero with exactly four little-endian bytes, a nonzero host-selected
+   session and `final=true`. Its complete ACK must consume four bytes and return
+   cursor four. This changes only connection admission; it invokes no Model
+   setter, Command, Service or getter.
+3. STAT/READ fetch the 24-byte TRM1 from cursor zero. Its session must echo the
+   requested monotonic Session ID, and its fingerprint must match Descriptor.
+4. The first Encoded request freezes the bound profile. All later attempts to
+   bind again are rejected, including the same ID. STAT and reads cannot rebind.
+
+Resource cursors keep their ordinary meaning; no nonzero initial READ cursor is
+used as a session token. Plain `TcpTransport::connectTo(host, port)` keeps its
+Descriptor-only behavior; `connectToWithReadMany(host, port, requestedSession)`
+selects this optional discovery. `ConnectionSession` supplies the session itself.
+The existing `Server` constructor taking a file table remains legacy operations
+1–4. TRM1 does not authorize Mixed Batch; this Qt convenience API adds no TBM1
+operation or automatic retry.
+
 ## Validation boundary
 
 Installed downstream tests use two QML panels, real loopback TCP, queued/offered/

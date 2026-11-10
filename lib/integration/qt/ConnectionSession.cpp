@@ -121,6 +121,19 @@ struct ConnectionSession::Impl {
 			failure = QStringLiteral("The connection storage factory returned no storage");
 		else if (failure.isEmpty())
 			failure = candidate->initialize(lastSession + 1, false);
+		if (failure.isEmpty()) {
+			const auto bytes = transport->readManyCapability();
+			if (!bytes.isEmpty()) {
+				const auto parsed = read_many::wire::parseCapability(
+				    {reinterpret_cast<const std::byte*>(bytes.constData()),
+				     static_cast<std::size_t>(bytes.size())});
+				if (!parsed || parsed.value.session != lastSession + 1 ||
+				    parsed.value.fingerprint != candidate->schema.fingerprint())
+					failure = QStringLiteral("ReadMany capability does not match the requested session and Descriptor");
+				else
+					candidate->readMany = parsed.value;
+			}
+		}
 		if (failure.isEmpty() && retired) {
 			// This named server profile serializes each client and completes old
 			// native work before allowing the next full Resource transcript. TCP
@@ -293,7 +306,7 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 		    }
 	    },
 	    Qt::QueuedConnection);
-	state->transport->connectTo(normalized, inputPort);
+	state->transport->connectToWithReadMany(normalized, inputPort, state->lastSession + 1);
 	state->working = false;
 	state->notify();
 	return true;
@@ -334,6 +347,39 @@ bool ConnectionSession::recoveryRequired() const
 QString ConnectionSession::lastError() const
 {
 	return d->error;
+}
+
+bool ConnectionSession::busy() const noexcept
+{
+	return d->current && d->current->inspector.pending() != 0;
+}
+
+bool ConnectionSession::readManySupported() const noexcept
+{
+	return ready() && bool(d->current->readMany);
+}
+
+std::optional<read_many::wire::Capability> ConnectionSession::readManyCapability() const noexcept
+{
+	return readManySupported() ? d->current->readMany : std::nullopt;
+}
+
+std::shared_ptr<ConnectionStorage> ConnectionSession::operationStorage(client::Status& status) const noexcept
+{
+	Q_ASSERT(thread() == QThread::currentThread());
+	if (d->terminal)
+		status = client::Status::Closed;
+	else if (recoveryRequired())
+		status = client::Status::RecoveryRequired;
+	else if (!ready())
+		status = client::Status::NotAdmitted;
+	else if (d->working || d->retiring)
+		status = client::Status::Busy;
+	else {
+		status = client::Status::Ok;
+		return d->current;
+	}
+	return {};
 }
 
 std::shared_ptr<ConnectionStorage> ConnectionSession::storage() const

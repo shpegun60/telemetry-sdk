@@ -12,6 +12,7 @@
 #pragma once
 
 #include <integration/tcp/Framing.hpp>
+#include <integration/tcp/ReadManyProfile.hpp>
 #include <integration/encoded/Dispatcher.hpp>
 #include <resource/protocol/Protocol.hpp>
 
@@ -30,6 +31,24 @@ public:
 	{
 		if (buffersOverlap(rx, tx) || buffersOverlap(rx, workspace.storage()) ||
 		    buffersOverlap(tx, workspace.storage()) || rx.empty() || tx.empty())
+			close();
+	}
+
+	// Explicit optional profile; its Resource providers bind a nonzero session
+	// once before Encoded traffic. No Resource callback reenters this Server.
+	Server(ModelView model, Workspace& workspace, ReadManyProfile& profile, Output rx,
+	       Output tx) noexcept
+	    : Server(model, workspace, profile.files(), rx, tx)
+	{
+		readMany_ = &profile;
+		readManyDispatch_ = +[](ModelView model, Workspace& workspace, std::uint32_t session,
+		                        Input request, Output response, const ReadManyProfile& value) noexcept {
+			return encoded::dispatchEncoded(model, workspace, session, request, response,
+			                                value.capability());
+		};
+		const Input control{reinterpret_cast<const std::byte*>(&profile), sizeof(profile)};
+		if (buffersOverlap(rx, control) || buffersOverlap(tx, control) ||
+		    buffersOverlap(workspace.storage(), control))
 			close();
 	}
 
@@ -58,15 +77,20 @@ public:
 		if (request[0] == std::byte{0x54}) {
 			const auto parsed = protocol::encoded::parse(request);
 			if (!parsed || parsed.header.reply ||
+			    (readMany_ && (!readMany_->bound() ||
+			                   parsed.header.session != readMany_->capability().session)) ||
 			    (session_ != 0 && parsed.header.session != session_) ||
 			    parsed.header.requestId <= lastRequestId_) {
 				result.status = Status::Invalid;
 			} else {
+				if (readMany_)
+					readMany_->frozen_ = true;
 				if (session_ == 0)
 					session_ = parsed.header.session;
 				lastRequestId_ = parsed.header.requestId;
-				const auto dispatched =
-				    encoded::dispatchEncoded(model_, workspace_, session_, request, tx_);
+				const auto dispatched = readMany_
+				    ? readManyDispatch_(model_, workspace_, session_, request, tx_, *readMany_)
+				    : encoded::dispatchEncoded(model_, workspace_, session_, request, tx_);
 				if (dispatched)
 					written = dispatched.written;
 				else
@@ -136,6 +160,12 @@ private:
 	Output tx_;
 	std::size_t txBytes_ = 0;
 	std::uint32_t session_ = 0, lastRequestId_ = 0;
+	ReadManyProfile* readMany_ = nullptr;
+	// Populate only in the opt-in constructor: legacy source-only users do not
+	// acquire an unresolved reference to the optional compiled dispatcher.
+	encoded::EncodedDispatchResult (*readManyDispatch_)(ModelView, Workspace&, std::uint32_t,
+	                                                   Input, Output,
+	                                                   const ReadManyProfile&) noexcept = nullptr;
 	bool closed_ = false, handling_ = false;
 };
 } // namespace telemetry::integration::tcp

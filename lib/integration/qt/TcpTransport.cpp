@@ -44,6 +44,7 @@ struct TcpTransport::Impl {
 		List,
 		Stat,
 		Read,
+		Write,
 		Encoded
 	};
 	TcpTransport& owner;
@@ -139,6 +140,20 @@ struct TcpTransport::Impl {
 		fail(std::move(reason));
 	}
 
+	void connectProfile(const QString& host, quint16 port, quint32 requestedSession)
+	{
+		close();
+		reader.reset();
+		if (requestedSession)
+			discovery.resetOptionalReadMany(requestedSession);
+		else
+			discovery.reset();
+		phase = Phase::Connecting;
+		timeout.start(timeoutMs);
+		discoveryTimeout.start(60000);
+		socket.connectToHost(host, port);
+	}
+
 	void scheduleBootstrap(int milliseconds = 0)
 	{
 		later(milliseconds, [this] {
@@ -148,7 +163,7 @@ struct TcpTransport::Impl {
 
 	void bootstrap()
 	{
-		if (phase != Phase::List && phase != Phase::Stat && phase != Phase::Read)
+		if (phase != Phase::List && phase != Phase::Stat && phase != Phase::Read && phase != Phase::Write)
 			return;
 		if (awaiting || !tx.isEmpty()) {
 			scheduleBootstrap(1);
@@ -158,7 +173,7 @@ struct TcpTransport::Impl {
 			fail(QStringLiteral("Unsolicited Resource reply bytes"));
 			return;
 		}
-		std::array<std::byte, 16> bytes{};
+		std::array<std::byte, 32> bytes{};
 		const auto op = discovery.operation();
 		const auto built = discovery.request(bytes);
 		if (built.status != rc::BuildStatus::Ok) {
@@ -222,6 +237,7 @@ struct TcpTransport::Impl {
 		phase = discovery.complete()                ? Phase::Encoded
 		        : discovery.operation() == Op::List ? Phase::List
 		        : discovery.operation() == Op::Stat ? Phase::Stat
+		        : discovery.operation() == Op::Write ? Phase::Write
 		                                            : Phase::Read;
 		return true;
 	}
@@ -308,13 +324,22 @@ TcpTransport::~TcpTransport()
 
 void TcpTransport::connectTo(const QString& host, quint16 port)
 {
-	impl_->close();
-	impl_->reader.reset();
-	impl_->discovery.reset();
-	impl_->phase = Impl::Phase::Connecting;
-	impl_->timeout.start(impl_->timeoutMs);
-	impl_->discoveryTimeout.start(60000);
-	impl_->socket.connectToHost(host, port);
+	impl_->connectProfile(host, port, 0);
+}
+
+void TcpTransport::connectToWithReadMany(const QString& host, quint16 port, quint32 requestedSession)
+{
+	if (!requestedSession) {
+		impl_->close();
+		Q_EMIT transportError(QStringLiteral("Optional ReadMany discovery requires a nonzero session"));
+		return;
+	}
+	impl_->connectProfile(host, port, requestedSession);
+}
+
+QByteArray TcpTransport::readManyCapability() const
+{
+	return ready() ? impl_->discovery.capability() : QByteArray{};
 }
 
 void TcpTransport::close()
