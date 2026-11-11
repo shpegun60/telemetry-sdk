@@ -65,6 +65,8 @@ public:
 Q_SIGNALS:
 	// Discovery ended in filesOnly(); queued after the last discovery reply.
 	void filesOnlyReached();
+	// The descriptor being read while connecting: bytes so far of its size.
+	void discoveryProgressed(quint64 received, quint64 total);
 
 protected:
 	Link& link() noexcept;

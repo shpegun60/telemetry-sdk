@@ -15,6 +15,29 @@ directly. A `FileReader` submits its next piece from `poll()`, called from the
 owner's loop, never from a completion: the Workbench refuses submissions while
 one of its completions runs.
 
+### Files only
+
+A device whose file list is read correctly but which offers no usable descriptor
+still connects, for its files. `filesOnly()` is then true, `ready()` false, and
+every telemetry request is refused; `filesSupported()` is true and the file API
+works as above, on a queue of its own that is admitted without a descriptor and
+carries only Resource requests. `limitation()` says why:
+
+| Limitation | When |
+|---|---|
+| `NoDescriptor` | The list has no `/telemetry/descriptor.bin`. |
+| `DescriptorUnreadable` | The device refused to stat or read it. |
+| `DescriptorSize` | Its size is outside what a client accepts; `refusedDescriptorSize()` has it. |
+| `DescriptorRejected` | It was read whole, but the descriptor parser or admission refused it. |
+| `Capability` | A ReadMany, Batch or session file is missing, malformed or does not match. |
+
+`lastError()` holds an English description; a program words `limitation()` itself.
+`discoveredPaths()` keeps every path the device listed, until the next connection,
+so a program can name a likely typo in the descriptor's name. A device whose
+replies do not follow the protocol is still a plain failure: no files, no
+limitation. A files-only connection never asks for same-peer recovery; it
+executed nothing, so a new connection is all a later one needs.
+
 ```cpp
 #include <integration/qt/ConnectionSession.hpp>
 telemetry::integration::qt::ConnectionSession device;

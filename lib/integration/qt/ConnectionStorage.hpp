@@ -8,6 +8,7 @@
 #pragma once
 
 #include <integration/qt/DeviceTransport.hpp>
+#include <client/DeviceClient.hpp>
 #include <integration/encoded/Backend.hpp>
 #include <integration/workbench/WorkbenchModel.hpp>
 #include <wire/ReadManyWire.hpp>
@@ -71,6 +72,60 @@ public:
 	HostWorkbench inspector{backend, clock, serviceStorage};
 	std::vector<Reply> replies;
 	bool mutationAuthorized = false, remoteAccepted = false;
+	quint32 remoteRequestId = 0;
+};
+
+// Files only: a device that lists its files correctly but offers no usable
+// descriptor. Its files are read on the same kind of request queue as
+// telemetry - one DeviceClient, one exchange outstanding, the same deadlines -
+// admitted without a descriptor and carrying nothing but Resource requests.
+struct FilesCodec {};
+
+struct FilesAdmission {
+	// No descriptor, so no typed requests and no header to compare.
+	static constexpr bool allowTyped = false;
+
+	[[nodiscard]] bool acceptsDescriptor(client::Input) const noexcept
+	{
+		return true;
+	}
+
+	[[nodiscard]] constexpr bool current() const noexcept
+	{
+		return true;
+	}
+};
+
+using FilesClient =
+    client::DeviceClient<FilesCodec, 4, 64, 512, 1, 1, client::NoLock, FilesAdmission>;
+
+class FilesOnlyStorage {
+public:
+	FilesOnlyStorage();
+	~FilesOnlyStorage();
+	FilesOnlyStorage(const FilesOnlyStorage&) = delete;
+	FilesOnlyStorage& operator=(const FilesOnlyStorage&) = delete;
+	quint32 now() const noexcept;
+	// Admits the files client on its first and only session.
+	bool admit() noexcept;
+	// The same owner-thread progress path as ConnectionStorage's.
+	void progressTransport(DeviceTransport* transport);
+	void settleReplies();
+	bool acceptPacket(quint32 session, quint32 id) noexcept;
+	bool receivePacket(const QByteArray& bytes, quint32 session, quint32 id);
+	// The caller closes the physical transport first.
+	void closeAndDrain();
+
+	QElapsedTimer elapsed;
+	std::array<std::byte, 64> tx{};
+	std::array<std::byte, 65568> rx{};
+	client::Clock clock{this, +[](void* owner) noexcept {
+		                    return static_cast<FilesOnlyStorage*>(owner)->now();
+	                    }};
+	encoded::EncodedBackend backend{tx, rx, clock, 30000, false, false, true};
+	FilesClient client{backend, clock};
+	std::vector<ConnectionStorage::Reply> replies;
+	bool remoteAccepted = false, closed = false;
 	quint32 remoteRequestId = 0;
 };
 } // namespace telemetry::integration::qt

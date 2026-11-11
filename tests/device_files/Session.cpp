@@ -160,11 +160,19 @@ void reading()
 		largeBytes[i] = std::byte((i * 7) ^ (i >> 8));
 	Peer peer;
 	qt::ConnectionSession session;
+	unsigned progressSignals = 0;
+	QObject::connect(&session, &qt::ConnectionSession::discoveryProgressed, &session, [&] {
+		++progressSignals;
+		CHECK(session.descriptorTotal() == packed.size() &&
+		      session.descriptorReceived() <= session.descriptorTotal());
+	});
 	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
 	CHECK(await([&] {
 		return session.ready() || (!session.connecting() && !session.lastError().isEmpty());
 	}));
 	CHECK(session.ready() && session.filesSupported());
+	// The descriptor's progress was reported while connecting, ending complete.
+	CHECK(progressSignals >= 1 && session.descriptorReceived() == packed.size());
 
 	std::vector<std::string> paths;
 	bool listed = false;

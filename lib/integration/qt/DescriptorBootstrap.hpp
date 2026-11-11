@@ -128,7 +128,8 @@ public:
 			auto index = cursor_;
 			for (const auto path : reply.response.paths) {
 				if (paths_.size() < maxPaths)
-					paths_.append(QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size())));
+					paths_.append(
+					    QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size())));
 				// One path listed twice is a broken list, not a missing file.
 				if (path == "/telemetry/descriptor.bin") {
 					if (index_)
@@ -180,19 +181,23 @@ public:
 				operation_ = Op::Write;
 				return true;
 			}
-			const auto unusable = readingCapability_ ? Refusal::Capability : Refusal::DescriptorUnreadable;
+			const auto unusable =
+			    readingCapability_ ? Refusal::Capability : Refusal::DescriptorUnreadable;
 			if (reply.shortError || reply.response.status != resource::Status::Ok ||
 			    !resource::has(reply.response.flags, resource::FileFlag::Readable))
 				return refuse(unusable);
-			if (readingCapability_ ? reply.response.size !=
-			                             telemetry::protocol::encoded::read_many::capabilityBytes
-			                       : (reply.response.size < 64 ||
-			                          reply.response.size > telemetry::Limits::maxDescriptorBytes)) {
+			if (readingCapability_
+			        ? reply.response.size !=
+			              telemetry::protocol::encoded::read_many::capabilityBytes
+			        : (reply.response.size < 64 ||
+			           reply.response.size > telemetry::Limits::maxDescriptorBytes)) {
 				if (!readingCapability_)
 					descriptorSize_ = reply.response.size;
 				return refuse(readingCapability_ ? Refusal::Capability : Refusal::DescriptorSize);
 			}
 			size_ = reply.response.size;
+			if (!readingCapability_)
+				descriptorTotal_ = size_;
 			auto& destination =
 			    readingCapability_ ? (readingBatch_ ? batchCapability_ : capability_) : descriptor_;
 			destination.reserve(static_cast<qsizetype>(size_));
@@ -204,7 +209,8 @@ public:
 			if (!reply)
 				return refuse(Refusal::Protocol);
 			if (reply.shortError || reply.response.status != resource::Status::Ok)
-				return refuse(readingCapability_ ? Refusal::Capability : Refusal::DescriptorUnreadable);
+				return refuse(readingCapability_ ? Refusal::Capability
+				                                 : Refusal::DescriptorUnreadable);
 			auto& destination =
 			    readingCapability_ ? (readingBatch_ ? batchCapability_ : capability_) : descriptor_;
 			const auto received = static_cast<resource::FileSize>(destination.size());
@@ -309,6 +315,18 @@ public:
 		return descriptorSize_;
 	}
 
+	// Bytes of the descriptor read so far, and its size from Stat; both zero
+	// until its Stat is answered.
+	quint64 descriptorReceived() const noexcept
+	{
+		return static_cast<quint64>(descriptor_.size());
+	}
+
+	quint64 descriptorTotal() const noexcept
+	{
+		return descriptorTotal_;
+	}
+
 private:
 	bool refuse(Refusal reason) noexcept
 	{
@@ -320,6 +338,7 @@ private:
 	QStringList paths_;
 	Refusal refusal_ = Refusal::None;
 	resource::FileSize descriptorSize_ = 0;
+	quint64 descriptorTotal_ = 0;
 	bool listed_ = false;
 	std::optional<resource::FileIndex> index_, capabilityIndex_, batchIndex_, sessionIndex_;
 	resource::Cursor cursor_ = 0;

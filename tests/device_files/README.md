@@ -18,6 +18,12 @@ installed package. No board; only ephemeral localhost sockets.
     the owner loop, with Field reads queued between its pieces;
   - the connection is cut in the middle of a read, which never ends as complete;
   - without a connection, the file requests are refused.
+- **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose
+  descriptor is mistyped in its name, too small, or read whole and rejected by the
+  parser connect files only: `ready()` false, telemetry refused, the limitation
+  named, the listed paths kept, and their files - the broken descriptor included -
+  read byte for byte. A device that answers with bytes that are not the protocol is
+  a plain failure with no files.
 
 ```sh
 python3 -B tests/device_files/run.py --build-dir /external/device-files \

@@ -382,6 +382,13 @@ struct LinkTransport::Impl {
 				awaiting = false;
 				timeout.stop();
 				framer->release();
+				if (const auto total = discovery.descriptorTotal(); total != 0) {
+					auto* target = &owner;
+					const auto received = discovery.descriptorReceived();
+					later(0, [target, received, total] {
+						Q_EMIT target->discoveryProgressed(received, total);
+					});
+				}
 				if (phase == Phase::Encoded) {
 					discoveryTimeout.stop();
 					if (!framer->expect(telemetry::integration::link::Expect::EncodedReply,
