@@ -239,10 +239,11 @@ int main()
 #elif defined(MODULE_TCP_LINK)
 #include <integration/tcp/ProfileFramer.hpp>
 
-static telemetry::integration::tcp::ProfileFramer profile;
-
 int main()
 {
+	// Local, not static: a static framer would register its destructor with
+	// __cxa_atexit, which a bare-metal image without start files cannot link.
+	telemetry::integration::tcp::ProfileFramer profile;
 	telemetry::integration::link::Framer& framer = profile;
 	framer.reset();
 	return framer.maxFrameBytes() == telemetry::integration::tcp::ProfileFramer::frameBytes &&
