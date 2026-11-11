@@ -15,6 +15,7 @@
 #pragma once
 
 #include <integration/link/Framer.hpp>
+#include <integration/qt/DescriptorBootstrap.hpp>
 #include <integration/qt/DeviceTransport.hpp>
 #include <integration/qt/Link.hpp>
 #include <memory>
@@ -49,8 +50,21 @@ public:
 	QString peerAddress() const override;
 	void setWriteChunkBytes(int bytes) noexcept override;
 	void setTimeout(int milliseconds) noexcept override;
+	// Discovery listed the device's files correctly but found no usable
+	// descriptor: telemetry is refused, and only Resource requests are staged,
+	// for the files. ready() stays false; discoveryRefusal() says why.
+	bool filesOnly() const noexcept;
+	DescriptorBootstrap::Refusal discoveryRefusal() const noexcept;
+	// The paths discovery listed, at most DescriptorBootstrap::maxPaths.
+	QStringList discoveredPaths() const;
+	// The descriptor's size when its size refused it.
+	quint64 refusedDescriptorSize() const noexcept;
 	// Every LinkTransport frames Resource replies through its framer.
 	bool supportsResourceReplies() const noexcept override;
+
+Q_SIGNALS:
+	// Discovery ended in filesOnly(); queued after the last discovery reply.
+	void filesOnlyReached();
 
 protected:
 	Link& link() noexcept;

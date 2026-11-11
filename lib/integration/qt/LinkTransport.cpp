@@ -54,7 +54,10 @@ struct LinkTransport::Impl {
 		Stat,
 		Read,
 		Write,
-		Encoded
+		Encoded,
+		// Discovery listed the files correctly but found no usable descriptor:
+		// only Resource requests are sent, for the device's files.
+		FilesOnly
 	};
 	LinkTransport& owner;
 	std::unique_ptr<Link> link;
@@ -245,7 +248,8 @@ struct LinkTransport::Impl {
 			offset += accepted;
 		}
 		const bool complete = offset == tx.size();
-		const bool notify = complete && !notified && phase == Phase::Encoded;
+		const bool notify =
+		    complete && !notified && (phase == Phase::Encoded || phase == Phase::FilesOnly);
 		if (complete)
 			notified = true;
 		if (complete && device.bytesToWrite() == 0)
@@ -262,6 +266,24 @@ struct LinkTransport::Impl {
 				Q_EMIT target->packetAccepted(sentSession, sentId);
 			});
 		}
+	}
+
+	void enterFilesOnly()
+	{
+		awaiting = false;
+		timeout.stop();
+		discoveryTimeout.stop();
+		framer->release();
+		if (!framer->expect(telemetry::integration::link::Expect::EncodedReply, Op::Read)) {
+			fail(QStringLiteral("Discovery did not end at a frame boundary"));
+			return;
+		}
+		phase = Phase::FilesOnly;
+		auto* target = &owner;
+		later(0, [this, target] {
+			if (phase == Phase::FilesOnly)
+				Q_EMIT target->filesOnlyReached();
+		});
 	}
 
 	bool resourceReply(Input bytes)
@@ -296,7 +318,7 @@ struct LinkTransport::Impl {
 				     QStringLiteral(" frame"));
 				return;
 			}
-			if (phase == Phase::Encoded && resourceExchange) {
+			if ((phase == Phase::Encoded || phase == Phase::FilesOnly) && resourceExchange) {
 				// A Resource reply has no identity; it answers the one outstanding
 				// request. Bytes beyond it were never asked for.
 				if (!awaiting || !incoming.isEmpty() || device.bytesAvailable() != 0) {
@@ -316,6 +338,10 @@ struct LinkTransport::Impl {
 				later(0, [target, bytes, sentSession, sentId] {
 					Q_EMIT target->packetReceived(bytes, sentSession, sentId);
 				});
+				return;
+			}
+			if (phase == Phase::FilesOnly) {
+				fail(QStringLiteral("Unsolicited bytes from a files-only device"));
 				return;
 			}
 			if (phase == Phase::Encoded) {
@@ -338,9 +364,19 @@ struct LinkTransport::Impl {
 			} else {
 				// A Resource packet has no identity. Never reinterpret a buffered tail
 				// as the reply to a next request that has not yet been sent.
-				if (!awaiting || !incoming.isEmpty() || device.bytesAvailable() != 0 ||
-				    !resourceReply(framer->frame())) {
+				if (!awaiting || !incoming.isEmpty() || device.bytesAvailable() != 0) {
 					fail(QStringLiteral("Invalid Descriptor discovery reply"));
+					return;
+				}
+				if (!resourceReply(framer->frame())) {
+					// A device whose list was read correctly stays open for its
+					// files; only a broken protocol closes it.
+					const auto refusal = discovery.refusal();
+					if (discovery.listed() && refusal != DescriptorBootstrap::Refusal::None &&
+					    refusal != DescriptorBootstrap::Refusal::Protocol)
+						enterFilesOnly();
+					else
+						fail(QStringLiteral("Invalid Descriptor discovery reply"));
 					return;
 				}
 				awaiting = false;
@@ -436,9 +472,29 @@ bool LinkTransport::ready() const noexcept
 	return impl_->phase == Impl::Phase::Encoded;
 }
 
+bool LinkTransport::filesOnly() const noexcept
+{
+	return impl_->phase == Impl::Phase::FilesOnly;
+}
+
+DescriptorBootstrap::Refusal LinkTransport::discoveryRefusal() const noexcept
+{
+	return impl_->discovery.refusal();
+}
+
+QStringList LinkTransport::discoveredPaths() const
+{
+	return impl_->discovery.paths();
+}
+
+quint64 LinkTransport::refusedDescriptorSize() const noexcept
+{
+	return impl_->discovery.descriptorSize();
+}
+
 bool LinkTransport::canStage() const noexcept
 {
-	return ready() && !impl_->awaiting && !impl_->staged && impl_->tx.isEmpty() &&
+	return (ready() || filesOnly()) && !impl_->awaiting && !impl_->staged && impl_->tx.isEmpty() &&
 	       impl_->device.bytesToWrite() == 0;
 }
 
@@ -447,8 +503,10 @@ bool LinkTransport::stage(telemetry::client::Packet packet)
 	if (!canStage() || !packet)
 		return false;
 	const bool resource = packet.reply == telemetry::client::ReplyFrame::Resource;
-	// Only List, Stat and Read are framed after discovery.
-	if (resource && (packet.resourceOperation < 1 || packet.resourceOperation > 3))
+	// Only List, Stat and Read are framed after discovery, and a files-only
+	// device takes nothing else.
+	if ((resource && (packet.resourceOperation < 1 || packet.resourceOperation > 3)) ||
+	    (!resource && filesOnly()))
 		return false;
 	auto bytes = impl_->encode(packet.bytes);
 	if (bytes.isEmpty())
@@ -468,7 +526,7 @@ bool LinkTransport::stage(telemetry::client::Packet packet)
 
 bool LinkTransport::sendStaged()
 {
-	if (!impl_->staged || !ready())
+	if (!impl_->staged || !(ready() || filesOnly()))
 		return false;
 	if (impl_->resourceStaged &&
 	    !impl_->framer->expect(telemetry::integration::link::Expect::ResourceReply,
@@ -484,7 +542,7 @@ bool LinkTransport::sendStaged()
 	impl_->resourceStaged = false;
 	impl_->timeout.start(impl_->timeoutMs);
 	impl_->flush();
-	return ready();
+	return ready() || filesOnly();
 }
 
 void LinkTransport::discardStaged()

@@ -13,6 +13,7 @@
 #include <wire/ReadManyWire.hpp>
 #include <wire/BatchWire.hpp>
 #include <QtCore/QByteArray>
+#include <QtCore/QStringList>
 #include <limits>
 #include <optional>
 #include <span>
@@ -20,6 +21,23 @@
 namespace telemetry::integration::qt {
 class DescriptorBootstrap {
 public:
+	// Why discovery refused a device.
+	enum class Refusal : std::uint8_t {
+		None,
+		// A reply that does not follow the Resource protocol, or a broken list.
+		Protocol,
+		// The list is complete and has no /telemetry/descriptor.bin.
+		NoDescriptor,
+		// The device refused to stat or read the descriptor, or it is not readable.
+		DescriptorUnreadable,
+		// The descriptor's size is outside what a client accepts.
+		DescriptorSize,
+		// A ReadMany, Batch or session file is missing, malformed or refused.
+		Capability
+	};
+
+	static constexpr qsizetype maxPaths = 4096;
+
 	void reset(bool requireReadMany = false)
 	{
 		*this = DescriptorBootstrap{};
@@ -97,7 +115,7 @@ public:
 		namespace rc = resource::protocol::client;
 		using Op = resource::protocol::Op;
 		if (complete_)
-			return false;
+			return refuse(Refusal::Protocol);
 		if (operation_ == Op::List) {
 			const auto reply = rc::parseList(bytes);
 			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
@@ -106,62 +124,74 @@ public:
 			        std::numeric_limits<resource::Cursor>::max() - cursor_ ||
 			    reply.response.next != cursor_ + reply.response.paths.size() ||
 			    reply.response.next > std::numeric_limits<resource::FileIndex>::max())
-				return false;
+				return refuse(Refusal::Protocol);
 			auto index = cursor_;
 			for (const auto path : reply.response.paths) {
+				if (paths_.size() < maxPaths)
+					paths_.append(QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size())));
+				// One path listed twice is a broken list, not a missing file.
 				if (path == "/telemetry/descriptor.bin") {
 					if (index_)
-						return false;
+						return refuse(Refusal::Protocol);
 					index_ = static_cast<resource::FileIndex>(index);
 				}
 				if ((requireReadMany_ || optionalReadMany_) && path == "/telemetry/read-many.bin") {
 					if (capabilityIndex_)
-						return false;
+						return refuse(Refusal::Protocol);
 					capabilityIndex_ = static_cast<resource::FileIndex>(index);
 				}
 				if (optionalReadMany_ && path == "/telemetry/session.bin") {
 					if (sessionIndex_)
-						return false;
+						return refuse(Refusal::Protocol);
 					sessionIndex_ = static_cast<resource::FileIndex>(index);
 				}
 				if (optionalBatch_ && path == "/telemetry/batch.bin") {
 					if (batchIndex_)
-						return false;
+						return refuse(Refusal::Protocol);
 					batchIndex_ = static_cast<resource::FileIndex>(index);
 				}
 				++index;
 			}
 			if (!reply.response.eof && reply.response.next == cursor_)
-				return false;
+				return refuse(Refusal::Protocol);
 			cursor_ = reply.response.next;
 			if (reply.response.eof) {
-				if (!index_ || (requireReadMany_ && !capabilityIndex_) ||
+				listed_ = true;
+				if (!index_)
+					return refuse(Refusal::NoDescriptor);
+				if ((requireReadMany_ && !capabilityIndex_) ||
 				    (optionalReadMany_ &&
 				     (!requestedSession_ ||
 				      bool(capabilityIndex_ || batchIndex_) != bool(sessionIndex_))))
-					return false;
+					return refuse(Refusal::Capability);
 				operation_ = Op::Stat;
 			}
 		} else if (operation_ == Op::Stat) {
 			const auto reply = rc::parseStat(bytes);
+			if (!reply)
+				return refuse(Refusal::Protocol);
 			if (checkingSession_) {
-				if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
+				if (reply.shortError || reply.response.status != resource::Status::Ok ||
 				    reply.response.size != 4 ||
 				    !resource::has(reply.response.flags, resource::FileFlag::Writable))
-					return false;
+					return refuse(Refusal::Capability);
 				checkingSession_ = false;
 				writingSession_ = true;
 				operation_ = Op::Write;
 				return true;
 			}
-			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
+			const auto unusable = readingCapability_ ? Refusal::Capability : Refusal::DescriptorUnreadable;
+			if (reply.shortError || reply.response.status != resource::Status::Ok ||
 			    !resource::has(reply.response.flags, resource::FileFlag::Readable))
-				return false;
+				return refuse(unusable);
 			if (readingCapability_ ? reply.response.size !=
 			                             telemetry::protocol::encoded::read_many::capabilityBytes
 			                       : (reply.response.size < 64 ||
-			                          reply.response.size > telemetry::Limits::maxDescriptorBytes))
-				return false;
+			                          reply.response.size > telemetry::Limits::maxDescriptorBytes)) {
+				if (!readingCapability_)
+					descriptorSize_ = reply.response.size;
+				return refuse(readingCapability_ ? Refusal::Capability : Refusal::DescriptorSize);
+			}
 			size_ = reply.response.size;
 			auto& destination =
 			    readingCapability_ ? (readingBatch_ ? batchCapability_ : capability_) : descriptor_;
@@ -171,8 +201,10 @@ public:
 			operation_ = Op::Read;
 		} else if (operation_ == Op::Read) {
 			const auto reply = rc::parseRead(bytes);
-			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok)
-				return false;
+			if (!reply)
+				return refuse(Refusal::Protocol);
+			if (reply.shortError || reply.response.status != resource::Status::Ok)
+				return refuse(readingCapability_ ? Refusal::Capability : Refusal::DescriptorUnreadable);
 			auto& destination =
 			    readingCapability_ ? (readingBatch_ ? batchCapability_ : capability_) : descriptor_;
 			const auto received = static_cast<resource::FileSize>(destination.size());
@@ -186,7 +218,7 @@ public:
 			    (reply.response.eof && count != size_ - received) ||
 			    (!reply.response.eof && count == 0 &&
 			     (next == cursor_ || ++cursorOnlyReads_ > 4096)))
-				return false;
+				return refuse(Refusal::Protocol);
 			if (count != 0)
 				destination.append(reinterpret_cast<const char*>(reply.response.data.data()),
 				                   static_cast<qsizetype>(count));
@@ -212,13 +244,13 @@ public:
 							const auto parsed =
 							    telemetry::protocol::encoded::batch::parseCapability(input);
 							if (!parsed || parsed.value.session != requestedSession_)
-								return false;
+								return refuse(Refusal::Capability);
 						} else {
 							const auto parsed =
 							    telemetry::protocol::encoded::read_many::parseCapability(input);
 							if (!parsed ||
 							    (optionalReadMany_ && parsed.value.session != requestedSession_))
-								return false;
+								return refuse(Refusal::Capability);
 						}
 						if (!readingBatch_ && batchIndex_) {
 							readingBatch_ = true;
@@ -233,10 +265,12 @@ public:
 			}
 		} else if (operation_ == Op::Write && writingSession_) {
 			const auto reply = rc::parseWrite(bytes, 4);
-			if (!reply || reply.shortError || reply.response.status != resource::Status::Ok ||
+			if (!reply)
+				return refuse(Refusal::Protocol);
+			if (reply.shortError || reply.response.status != resource::Status::Ok ||
 			    reply.response.consumed != 4 || !reply.response.complete ||
 			    reply.response.next != 4)
-				return false;
+				return refuse(Refusal::Capability);
 			writingSession_ = false;
 			readingCapability_ = true;
 			readingBatch_ = !capabilityIndex_;
@@ -244,13 +278,49 @@ public:
 			cursor_ = 0;
 			size_ = 0;
 		} else {
-			return false;
+			return refuse(Refusal::Protocol);
 		}
 		return true;
 	}
 
+	// Why accept() refused, once it has. Only Protocol leaves the stream
+	// untrustworthy; the others refuse telemetry on a device whose files were
+	// listed correctly and can still be read.
+	Refusal refusal() const noexcept
+	{
+		return refusal_;
+	}
+
+	// Every path the device listed, in its order, at most maxPaths of them.
+	const QStringList& paths() const noexcept
+	{
+		return paths_;
+	}
+
+	// Whether the whole list was read; files can be offered only then.
+	bool listed() const noexcept
+	{
+		return listed_;
+	}
+
+	// The descriptor's size when DescriptorSize refused it.
+	resource::FileSize descriptorSize() const noexcept
+	{
+		return descriptorSize_;
+	}
+
 private:
+	bool refuse(Refusal reason) noexcept
+	{
+		refusal_ = reason;
+		return false;
+	}
+
 	QByteArray descriptor_, capability_, batchCapability_;
+	QStringList paths_;
+	Refusal refusal_ = Refusal::None;
+	resource::FileSize descriptorSize_ = 0;
+	bool listed_ = false;
 	std::optional<resource::FileIndex> index_, capabilityIndex_, batchIndex_, sessionIndex_;
 	resource::Cursor cursor_ = 0;
 	resource::FileSize size_ = 0;
