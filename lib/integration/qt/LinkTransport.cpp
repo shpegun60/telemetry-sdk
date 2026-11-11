@@ -151,7 +151,7 @@ struct LinkTransport::Impl {
 	{
 		// EOF can arrive with the final complete reply still in the link's buffer.
 		// Ingest it before queuing failure; the core still applies its deadline.
-		if (phase == Phase::Encoded)
+		if (phase == Phase::Encoded || phase == Phase::FilesOnly)
 			receive();
 		fail(std::move(reason));
 	}
@@ -482,6 +482,17 @@ bool LinkTransport::ready() const noexcept
 bool LinkTransport::filesOnly() const noexcept
 {
 	return impl_->phase == Impl::Phase::FilesOnly;
+}
+
+bool LinkTransport::restrictToFiles() noexcept
+{
+	if (impl_->phase == Impl::Phase::FilesOnly)
+		return true;
+	// Only a settled Encoded stream: nothing staged or outstanding.
+	if (impl_->phase != Impl::Phase::Encoded || impl_->awaiting || impl_->staged)
+		return false;
+	impl_->phase = Impl::Phase::FilesOnly;
+	return true;
 }
 
 DescriptorBootstrap::Refusal LinkTransport::discoveryRefusal() const noexcept

@@ -30,12 +30,15 @@ class ConnectionSession final : public QObject {
 	Q_PROPERTY(bool busy READ busy NOTIFY progressed)
 	Q_PROPERTY(bool filesOnly READ filesOnly NOTIFY stateChanged)
 	Q_PROPERTY(Limitation limitation READ limitation NOTIFY stateChanged)
+	Q_PROPERTY(QString limitationText READ limitationText NOTIFY stateChanged)
 	Q_PROPERTY(QStringList discoveredPaths READ discoveredPaths NOTIFY stateChanged)
 	Q_PROPERTY(quint64 descriptorReceived READ descriptorReceived NOTIFY discoveryProgressed)
 	Q_PROPERTY(quint64 descriptorTotal READ descriptorTotal NOTIFY discoveryProgressed)
 public:
 	// Why a connection carries the device's files only. The program words it;
-	// lastError() holds an English description of the same.
+	// limitationText() holds an English description of the same. lastError()
+	// keeps its meaning - why a connection failed or ended - and stays empty
+	// while a files-only connection is open.
 	enum class Limitation {
 		None,
 		// The device's file list has no /telemetry/descriptor.bin.
@@ -76,6 +79,7 @@ public:
 	// descriptor: telemetry is unavailable (ready() is false), its files are not.
 	bool filesOnly() const noexcept;
 	Limitation limitation() const noexcept;
+	QString limitationText() const;
 	// The paths the device listed while connecting, in its order; empty when
 	// discovery did not get that far. For naming a mistyped descriptor.
 	QStringList discoveredPaths() const;

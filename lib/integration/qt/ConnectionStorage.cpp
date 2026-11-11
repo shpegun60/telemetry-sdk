@@ -154,6 +154,11 @@ bool FilesOnlyStorage::admit() noexcept
 	return client.admitDescriptor({}, 1) == client::Status::Ok;
 }
 
+// A twin of ConnectionStorage::progressTransport and settleReplies, kept apart
+// until file writes (F-4) need their own mutation path. Two deliberate
+// differences: replies settle at once here, since nothing is due-ordered on a
+// files-only queue, and a refused send revokes the client's admission
+// (invalidateAdmission) where the Workbench's own invalidate() is used there.
 void FilesOnlyStorage::progressTransport(DeviceTransport* transport)
 {
 	client.process(now());

@@ -54,6 +54,9 @@ public:
 	// descriptor: telemetry is refused, and only Resource requests are staged,
 	// for the files. ready() stays false; discoveryRefusal() says why.
 	bool filesOnly() const noexcept;
+	// Narrows a discovered connection to files only, when its descriptor was
+	// read but the session cannot use it. False unless the stream is settled.
+	bool restrictToFiles() noexcept;
 	DescriptorBootstrap::Refusal discoveryRefusal() const noexcept;
 	// The paths discovery listed, at most DescriptorBootstrap::maxPaths.
 	QStringList discoveredPaths() const;

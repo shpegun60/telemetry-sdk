@@ -63,6 +63,42 @@ constexpr telemetry::CommandCatalogTable commands{};
 constexpr telemetry::ServiceCatalogTable services{};
 constexpr telemetry::Model model{fields, commands, services};
 
+// Lists 200 bytes, then ends after 100: a broken descriptor file.
+struct ShortFile {
+	[[nodiscard]] resource::FileSize size() const noexcept
+	{
+		return 200;
+	}
+
+	[[nodiscard]] resource::ReadResult read(resource::Cursor cursor,
+	                                        resource::Output output) const noexcept
+	{
+		constexpr resource::Cursor total = 100;
+		if (cursor > total)
+			return {resource::Status::InvalidCursor, cursor};
+		if (cursor == total)
+			return {resource::Status::Ok, cursor, 0, true};
+		const auto count = std::min<resource::Cursor>(output.size(), total - cursor);
+		std::fill_n(output.begin(), count, std::byte{0x11});
+		return {resource::Status::Ok, cursor + count, static_cast<std::uint32_t>(count),
+		        cursor + count == total};
+	}
+};
+
+// Listed and readable by its flags, but every read fails on the device.
+struct FailingFile {
+	[[nodiscard]] resource::FileSize size() const noexcept
+	{
+		return 128;
+	}
+
+	[[nodiscard]] resource::ReadResult read(resource::Cursor cursor,
+	                                        resource::Output) const noexcept
+	{
+		return {resource::Status::InternalError, cursor};
+	}
+};
+
 std::array<std::byte, 300> logBytes{};
 std::array<std::byte, 10> tinyBytes{};
 std::array<std::byte, 128> brokenBytes{};
@@ -74,6 +110,12 @@ const auto typo = resource::filesystem(resource::file("/telemetry/descripter.bin
                                        resource::file("/logs/events.csv", logFile));
 const auto tiny = resource::filesystem(resource::file("/telemetry/descriptor.bin", tinyFile),
                                        resource::file("/logs/events.csv", logFile));
+const ShortFile shortFile{};
+const FailingFile failingFile{};
+const auto shortened = resource::filesystem(resource::file("/telemetry/descriptor.bin", shortFile),
+                                            resource::file("/logs/events.csv", logFile));
+const auto failing = resource::filesystem(resource::file("/telemetry/descriptor.bin", failingFile),
+                                          resource::file("/logs/events.csv", logFile));
 const auto broken = resource::filesystem(resource::file("/telemetry/descriptor.bin", brokenFile),
                                          resource::file("/logs/events.csv", logFile));
 
@@ -174,7 +216,9 @@ std::vector<std::byte> readWhole(qt::ConnectionSession& session, resource::FileI
 void filesStillWork(qt::ConnectionSession& session)
 {
 	CHECK(!session.ready() && session.filesOnly() && session.filesSupported());
-	CHECK(!session.lastError().isEmpty() && !session.recoveryRequired());
+	// lastError() is for a failed connection; this one is open, with a reason.
+	CHECK(session.lastError().isEmpty() && !session.limitationText().isEmpty() &&
+	      !session.recoveryRequired());
 	// Telemetry is refused; the files are not.
 	const auto refused = session.readFieldValue(
 	    0, [](const telemetry::integration::dynamic::DynamicResult&) noexcept {
@@ -221,11 +265,30 @@ void descriptorBroken()
 	CHECK(connected(session, peer));
 	// Read whole, then rejected by the parser: still files only.
 	CHECK(session.limitation() == Limitation::DescriptorRejected);
-	CHECK(session.lastError().startsWith(QStringLiteral("Telemetry is not available: ")));
+	CHECK(session.limitationText().startsWith(QStringLiteral("Telemetry is not available: ")));
 	filesStillWork(session);
 	const auto descriptorBytes = readWhole(session, 0);
 	CHECK(descriptorBytes.size() == brokenBytes.size() &&
 	      std::equal(brokenBytes.begin(), brokenBytes.end(), descriptorBytes.begin()));
+}
+
+void descriptorShort()
+{
+	Peer peer{shortened.view()};
+	qt::ConnectionSession session;
+	CHECK(connected(session, peer));
+	// Framing intact, the file broken: files only, and the file is the evidence.
+	CHECK(session.limitation() == Limitation::DescriptorRejected);
+	filesStillWork(session);
+}
+
+void descriptorUnreadable()
+{
+	Peer peer{failing.view()};
+	qt::ConnectionSession session;
+	CHECK(connected(session, peer));
+	CHECK(session.limitation() == Limitation::DescriptorUnreadable);
+	filesStillWork(session);
 }
 
 void notTheProtocol()
@@ -246,6 +309,8 @@ int main(int argc, char** argv)
 	noDescriptor();
 	descriptorTooSmall();
 	descriptorBroken();
+	descriptorShort();
+	descriptorUnreadable();
 	notTheProtocol();
 	std::printf("Files-only connection: %u checks, 0 failures\n", checks);
 	return 0;

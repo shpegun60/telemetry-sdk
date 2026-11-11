@@ -32,6 +32,8 @@ public:
 		DescriptorUnreadable,
 		// The descriptor's size is outside what a client accepts.
 		DescriptorSize,
+		// Reading the descriptor gave more or fewer bytes than its Stat size.
+		DescriptorLength,
 		// A ReadMany, Batch or session file is missing, malformed or refused.
 		Capability
 	};
@@ -220,11 +222,14 @@ public:
 			// Bound storage by accumulated bytes and cursor-only progress by a
 			// separate budget; neither arriving bytes nor cursor changes reset
 			// the transport's absolute discovery deadline.
-			if (received > size_ || count > size_ - received ||
-			    (reply.response.eof && count != size_ - received) ||
-			    (!reply.response.eof && count == 0 &&
-			     (next == cursor_ || ++cursorOnlyReads_ > 4096)))
+			// A device that answers without moving on is broken; one whose file
+			// is longer or shorter than it listed has a broken file, and the
+			// file itself is what a user downloads to see why.
+			if (!reply.response.eof && count == 0 && (next == cursor_ || ++cursorOnlyReads_ > 4096))
 				return refuse(Refusal::Protocol);
+			if (received > size_ || count > size_ - received ||
+			    (reply.response.eof && count != size_ - received))
+				return refuse(readingCapability_ ? Refusal::Capability : Refusal::DescriptorLength);
 			if (count != 0)
 				destination.append(reinterpret_cast<const char*>(reply.response.data.data()),
 				                   static_cast<qsizetype>(count));

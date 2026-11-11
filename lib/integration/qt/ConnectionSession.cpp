@@ -22,6 +22,7 @@ struct ConnectionSession::Impl {
 	std::unique_ptr<TcpTransport> transport;
 	ConnectionSession::Limitation limitation = ConnectionSession::Limitation::None;
 	QStringList discoveredPaths;
+	QString limitationText;
 	quint64 refusedDescriptorSize = 0, descriptorReceived = 0, descriptorTotal = 0;
 	QString host, peerAddress, retiredHost, retiredAddress, error;
 	quint16 port = 0, retiredPort = 0;
@@ -94,6 +95,7 @@ struct ConnectionSession::Impl {
 		// The limitation describes the live connection; the paths stay until the
 		// next connection, for naming a typo after this one has gone.
 		limitation = ConnectionSession::Limitation::None;
+		limitationText.clear();
 		transport.reset();
 		retiring = false;
 		if (owner)
@@ -141,12 +143,22 @@ struct ConnectionSession::Impl {
 			fail(QStringLiteral("The files-only client could not be admitted"));
 			return;
 		}
+		// Both ways in leave the transport carrying Resource requests only.
+		if (transport)
+			transport->restrictToFiles();
 		limitation = reason;
 		refusedDescriptorSize = transport ? transport->refusedDescriptorSize() : 0;
+		limitationText =
+		    detail.isEmpty() ? describe(reason, refusedDescriptorSize) : std::move(detail);
+		// The offered session number may already be written to the device's
+		// session file; never offer it again.
+		if (lastSession != std::numeric_limits<quint32>::max())
+			++lastSession;
 		filesOnly = std::move(storage);
 		connected = true;
 		opening = false;
-		error = detail.isEmpty() ? describe(reason, refusedDescriptorSize) : std::move(detail);
+		// lastError() keeps meaning why a connection failed or ended.
+		error.clear();
 		timer.start();
 		if (owner)
 			Q_EMIT owner->admissionChanged();
@@ -155,8 +167,18 @@ struct ConnectionSession::Impl {
 
 	void filesOnlyDiscovered(quint64 epoch)
 	{
-		if (epoch != generation || !opening || !transport || !transport->filesOnly() || working)
+		if (epoch != generation || !opening || !transport || !transport->filesOnly())
 			return;
+		if (working) {
+			// The transport has stopped its discovery deadline; nothing else
+			// would end this attempt, so come back once the owner is free.
+			if (!owner)
+				return;
+			QTimer::singleShot(0, owner, [target = owner.data(), epoch] {
+				target->d->filesOnlyDiscovered(epoch);
+			});
+			return;
+		}
 		using R = DescriptorBootstrap::Refusal;
 		using L = ConnectionSession::Limitation;
 		discoveredPaths = transport->discoveredPaths();
@@ -169,6 +191,12 @@ struct ConnectionSession::Impl {
 				return;
 			case R::DescriptorSize:
 				enterFilesOnly(L::DescriptorSize);
+				return;
+			case R::DescriptorLength:
+				enterFilesOnly(
+				    L::DescriptorRejected,
+				    QStringLiteral("Telemetry is not available: /telemetry/descriptor.bin "
+				                   "did not have the length the device listed"));
 				return;
 			case R::Capability:
 				enterFilesOnly(L::Capability);
@@ -573,6 +601,11 @@ bool ConnectionSession::filesOnly() const noexcept
 ConnectionSession::Limitation ConnectionSession::limitation() const noexcept
 {
 	return d->limitation;
+}
+
+QString ConnectionSession::limitationText() const
+{
+	return d->limitationText;
 }
 
 QStringList ConnectionSession::discoveredPaths() const
