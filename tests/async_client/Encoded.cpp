@@ -493,7 +493,10 @@ static void cancellationAndCapacity() noexcept
 	CHECK(h.backend.start({client::Operation::FieldRead, 0, payload, 5}, 0) ==
 	      client::Status::InvalidArgument);
 	CHECK(h.tx == before);
-	CHECK(h.backend.start({static_cast<client::Operation>(7), 0, {}, 0}, 0) ==
+	// 7 is the client-only Resource family; this backend was not built to admit it.
+	CHECK(h.backend.start({client::Operation::Resource, 0, {}, 0}, 0) ==
+	      client::Status::Unsupported);
+	CHECK(h.backend.start({static_cast<client::Operation>(8), 0, {}, 0}, 0) ==
 	      client::Status::InvalidArgument);
 	CHECK(h.backend.start({client::Operation::Service, 0, payload, 1025}, 0) ==
 	      client::Status::BufferTooSmall);

@@ -225,6 +225,13 @@ void scenario(const char* name, Behaviour behaviour, bool reconnect)
 		    return !session.connecting();
 	    },
 	    2000);
+	// A peer that closes after its reply is noticed after the reply itself, and
+	// how much later depends on the platform. Wait for the session to see it, so
+	// the trace records the outcome rather than a race with disconnect().
+	if (behaviour == Behaviour::CloseAfterReply)
+		await([&] {
+			return !session.ready() && !session.lastError().isEmpty();
+		});
 	trace.snapshot();
 	if (reconnect) {
 		session.disconnect();

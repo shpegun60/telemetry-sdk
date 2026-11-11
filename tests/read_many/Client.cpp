@@ -294,7 +294,8 @@ static void refusalAndCompatibility() noexcept
 	CHECK(h.client.bind(cl::Operation::ReadMany, 0).status == cl::Status::InvalidArgument);
 	CHECK(h.client.bind(static_cast<cl::Operation>(6), 0).status == cl::Status::InvalidArgument);
 	CHECK(h.backend.start({cl::Operation::Batch, 0, {}, 14}, h.now) == cl::Status::Unsupported);
-	CHECK(h.backend.start({static_cast<cl::Operation>(7), 0, {}, 10}, h.now) ==
+	CHECK(h.backend.start({cl::Operation::Resource, 0, {}, 10}, h.now) == cl::Status::Unsupported);
+	CHECK(h.backend.start({static_cast<cl::Operation>(8), 0, {}, 10}, h.now) ==
 	      cl::Status::InvalidArgument);
 	Harness<mixedModel, mixedBytes> mixedHarness;
 	const std::array<std::uint32_t, 1> structId{6};
