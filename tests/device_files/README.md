@@ -12,6 +12,15 @@ installed package. No board; only ephemeral localhost sockets.
     not a reply, a piece without progress from a misbehaving device;
   - the sink stopping, a timeout, a cancel while a piece is in flight and between
     pieces, the queue cancelling, a busy queue that is retried and a refusal.
+- **Values** (`Values.cpp`, no Qt, no network). `/telemetry/values.bin` as the
+  device serves it (`ValuesFile`, read in pieces) is read back on the host with
+  `readValues` against a `RuntimeSchema` parsed from the descriptor's bytes, and
+  every value through `DynamicValueView`: scalars, a nested struct, an enum by
+  name, an array, a Field served Unavailable; read again after the device
+  changed. Every wrong file is refused for its own reason with nothing visited:
+  too short, magic, version, size, another descriptor, the Field count, tokens
+  that do not add up either way, an unknown status, an Unavailable value that is
+  not blank.
 - **Session** (`Session.cpp`). A `ConnectionSession` over TCP to the native server:
   - the files are listed;
   - the descriptor and a 200000-byte file are read with a `FileReader` polled from
