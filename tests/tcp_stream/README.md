@@ -9,6 +9,10 @@ discovery uses a decoy file at index0 and the descriptor at index1; downloaded
 bytes must equal the real packed Descriptor. A separate allocation-trap build
 executes the same cases. No socket, STM32 or network device is opened.
 
+Before any build, every public header under `lib/integration/tcp/` is compiled as
+the only include of its own translation unit, with the same warnings-as-errors flags,
+so no header depends on a documented include order.
+
 FrameReader input/storage overlap controls cover exact and both partial overlap
 directions, including an already partial frame. Invalid/zero-consumption refusal
 preserves all storage and framing state; a subsequent disjoint continuation still

@@ -2,8 +2,10 @@
 #ifndef TELEMETRY_INTEGRATION_TCP_ENCODED_PROFILE_HPP
 #define TELEMETRY_INTEGRATION_TCP_ENCODED_PROFILE_HPP
 #pragma once
+#include <integration/tcp/Framing.hpp>
 #include <integration/tcp/ReadManyProfile.hpp>
 #include <integration/encoded/BatchDispatcher.hpp>
+#include <integration/encoded/Dispatcher.hpp>
 
 namespace telemetry::integration::tcp {
 // One write-once session shared by both optional capabilities. Reuses the

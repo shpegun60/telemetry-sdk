@@ -84,6 +84,18 @@ def main():
     try:
         report['source_sha256_before'] = snapshot()
         run('compiler', [compiler, '--version'])
+        # Every public TCP header must compile when it is the only include, so a
+        # documented include order can never be required by accident.
+        headers = sorted((ROOT / 'lib/integration/tcp').glob('*.hpp'))
+        if len(headers) < 4:
+            raise RuntimeError('Public TCP headers not found')
+        alone = out / 'standalone-headers'
+        alone.mkdir()
+        for header in headers:
+            unit = alone / (header.stem + '.cpp')
+            unit.write_text('#include <integration/tcp/' + header.name + '>\n', encoding='utf-8')
+            run('standalone-' + header.stem, base + ['-fsyntax-only', unit])
+        report['standalone_headers'] = [header.name for header in headers]
         host = out / ('host' + suffix)
         run('build-host', base + profile + [HERE / 'main.cpp', *implementation, '-o', host])
         count('host', run('execute-host', [host]))
