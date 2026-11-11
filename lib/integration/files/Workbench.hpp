@@ -108,6 +108,12 @@ public:
 		return owner.readOnlyClient().submitResource(request, replyBytes, std::move(completion),
 		                                             timeoutMs);
 	}
+
+	template<class W>
+	[[nodiscard]] static bool cancel(W& owner, client::RequestHandle handle) noexcept
+	{
+		return owner.readOnlyClient().cancel(handle);
+	}
 };
 } // namespace detail
 
@@ -120,6 +126,12 @@ struct Submitter<workbench::WorkbenchModel<N, P, S, C>> {
 	{
 		return detail::WorkbenchAccess::submit(owner, request, replyBytes,
 		                                       std::forward<F>(callback), timeoutMs);
+	}
+
+	static bool cancel(workbench::WorkbenchModel<N, P, S, C>& owner,
+	                   client::RequestHandle handle) noexcept
+	{
+		return detail::WorkbenchAccess::cancel(owner, handle);
 	}
 };
 } // namespace telemetry::integration::files

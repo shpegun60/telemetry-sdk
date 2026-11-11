@@ -14,7 +14,9 @@ foreach(target reader session)
 endforeach()
 # GCC 13 at -O3 reports the always-emplaced std::optional inside the ReadMany
 # Workbench completion as maybe-uninitialized once this test inlines it; the
-# same code builds clean in tests/qt_read_many. Keep it visible, not fatal.
+# same code builds clean in tests/qt_read_many. GCC's known false positives on
+# std::optional (GCC bug 80635). Keep it visible, not fatal, and drop this once
+# the CI compiler no longer reports it.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_compile_options(session PRIVATE -Wno-error=maybe-uninitialized)
 endif()

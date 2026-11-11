@@ -210,6 +210,17 @@ void reading()
 	}));
 	CHECK(fieldReads >= 3 && fieldOk == fieldReads);
 
+	// Cancelled from the owner loop after a few pieces: it stops short.
+	std::vector<std::byte> partial;
+	Reader cancelled{session, Sink{&partial}};
+	CHECK(cancelled.start(1) == cl::Status::Ok);
+	CHECK(run(cancelled, [&] {
+		if (cancelled.received() > 10000)
+			cancelled.cancel();
+	}));
+	CHECK(cancelled.state() == files::ReadState::Cancelled && partial.size() < largeBytes.size() &&
+	      session.ready());
+
 	// The connection goes away in the middle of a read.
 	std::vector<std::byte> cut;
 	Reader cutReader{session, Sink{&cut}};
