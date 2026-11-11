@@ -179,6 +179,76 @@ int main()
 {
 	return sizeof(Inspector) > sizeof(void*) ? 0 : 1;
 }
+#elif defined(MODULE_LINK)
+#include <integration/link/Framer.hpp>
+
+// The interface alone: a framer that frames nothing still satisfies it.
+class Refusing final : public telemetry::integration::link::Framer {
+public:
+	std::size_t maxFrameBytes() const noexcept override
+	{
+		return 0;
+	}
+
+	std::size_t encodedBytes(telemetry::integration::link::Input) const noexcept override
+	{
+		return 0;
+	}
+
+	bool encode(telemetry::integration::link::Input,
+	            telemetry::integration::link::Output) noexcept override
+	{
+		return false;
+	}
+
+	telemetry::integration::link::Feed feed(telemetry::integration::link::Input) noexcept override
+	{
+		return {telemetry::integration::link::Status::Invalid, 0};
+	}
+
+	telemetry::integration::link::Input frame() const noexcept override
+	{
+		return {};
+	}
+
+	void release() noexcept override
+	{}
+
+	bool expect(telemetry::integration::link::Expect, resource::protocol::Op) noexcept override
+	{
+		return false;
+	}
+
+	void close() noexcept override
+	{}
+
+	void reset() noexcept override
+	{}
+};
+
+int main()
+{
+	Refusing refusing;
+	telemetry::integration::link::Framer& framer = refusing;
+	return framer.feed({}).status == telemetry::integration::link::Status::Invalid &&
+	               !framer.expect(telemetry::integration::link::Expect::EncodedReply)
+	           ? 0
+	           : 1;
+}
+#elif defined(MODULE_TCP_LINK)
+#include <integration/tcp/ProfileFramer.hpp>
+
+static telemetry::integration::tcp::ProfileFramer profile;
+
+int main()
+{
+	telemetry::integration::link::Framer& framer = profile;
+	framer.reset();
+	return framer.maxFrameBytes() == telemetry::integration::tcp::ProfileFramer::frameBytes &&
+	               framer.expect(telemetry::integration::link::Expect::EncodedReply)
+	           ? 0
+	           : 1;
+}
 #elif defined(MODULE_RESOURCE)
 #include <resource/Resource.hpp>
 

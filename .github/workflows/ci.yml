@@ -1258,6 +1258,10 @@ jobs:
         run: |
           python3 -B tests/qt_batch/run.py --build-dir "$RUNNER_TEMP/qt-batch" \
             --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
+      - name: Sanitized installed link transport against its golden trace
+        run: |
+          python3 -B tests/link_transport/run.py --build-dir "$RUNNER_TEMP/link-transport" \
+            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Install the current SDK for cross-repository Qt consumers
         run: |
           cmake -S . -B "$RUNNER_TEMP/ux-sdk-build" -G Ninja \

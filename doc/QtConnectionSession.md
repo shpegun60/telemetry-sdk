@@ -4,6 +4,9 @@
 Core/Network and uses one existing `WorkbenchModel`/`DynamicClient` FIFO. Portable
 core/default SDK builds do not discover or link Qt. `qt_tcp_transport` separately
 exports the carrier; `tcp_wire` exports stream framing without server/Model code.
+The carrier, `TcpTransport`, is a `LinkTransport` over a `TcpLink` and the TCP
+profile's `ProfileFramer`: the exchange rules live in `LinkTransport` and serve
+any medium that supplies a `Link` and a `Framer`.
 
 ```cpp
 #include <integration/qt/ConnectionSession.hpp>

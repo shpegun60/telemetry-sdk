@@ -97,7 +97,7 @@ target_link_libraries(application PRIVATE Telemetry::core)
 Available components are `core`, `runtime`, `resource`, `resource_protocol`, `client`,
 `codec`, `resource_adapter`, `encoded_server`, `rpc_server`, `rpc_sessions`,
 `encoded_backend`, `rpc_client`, `rpc_backend`, `dynamic_client`, `read_many_client`, `read_many_static_client`, `batch_client`, `batch_static_client`, `batch_server`, `inspector`, `workbench`, `read_many_workbench` and
-`tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `qt_connection`,
+`tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `link`, `tcp_link`, `qt_connection`,
 `qt_tcp_transport`, `qt_transport` and `qt_serial_transport`. Shared header components
 `common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire` and `rpc_wire`
 are selected automatically as needed. Multiple components use a semicolon list.
@@ -240,5 +240,10 @@ original source identity; this refactoring does not establish new board results.
 `qt_connection` exports [ConnectionSession](QtConnectionSession.md), one host
 owner/FIFO and its Resource/Encoded TCP reference profile. `qt_tcp_transport`
 exports only the Qt Network carrier; `tcp_wire` holds framing without native
-server dependencies. These components are explicit opt-ins and are absent from
+server dependencies. A host transport is a link plus a framer: `link` holds the
+Qt-free `Framer` contract, `tcp_link` the TCP profile's framer, and
+`qt_transport` the `Link` channel and `LinkTransport`, which carries discovery
+and exchange for any medium. `TcpTransport` is that transport over a `TcpLink`;
+[tests/link_transport](../tests/link_transport/README.md) proves the split
+changed nothing it does. These components are explicit opt-ins and are absent from
 the portable default selection. QML/HTML presentation remains in Telemetry UX.
