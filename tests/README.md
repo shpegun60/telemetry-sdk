@@ -68,6 +68,13 @@ controller behavior and actual QML edit/Apply handlers over the native Encoded p
 
 The [native TCP suite](tcp_stream/README.md) checks bounded Resource/TEQ1 stream
 framing, real dispatch, preflight, reentrancy, no-heap and Cortex-M7 compilation.
+The [device files suite](device_files/README.md) checks `files::FileReader` against
+the real Resource protocol handler without a network - every way a read ends -
+and the files of a live `ConnectionSession` over TCP with Field reads between the
+pieces and a connection lost mid-read.
+The [link transport suite](link_transport/README.md) checks the Qt-free TCP
+framer, `LinkTransport` over an in-memory link, and a TCP session trace that must
+equal the golden recorded before the transport was split into link and framer.
 The [TCP Inspector suite](https://github.com/shpegun60/telemetry-ux/blob/main/tests/inspector_tcp/README.md) adds actual Qt sockets,
 Resource Descriptor discovery, partial transmission, connection failures, stale
 replies, recovery and a separate-process TCP/QML window smoke test.

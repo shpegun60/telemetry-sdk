@@ -179,6 +179,119 @@ int main()
 {
 	return sizeof(Inspector) > sizeof(void*) ? 0 : 1;
 }
+#elif defined(MODULE_LINK)
+#include <integration/link/Framer.hpp>
+
+// The interface alone: a framer that frames nothing still satisfies it.
+class Refusing final : public telemetry::integration::link::Framer {
+public:
+	std::size_t maxFrameBytes() const noexcept override
+	{
+		return 0;
+	}
+
+	std::size_t maxEncodedBytes(std::size_t) const noexcept override
+	{
+		return 0;
+	}
+
+	std::size_t encode(telemetry::integration::link::Input,
+	                   telemetry::integration::link::Output) noexcept override
+	{
+		return false;
+	}
+
+	telemetry::integration::link::Feed feed(telemetry::integration::link::Input) noexcept override
+	{
+		return {telemetry::integration::link::Status::Invalid, 0};
+	}
+
+	telemetry::integration::link::Input frame() const noexcept override
+	{
+		return {};
+	}
+
+	void release() noexcept override
+	{}
+
+	bool expect(telemetry::integration::link::Expect, resource::protocol::Op) noexcept override
+	{
+		return false;
+	}
+
+	void close() noexcept override
+	{}
+
+	void reset() noexcept override
+	{}
+};
+
+int main()
+{
+	Refusing refusing;
+	telemetry::integration::link::Framer& framer = refusing;
+	return framer.feed({}).status == telemetry::integration::link::Status::Invalid &&
+	               !framer.expect(telemetry::integration::link::Expect::EncodedReply,
+	                              resource::protocol::Op::Read)
+	           ? 0
+	           : 1;
+}
+#elif defined(MODULE_TCP_LINK)
+#include <integration/tcp/ProfileFramer.hpp>
+
+int main()
+{
+	// Local, not static: a static framer would register its destructor with
+	// __cxa_atexit, which a bare-metal image without start files cannot link.
+	telemetry::integration::tcp::ProfileFramer profile;
+	telemetry::integration::link::Framer& framer = profile;
+	framer.reset();
+	return framer.maxFrameBytes() == telemetry::integration::tcp::ProfileFramer::frameBytes &&
+	               framer.expect(telemetry::integration::link::Expect::EncodedReply,
+	                             resource::protocol::Op::Read)
+	           ? 0
+	           : 1;
+}
+#elif defined(MODULE_FILES_CLIENT)
+#include <integration/files/Client.hpp>
+
+// Any client with submitResource drives a reader; this one refuses.
+struct Refusing {
+	template<class F>
+	telemetry::client::Submission submitResource(telemetry::client::Input, std::uint32_t, F&&,
+	                                             std::uint32_t) noexcept
+	{
+		return {telemetry::client::Status::NotAdmitted, {}};
+	}
+};
+
+struct Sink {
+	bool operator()(telemetry::client::Input) noexcept
+	{
+		return true;
+	}
+};
+
+int main()
+{
+	Refusing client;
+	telemetry::integration::files::FileReader<Refusing, Sink> reader{client, Sink{}};
+	return reader.start(0) == telemetry::client::Status::NotAdmitted &&
+	               reader.state() == telemetry::integration::files::ReadState::Failed
+	           ? 0
+	           : 1;
+}
+#elif defined(MODULE_FILES_WORKBENCH)
+#include <integration/files/Workbench.hpp>
+#include <type_traits>
+using Workbench = telemetry::integration::workbench::WorkbenchModel<2, 64, 64>;
+using Files = telemetry::integration::files::Submitter<Workbench>;
+static_assert(std::is_empty_v<Files>);
+
+int main()
+{
+	return sizeof(Workbench) > sizeof(void*) ? 0 : 1;
+}
 #elif defined(MODULE_RESOURCE)
 #include <resource/Resource.hpp>
 

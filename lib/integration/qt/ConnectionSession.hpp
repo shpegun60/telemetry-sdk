@@ -10,6 +10,8 @@
 #include <integration/qt/ConnectionStorage.hpp>
 #include <integration/read_many/Workbench.hpp>
 #include <integration/batch/Workbench.hpp>
+#include <integration/files/Workbench.hpp>
+#include <QtCore/QStringList>
 #include <functional>
 #include <optional>
 
@@ -26,7 +28,32 @@ class ConnectionSession final : public QObject {
 	Q_PROPERTY(bool readManySupported READ readManySupported NOTIFY admissionChanged)
 	Q_PROPERTY(bool batchSupported READ batchSupported NOTIFY admissionChanged)
 	Q_PROPERTY(bool busy READ busy NOTIFY progressed)
+	Q_PROPERTY(bool filesOnly READ filesOnly NOTIFY stateChanged)
+	Q_PROPERTY(Limitation limitation READ limitation NOTIFY stateChanged)
+	Q_PROPERTY(QString limitationText READ limitationText NOTIFY stateChanged)
+	Q_PROPERTY(QStringList discoveredPaths READ discoveredPaths NOTIFY stateChanged)
+	Q_PROPERTY(quint64 descriptorReceived READ descriptorReceived NOTIFY discoveryProgressed)
+	Q_PROPERTY(quint64 descriptorTotal READ descriptorTotal NOTIFY discoveryProgressed)
 public:
+	// Why a connection carries the device's files only. The program words it;
+	// limitationText() holds an English description of the same. lastError()
+	// keeps its meaning - why a connection failed or ended - and stays empty
+	// while a files-only connection is open.
+	enum class Limitation {
+		None,
+		// The device's file list has no /telemetry/descriptor.bin.
+		NoDescriptor,
+		// The device refused to stat or read the descriptor.
+		DescriptorUnreadable,
+		// The descriptor's size is outside what a client accepts.
+		DescriptorSize,
+		// The descriptor was read but could not be parsed or admitted.
+		DescriptorRejected,
+		// A ReadMany, Batch or session file is missing, malformed or does not match.
+		Capability
+	};
+	Q_ENUM(Limitation)
+
 	using StorageFactory = std::function<std::shared_ptr<ConnectionStorage>(QByteArray)>;
 	explicit ConnectionSession(QObject* parent = nullptr);
 	// Advanced seam for an existing host's outcome slots. The factory supplies
@@ -45,6 +72,64 @@ public:
 	std::optional<read_many::wire::Capability> readManyCapability() const noexcept;
 	bool batchSupported() const noexcept;
 	std::optional<batch::wire::Capability> batchCapability() const noexcept;
+	// Whether the device's files can be read on this connection: it is ready,
+	// or connected files only, and its transport frames Resource replies.
+	bool filesSupported() const noexcept;
+	// Connected to a device that lists its files correctly but offers no usable
+	// descriptor: telemetry is unavailable (ready() is false), its files are not.
+	bool filesOnly() const noexcept;
+	Limitation limitation() const noexcept;
+	QString limitationText() const;
+	// The paths the device listed while connecting, in its order; empty when
+	// discovery did not get that far. For naming a mistyped descriptor.
+	QStringList discoveredPaths() const;
+	// The descriptor's size when DescriptorSize limited the connection.
+	quint64 refusedDescriptorSize() const noexcept;
+	// Reading the descriptor while connecting, for a progress bar: bytes so far
+	// of its size; both zero until the device has said how big it is.
+	quint64 descriptorReceived() const noexcept;
+	quint64 descriptorTotal() const noexcept;
+
+	// Cancels a request of this session's queue that has not been sent yet; its
+	// callback then reports Cancelled. False when there is nothing to cancel.
+	bool cancel(client::RequestHandle handle) noexcept;
+
+	// A raw Resource List, Stat or Read on this session's one queue. This makes
+	// the session a files client: files::list, stat, read and FileReader take
+	// it directly. The reply view ends at callback return.
+	template<class F>
+	client::Submission submitResource(client::Input request, std::uint32_t replyBytes, F&& callback,
+	                                  std::uint32_t timeoutMs = 30000) noexcept
+	{
+		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&, const client::ResultView&>);
+		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
+		client::Status status;
+		if (const auto files = filesOnlyStorage(status)) {
+			if (!filesSupported())
+				return {client::Status::Unsupported, {}};
+			return files->client.submitResource(
+			    request, replyBytes,
+			    [files, callable = std::forward<F>(callback)](
+			        const client::ResultView& result) mutable noexcept {
+				    callable(result);
+			    },
+			    timeoutMs);
+		}
+		if (status != client::Status::Ok)
+			return {status, {}};
+		auto owner = operationStorage(status);
+		if (!owner)
+			return {status, {}};
+		if (!filesSupported())
+			return {client::Status::Unsupported, {}};
+		return files::Submitter<HostWorkbench>::submit(
+		    owner->inspector, request, replyBytes,
+		    [owner, callable = std::forward<F>(callback)](
+		        const client::ResultView& result) mutable noexcept {
+			    callable(result);
+		    },
+		    timeoutMs);
+	}
 
 	struct BatchRequest {
 		client::Operation operation;
@@ -180,9 +265,13 @@ Q_SIGNALS:
 	// consume owned outcome slots here; no Qt publication occurs inside core.
 	void progressed();
 	void stateChanged();
+	void discoveryProgressed();
 
 private:
 	std::shared_ptr<ConnectionStorage> operationStorage(client::Status& status) const noexcept;
+	// The files-only storage when connected files only. Otherwise null, with
+	// status Ok when the caller should try the telemetry storage, or the reason.
+	std::shared_ptr<FilesOnlyStorage> filesOnlyStorage(client::Status& status) const noexcept;
 	struct Impl;
 
 	struct SubmissionScope {

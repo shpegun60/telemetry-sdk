@@ -15,12 +15,22 @@ struct RequestView {
 	std::uint32_t timeoutMs = maxTimeoutMs;
 };
 
+// How the reply to a packet is framed. A Resource reply carries no identity of
+// its own: a port matches it by position, and its framing needs the operation.
+enum class ReplyFrame : std::uint8_t {
+	Encoded,
+	Resource
+};
+
 struct Packet {
 	Input bytes{};
 	std::uint32_t session = 0;
 	std::uint32_t requestId = 0;
 	// Encoded: the complete request; RPC: only final WRITE can dispatch it.
 	bool mayExecute = true;
+	ReplyFrame reply = ReplyFrame::Encoded;
+	// The Resource operation byte when reply is Resource; zero otherwise.
+	std::uint8_t resourceOperation = 0;
 
 	[[nodiscard]] explicit operator bool() const noexcept
 	{

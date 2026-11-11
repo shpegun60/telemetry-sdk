@@ -30,6 +30,14 @@ public:
 	virtual QString peerAddress() const = 0;
 	virtual void setWriteChunkBytes(int bytes) noexcept = 0;
 	virtual void setTimeout(int milliseconds) noexcept = 0;
+
+	// Whether packets marked ReplyFrame::Resource can be sent after discovery,
+	// for the device's files. A transport that cannot frame them refuses them.
+	virtual bool supportsResourceReplies() const noexcept
+	{
+		return false;
+	}
+
 Q_SIGNALS:
 	void descriptorReceived(QByteArray bytes);
 	void packetAccepted(quint32 session, quint32 requestId);

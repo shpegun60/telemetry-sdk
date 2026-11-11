@@ -302,8 +302,10 @@ void discoveryFailures()
 		CHECK(await([&] {
 			return !connection.connecting();
 		}));
-		CHECK(!connection.ready() && !connection.readManySupported() &&
-		      !connection.lastError().isEmpty());
+		// A device whose capability files do not match connects files only.
+		CHECK(!connection.ready() && !connection.readManySupported() && connection.filesOnly() &&
+		      connection.limitation() == qt::ConnectionSession::Limitation::Capability &&
+		      connection.lastError().isEmpty() && !connection.limitationText().isEmpty());
 		CHECK(peer.encoded == 0 && device.reads == before);
 	}
 	Peer peer(Mode::Legacy);

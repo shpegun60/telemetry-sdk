@@ -133,4 +133,89 @@ void ConnectionStorage::closeAndDrain()
 	if (!inspector.drained())
 		std::abort();
 }
+
+FilesOnlyStorage::FilesOnlyStorage()
+{
+	elapsed.start();
+}
+
+FilesOnlyStorage::~FilesOnlyStorage()
+{
+	closeAndDrain();
+}
+
+quint32 FilesOnlyStorage::now() const noexcept
+{
+	return static_cast<quint32>(elapsed.elapsed());
+}
+
+bool FilesOnlyStorage::admit() noexcept
+{
+	return client.admitDescriptor({}, 1) == client::Status::Ok;
+}
+
+// A twin of ConnectionStorage::progressTransport and settleReplies, kept apart
+// until file writes (F-4) need their own mutation path. Two deliberate
+// differences: replies settle at once here, since nothing is due-ordered on a
+// files-only queue, and a refused send revokes the client's admission
+// (invalidateAdmission) where the Workbench's own invalidate() is used there.
+void FilesOnlyStorage::progressTransport(DeviceTransport* transport)
+{
+	client.process(now());
+	if (remoteAccepted) {
+		remoteAccepted = false;
+		(void)client.onSendAccepted(client.session(), remoteRequestId);
+	}
+	const auto packet = client.nextPacket();
+	if (transport && packet && transport->canStage() && transport->stage(packet)) {
+		if (client.prepareHandoff(packet.session, packet.requestId)) {
+			remoteRequestId = packet.requestId;
+			if (!transport->sendStaged())
+				client.invalidateAdmission();
+		} else
+			transport->discardStaged();
+	}
+}
+
+void FilesOnlyStorage::settleReplies()
+{
+	for (const auto& reply : replies)
+		(void)client.onReply(reply.bytes, reply.session, reply.id);
+	replies.clear();
+	client.process(now());
+}
+
+bool FilesOnlyStorage::acceptPacket(quint32 session, quint32 id) noexcept
+{
+	if (session != client.session() || id != remoteRequestId)
+		return false;
+	remoteAccepted = true;
+	return true;
+}
+
+bool FilesOnlyStorage::receivePacket(const QByteArray& bytes, quint32 session, quint32 id)
+{
+	if (session != client.session() || id != remoteRequestId || !replies.empty() ||
+	    static_cast<std::size_t>(bytes.size()) > rx.size())
+		return false;
+	const auto* first = reinterpret_cast<const std::byte*>(bytes.constData());
+	replies.push_back({{first, first + bytes.size()}, session, id, now()});
+	return true;
+}
+
+void FilesOnlyStorage::closeAndDrain()
+{
+	if (closed)
+		return;
+	closed = true;
+	// Replies already owned complete their requests; nothing new is sent.
+	for (const auto& reply : replies)
+		(void)client.onReply(reply.bytes, reply.session, reply.id);
+	replies.clear();
+	client.close();
+	for (unsigned i = 0; i < 16 && !client.drained(); ++i)
+		client.process(now());
+	if (!client.drained())
+		std::abort();
+}
 } // namespace telemetry::integration::qt

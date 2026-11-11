@@ -490,6 +490,20 @@ public:
 		core_.close();
 	}
 
+	// A raw Resource List, Stat or Read for the device's files on this client's
+	// queue, under the same admission as every other request. No endpoint and
+	// no schema are involved; the caller parses the reply inside its callback.
+	template<class F>
+	[[nodiscard]] client::Submission submitResource(client::Input request, std::uint32_t replyBytes,
+	                                                F&& callback,
+	                                                std::uint32_t timeoutMs = 30000) noexcept
+	{
+		const auto gate = submissionGate();
+		if (gate != client::Status::Ok)
+			return {gate, {}};
+		return core_.submitResource(request, replyBytes, std::forward<F>(callback), timeoutMs);
+	}
+
 private:
 	friend struct ::telemetry::integration::read_many::detail::ReadManyAccess;
 	friend struct ::telemetry::integration::batch::detail::BatchAccess;
@@ -519,6 +533,7 @@ private:
 				return true;
 			case client::Operation::ReadMany:
 			case client::Operation::Batch:
+			case client::Operation::Resource:
 				return false;
 		}
 		return false;

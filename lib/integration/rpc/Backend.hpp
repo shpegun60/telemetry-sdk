@@ -42,7 +42,8 @@ public:
 	                                                std::uint32_t now) noexcept override
 	{
 		if (request.operation == ::telemetry::client::Operation::ReadMany ||
-		    request.operation == ::telemetry::client::Operation::Batch)
+		    request.operation == ::telemetry::client::Operation::Batch ||
+		    request.operation == ::telemetry::client::Operation::Resource)
 			return ::telemetry::client::Status::Unsupported;
 		if (recovery_)
 			return ::telemetry::client::Status::RecoveryRequired;

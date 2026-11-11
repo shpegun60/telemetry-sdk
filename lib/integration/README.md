@@ -31,7 +31,11 @@ remain under `lib/integration`.
 | `rpc_sessions` | `integration/telemetry/v3/RpcSessionPool.hpp` | `rpc_server`, `resource_protocol` | Independently owned mailboxes and Resource packet routing |
 | `tcp_server` | `integration/tcp/Server.hpp` | `encoded_server`, `resource_protocol` | Frame Resource/TEQ1 streams in caller-owned storage |
 | `tcp_encoded_profile` | `integration/tcp/EncodedProfile.hpp` | `tcp_server`, `batch_server` | Optional TRM1/TBM1 discovery with one write-once Resource session |
-| `qt_transport` | `integration/qt/DeviceTransport.hpp`, `DescriptorBootstrap.hpp` | `client`, `resource_wire`, `encoded_wire`, Qt Core | Optional host transport boundary and sequential Descriptor discovery |
+| `files_client` | `integration/files/Client.hpp` | `client`, `resource_wire` | The device's files over the client's one queue: list, stat, and a FileReader that reads in pieces with progress and cancel |
+| `files_workbench` | `integration/files/Workbench.hpp` | `files_client`, `workbench` | The same over the Workbench's existing FIFO and its gate |
+| `link` | `integration/link/Framer.hpp` | `resource_wire` | Qt-free contract for where one medium's reply frames start and end |
+| `tcp_link` | `integration/tcp/ProfileFramer.hpp` | `link`, `tcp_wire` | The TCP profile's client framer: no extra wire bytes, FrameReader in owned storage |
+| `qt_transport` | `integration/qt/DeviceTransport.hpp`, `DescriptorBootstrap.hpp`, `Link.hpp`, `LinkTransport.hpp` | `client`, `resource_wire`, `encoded_wire`, `link`, Qt Core | Optional host transport boundary; discovery and exchange over any Link and Framer |
 | `qt_serial_transport` | `integration/qt/SerialTransport.hpp` | `qt_transport`, Qt SerialPort | Optional UART adapter with privately built COBS framing |
 
 Client adapters, the runtime client, Inspector and TCP integration use

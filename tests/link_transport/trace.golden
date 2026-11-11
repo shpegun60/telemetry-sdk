@@ -1,0 +1,37 @@
+reply state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error=""
+reply state ready=0 connecting=1 recovery=0 readMany=0 batch=0 error=""
+reply connect accepted=1
+reply state ready=1 connecting=0 recovery=0 readMany=1 batch=0 error=""
+reply readMany submitted=1
+reply readMany status=0 count=1 value=42
+reply state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error=""
+reply state ready=0 connecting=1 recovery=0 readMany=0 batch=0 error=""
+reply reconnect accepted=1
+reply state ready=1 connecting=0 recovery=0 readMany=1 batch=0 error=""
+reply state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error=""
+reply end
+close-after-reply state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error=""
+close-after-reply state ready=0 connecting=1 recovery=0 readMany=0 batch=0 error=""
+close-after-reply connect accepted=1
+close-after-reply state ready=1 connecting=0 recovery=0 readMany=1 batch=0 error=""
+close-after-reply readMany submitted=1
+close-after-reply readMany status=0 count=1 value=42
+close-after-reply state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error="The remote host closed the connection"
+close-after-reply end
+garbage state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error=""
+garbage state ready=0 connecting=1 recovery=0 readMany=0 batch=0 error=""
+garbage connect accepted=1
+garbage state ready=1 connecting=0 recovery=0 readMany=1 batch=0 error=""
+garbage readMany submitted=1
+garbage readMany status=6 count=0
+garbage state ready=0 connecting=0 recovery=1 readMany=0 batch=0 error="Malformed or oversized TCP frame"
+garbage end
+silent state ready=0 connecting=0 recovery=0 readMany=0 batch=0 error=""
+silent state ready=0 connecting=1 recovery=0 readMany=0 batch=0 error=""
+silent connect accepted=1
+silent state ready=1 connecting=0 recovery=0 readMany=1 batch=0 error=""
+silent readMany submitted=1
+silent readMany status=6 count=0
+silent state ready=0 connecting=0 recovery=1 readMany=0 batch=0 error="TCP exchange timed out"
+silent end
+trace complete

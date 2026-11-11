@@ -16,12 +16,18 @@ enum class Operation : std::uint8_t {
 	Service = 3,
 	FieldRead = 4,
 	ReadMany = 5,
-	Batch = 6
+	Batch = 6,
+	// A raw Resource List, Stat or Read on the same queue, for the device's
+	// files. Its payload is the complete Resource request; it has no endpoint.
+	// Client-only: it never appears in an Encoded header, and 7 stays reserved
+	// in the Encoded operation space so no future operation collides with it.
+	Resource = 7
 };
 
 [[nodiscard]] constexpr bool isReadOnly(Operation operation) noexcept
 {
-	return operation == Operation::FieldRead || operation == Operation::ReadMany;
+	return operation == Operation::FieldRead || operation == Operation::ReadMany ||
+	       operation == Operation::Resource;
 }
 enum class Status : std::uint8_t {
 	Ok,

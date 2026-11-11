@@ -18,7 +18,12 @@ struct ConnectionSession::Impl {
 	StorageFactory factory;
 	QTimer timer;
 	std::shared_ptr<ConnectionStorage> current, retired;
+	std::shared_ptr<FilesOnlyStorage> filesOnly;
 	std::unique_ptr<TcpTransport> transport;
+	ConnectionSession::Limitation limitation = ConnectionSession::Limitation::None;
+	QStringList discoveredPaths;
+	QString limitationText;
+	quint64 refusedDescriptorSize = 0, descriptorReceived = 0, descriptorTotal = 0;
 	QString host, peerAddress, retiredHost, retiredAddress, error;
 	quint16 port = 0, retiredPort = 0;
 	quint32 lastSession = 0;
@@ -57,6 +62,8 @@ struct ConnectionSession::Impl {
 		}
 		if (current)
 			current->closeAndDrain();
+		if (filesOnly)
+			filesOnly->closeAndDrain();
 	}
 
 	void retire()
@@ -82,6 +89,13 @@ struct ConnectionSession::Impl {
 			}
 			current.reset();
 		}
+		// A files-only connection never needs same-peer recovery: it executed
+		// nothing, so a new connection is all a later one needs.
+		filesOnly.reset();
+		// The limitation describes the live connection; the paths stay until the
+		// next connection, for naming a typo after this one has gone.
+		limitation = ConnectionSession::Limitation::None;
+		limitationText.clear();
 		transport.reset();
 		retiring = false;
 		if (owner)
@@ -95,13 +109,115 @@ struct ConnectionSession::Impl {
 		retire();
 	}
 
+	static QString describe(ConnectionSession::Limitation limitation, quint64 size)
+	{
+		using L = ConnectionSession::Limitation;
+		switch (limitation) {
+			case L::NoDescriptor:
+				return QStringLiteral(
+				    "Not a Telemetry device: its file list has no /telemetry/descriptor.bin");
+			case L::DescriptorUnreadable:
+				return QStringLiteral(
+				    "Telemetry is not available: the device refused to read /telemetry/descriptor.bin");
+			case L::DescriptorSize:
+				return QStringLiteral(
+				           "Telemetry is not available: /telemetry/descriptor.bin is %1 bytes")
+				    .arg(size);
+			case L::DescriptorRejected:
+				return QStringLiteral("Telemetry is not available: the descriptor was rejected");
+			case L::Capability:
+				return QStringLiteral(
+				    "Telemetry is not available: a ReadMany, Batch or session file does not match");
+			case L::None:
+				break;
+		}
+		return {};
+	}
+
+	// Telemetry is impossible but the files were listed correctly: stay
+	// connected for them. detail, when given, replaces the generic wording.
+	void enterFilesOnly(ConnectionSession::Limitation reason, QString detail = {})
+	{
+		auto storage = std::make_shared<FilesOnlyStorage>();
+		if (!storage->admit()) {
+			fail(QStringLiteral("The files-only client could not be admitted"));
+			return;
+		}
+		// Both ways in leave the transport carrying Resource requests only.
+		if (transport)
+			transport->restrictToFiles();
+		limitation = reason;
+		refusedDescriptorSize = transport ? transport->refusedDescriptorSize() : 0;
+		limitationText =
+		    detail.isEmpty() ? describe(reason, refusedDescriptorSize) : std::move(detail);
+		// The offered session number may already be written to the device's
+		// session file; never offer it again.
+		if (lastSession != std::numeric_limits<quint32>::max())
+			++lastSession;
+		filesOnly = std::move(storage);
+		connected = true;
+		opening = false;
+		// lastError() keeps meaning why a connection failed or ended.
+		error.clear();
+		timer.start();
+		if (owner)
+			Q_EMIT owner->admissionChanged();
+		notify();
+	}
+
+	void filesOnlyDiscovered(quint64 epoch)
+	{
+		if (epoch != generation || !opening || !transport || !transport->filesOnly())
+			return;
+		if (working) {
+			// The transport has stopped its discovery deadline; nothing else
+			// would end this attempt, so come back once the owner is free.
+			if (!owner)
+				return;
+			QTimer::singleShot(0, owner, [target = owner.data(), epoch] {
+				target->d->filesOnlyDiscovered(epoch);
+			});
+			return;
+		}
+		using R = DescriptorBootstrap::Refusal;
+		using L = ConnectionSession::Limitation;
+		discoveredPaths = transport->discoveredPaths();
+		switch (transport->discoveryRefusal()) {
+			case R::NoDescriptor:
+				enterFilesOnly(L::NoDescriptor);
+				return;
+			case R::DescriptorUnreadable:
+				enterFilesOnly(L::DescriptorUnreadable);
+				return;
+			case R::DescriptorSize:
+				enterFilesOnly(L::DescriptorSize);
+				return;
+			case R::DescriptorLength:
+				enterFilesOnly(
+				    L::DescriptorRejected,
+				    QStringLiteral("Telemetry is not available: /telemetry/descriptor.bin "
+				                   "did not have the length the device listed"));
+				return;
+			case R::Capability:
+				enterFilesOnly(L::Capability);
+				return;
+			case R::None:
+			case R::Protocol:
+				break;
+		}
+		fail(QStringLiteral("Invalid Descriptor discovery reply"));
+	}
+
 	void descriptor(quint64 epoch, QByteArray bytes)
 	{
 		if (epoch != generation || !opening || !transport || !transport->ready() || working)
 			return;
 		working = true;
+		discoveredPaths = transport->discoveredPaths();
 		std::shared_ptr<ConnectionStorage> candidate;
 		QString failure;
+		// A failure of the device's own files leaves its files readable.
+		auto limited = ConnectionSession::Limitation::None;
 		try {
 			candidate = factory(std::move(bytes));
 		} catch (const std::exception& exception) {
@@ -119,8 +235,11 @@ struct ConnectionSession::Impl {
 		}
 		if (failure.isEmpty() && !candidate)
 			failure = QStringLiteral("The connection storage factory returned no storage");
-		else if (failure.isEmpty())
+		else if (failure.isEmpty()) {
 			failure = candidate->initialize(lastSession + 1, false);
+			if (!failure.isEmpty())
+				limited = ConnectionSession::Limitation::DescriptorRejected;
+		}
 		if (failure.isEmpty()) {
 			const auto bytes = transport->readManyCapability();
 			if (!bytes.isEmpty()) {
@@ -128,10 +247,11 @@ struct ConnectionSession::Impl {
 				    {reinterpret_cast<const std::byte*>(bytes.constData()),
 				     static_cast<std::size_t>(bytes.size())});
 				if (!parsed || parsed.value.session != lastSession + 1 ||
-				    parsed.value.fingerprint != candidate->schema.fingerprint())
+				    parsed.value.fingerprint != candidate->schema.fingerprint()) {
 					failure = QStringLiteral(
 					    "ReadMany capability does not match the requested session and Descriptor");
-				else
+					limited = ConnectionSession::Limitation::Capability;
+				} else
 					candidate->readMany = parsed.value;
 			}
 		}
@@ -142,10 +262,11 @@ struct ConnectionSession::Impl {
 				    {reinterpret_cast<const std::byte*>(bytes.constData()),
 				     static_cast<std::size_t>(bytes.size())});
 				if (!parsed || parsed.value.session != lastSession + 1 ||
-				    parsed.value.fingerprint != candidate->schema.fingerprint())
+				    parsed.value.fingerprint != candidate->schema.fingerprint()) {
 					failure = QStringLiteral(
 					    "Batch capability does not match the requested session and Descriptor");
-				else
+					limited = ConnectionSession::Limitation::Capability;
+				} else
 					candidate->batch = parsed.value;
 			}
 		}
@@ -168,6 +289,13 @@ struct ConnectionSession::Impl {
 		}
 		if (failure.isEmpty())
 			failure = candidate->admitSession(lastSession + 1);
+		if (!failure.isEmpty() && limited != ConnectionSession::Limitation::None && owner &&
+		    !closeRequested && transport->supportsResourceReplies()) {
+			candidate.reset();
+			working = false;
+			enterFilesOnly(limited, QStringLiteral("Telemetry is not available: ") + failure);
+			return;
+		}
 		if (!failure.isEmpty() || !owner || closeRequested) {
 			working = false;
 			fail(failure.isEmpty() ? QStringLiteral("Connection closed during admission")
@@ -191,6 +319,18 @@ struct ConnectionSession::Impl {
 
 	void progress()
 	{
+		if (!working && !retiring && connected && filesOnly && transport) {
+			working = nativeActive = true;
+			const auto files = filesOnly;
+			files->progressTransport(transport.get());
+			files->settleReplies();
+			nativeActive = false;
+			publishProgress();
+			working = false;
+			if (closeRequested || !owner)
+				retire();
+			return;
+		}
 		if (working || retiring || !connected || !current || !transport)
 			return;
 		working = true;
@@ -291,6 +431,10 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 	state->host = normalized;
 	state->port = inputPort;
 	state->error.clear();
+	state->limitation = Limitation::None;
+	state->discoveredPaths.clear();
+	state->refusedDescriptorSize = 0;
+	state->descriptorReceived = state->descriptorTotal = 0;
 	state->opening = true;
 	state->transport = std::make_unique<TcpTransport>();
 	state->transport->setWriteChunkBytes(state->writeChunk);
@@ -307,17 +451,23 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 	QObject::connect(
 	    state->transport.get(), &DeviceTransport::packetAccepted, this,
 	    [weak, epoch](quint32 session, quint32 id) {
-		    if (const auto value = weak.lock();
-		        value && value->generation == epoch && value->current)
-			    (void)value->current->acceptPacket(session, id);
+		    if (const auto value = weak.lock(); value && value->generation == epoch) {
+			    if (value->current)
+				    (void)value->current->acceptPacket(session, id);
+			    else if (value->filesOnly)
+				    (void)value->filesOnly->acceptPacket(session, id);
+		    }
 	    },
 	    Qt::QueuedConnection);
 	QObject::connect(
 	    state->transport.get(), &DeviceTransport::packetReceived, this,
 	    [weak, epoch](const QByteArray& bytes, quint32 session, quint32 id) {
-		    if (const auto value = weak.lock();
-		        value && value->generation == epoch && value->current)
-			    (void)value->current->receivePacket(bytes, session, id);
+		    if (const auto value = weak.lock(); value && value->generation == epoch) {
+			    if (value->current)
+				    (void)value->current->receivePacket(bytes, session, id);
+			    else if (value->filesOnly)
+				    (void)value->filesOnly->receivePacket(bytes, session, id);
+		    }
 	    },
 	    Qt::QueuedConnection);
 	QObject::connect(
@@ -329,6 +479,8 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 			    value->working = value->nativeActive = true;
 			    if (value->current)
 				    value->current->settleReplies();
+			    if (value->filesOnly)
+				    value->filesOnly->settleReplies();
 			    value->nativeActive = false;
 			    // Publish the already-correlated result while its snapshot
 			    // is current. Retirement still follows immediately and no
@@ -337,6 +489,24 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 			    value->working = false;
 			    value->fail(std::move(error));
 		    }
+	    },
+	    Qt::QueuedConnection);
+	QObject::connect(
+	    state->transport.get(), &LinkTransport::discoveryProgressed, this,
+	    [weak, epoch](quint64 received, quint64 total) {
+		    if (const auto value = weak.lock(); value && value->generation == epoch) {
+			    value->descriptorReceived = received;
+			    value->descriptorTotal = total;
+			    if (value->owner)
+				    Q_EMIT value->owner->discoveryProgressed();
+		    }
+	    },
+	    Qt::QueuedConnection);
+	QObject::connect(
+	    state->transport.get(), &LinkTransport::filesOnlyReached, this,
+	    [weak, epoch] {
+		    if (const auto value = weak.lock())
+			    value->filesOnlyDiscovered(epoch);
 	    },
 	    Qt::QueuedConnection);
 	state->transport->connectToWithEncoded(normalized, inputPort, state->lastSession + 1);
@@ -405,6 +575,73 @@ bool ConnectionSession::batchSupported() const noexcept
 std::optional<batch::wire::Capability> ConnectionSession::batchCapability() const noexcept
 {
 	return batchSupported() ? d->current->batch : std::nullopt;
+}
+
+bool ConnectionSession::cancel(client::RequestHandle handle) noexcept
+{
+	if (const auto files = d->filesOnly)
+		return files->client.cancel(handle);
+	const auto owner = d->current;
+	return owner && files::Submitter<HostWorkbench>::cancel(owner->inspector, handle);
+}
+
+bool ConnectionSession::filesSupported() const noexcept
+{
+	if (filesOnly())
+		return d->transport->supportsResourceReplies();
+	return ready() && d->transport && d->transport->supportsResourceReplies() &&
+	       d->current->backend.supportsResource();
+}
+
+bool ConnectionSession::filesOnly() const noexcept
+{
+	return d->connected && d->filesOnly && d->transport;
+}
+
+ConnectionSession::Limitation ConnectionSession::limitation() const noexcept
+{
+	return d->limitation;
+}
+
+QString ConnectionSession::limitationText() const
+{
+	return d->limitationText;
+}
+
+QStringList ConnectionSession::discoveredPaths() const
+{
+	return d->discoveredPaths;
+}
+
+quint64 ConnectionSession::refusedDescriptorSize() const noexcept
+{
+	return d->refusedDescriptorSize;
+}
+
+quint64 ConnectionSession::descriptorReceived() const noexcept
+{
+	return d->descriptorReceived;
+}
+
+quint64 ConnectionSession::descriptorTotal() const noexcept
+{
+	return d->descriptorTotal;
+}
+
+std::shared_ptr<FilesOnlyStorage>
+ConnectionSession::filesOnlyStorage(client::Status& status) const noexcept
+{
+	Q_ASSERT(thread() == QThread::currentThread());
+	status = client::Status::Ok;
+	if (!filesOnly())
+		return {};
+	if (d->terminal)
+		status = client::Status::Closed;
+	else if (d->working || d->retiring)
+		status = client::Status::Busy;
+	else
+		return d->filesOnly;
+	return {};
 }
 
 std::shared_ptr<ConnectionStorage>

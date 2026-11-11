@@ -295,6 +295,17 @@ public:
 		return publish(record);
 	}
 
+	// A raw Resource List, Stat or Read for the device's files on this same
+	// queue (see Operation::Resource). The request bytes are copied; the reply
+	// is the result payload, borrowed during the callback only.
+	template<class F>
+	[[nodiscard]] Submission submitResource(Input request, std::uint32_t replyBytes, F&& callback,
+	                                        std::uint32_t timeoutMs = 30000) noexcept
+	{
+		return submitEncoded({Operation::Resource, 0, request, replyBytes},
+		                     std::forward<F>(callback), timeoutMs);
+	}
+
 	// Exactly one completion at most per call. No waiting for I/O, producer
 	// reservations or callbacks. User callbacks must obey the application's own
 	// timing bound. All backend/lifecycle methods run in this one owner context.
