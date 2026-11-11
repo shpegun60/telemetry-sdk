@@ -2,8 +2,10 @@
 // FileReader driven from the owner loop while Field reads share the queue,
 // a lost connection mid-read, and refusals without a connection. MIT.
 #include <integration/qt/ConnectionSession.hpp>
+#include <integration/tcp/EncodedProfile.hpp>
 #include <integration/tcp/Server.hpp>
 #include <resource/BytesFile.hpp>
+#include <resource/FileSystem.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -72,6 +74,8 @@ const auto table = resource::filesystem(resource::file("/telemetry/descriptor.bi
 
 class Peer {
 public:
+	// Makes the server for a new connection; the plain table when not given.
+	using Make = std::function<std::unique_ptr<tcp::Server>(Peer&)>;
 	QTcpServer listener;
 	QPointer<QTcpSocket> socket;
 	std::unique_ptr<tcp::Server> server;
@@ -79,15 +83,17 @@ public:
 	telemetry::Workspace workspace{scratch};
 	std::array<std::byte, 8192> rx{}, tx{};
 	QByteArray pending;
+	Make make;
 
-	Peer()
+	explicit Peer(Make maker = {}) : make(std::move(maker))
 	{
 		CHECK(listener.listen(QHostAddress::LocalHost, 0));
 		QObject::connect(&listener, &QTcpServer::newConnection, &listener, [this] {
 			auto* candidate = listener.nextPendingConnection();
 			socket = candidate;
 			pending.clear();
-			server = std::make_unique<tcp::Server>(model.view(), workspace, table.view(), rx, tx);
+			server = make ? make(*this)
+			              : std::make_unique<tcp::Server>(model.view(), workspace, table.view(), rx, tx);
 			QObject::connect(candidate, &QTcpSocket::readyRead, &listener, [this, candidate] {
 				if (socket == candidate)
 					read();
@@ -246,6 +252,55 @@ void reading()
 	}));
 	CHECK(!session.filesSupported());
 }
+// A device with the full profile serves its own files after the profile's:
+// the session is a telemetry one, not files only, it lists the profile's four
+// files then the application's, and reads the application's byte for byte. A
+// table that does not begin with the profile's files is refused.
+void profileWithApplicationFiles()
+{
+	tcp::EncodedProfile profile(std::span<const std::byte>(packed), descriptor.fingerprint());
+	const auto withFiles =
+	    resource::filesystem(profile.systemFiles(), resource::file("/logs/large.bin", largeFile));
+	CHECK(withFiles.view().size() == 5 && withFiles.view().path(4) == "/logs/large.bin");
+	Peer peer([&](Peer& at) {
+		return std::make_unique<tcp::Server>(model.view(), at.workspace, profile, withFiles.view(), at.rx, at.tx);
+	});
+	qt::ConnectionSession session;
+	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
+	CHECK(await([&] {
+		return session.ready();
+	}));
+	CHECK(!session.filesOnly() && session.filesSupported());
+
+	std::vector<std::string> paths;
+	bool listed = false;
+	CHECK(files::list(session, 0, [&](const files::ListResult& result) noexcept {
+		if (result.succeeded())
+			for (const auto path : result.reply.paths)
+				paths.emplace_back(path);
+		listed = true;
+	}));
+	CHECK(await([&] {
+		return listed;
+	}));
+	CHECK(paths.size() == 5 && paths[0] == "/telemetry/descriptor.bin" && paths[1] == "/telemetry/session.bin" &&
+	      paths[4] == "/logs/large.bin");
+
+	std::vector<std::byte> read;
+	Reader reader(session, Sink{&read});
+	CHECK(reader.start(4) == cl::Status::Ok);
+	CHECK(run(reader) && reader.state() == files::ReadState::Complete);
+	CHECK(read.size() == largeBytes.size() && std::equal(read.begin(), read.end(), largeBytes.begin()));
+	session.disconnect();
+
+	tcp::EncodedProfile other(std::span<const std::byte>(packed), descriptor.fingerprint());
+	const auto misplaced = resource::filesystem(resource::file("/logs/large.bin", largeFile));
+	alignas(32) std::array<std::byte, model.maxScratch()> scratch{};
+	telemetry::Workspace workspace{scratch};
+	std::array<std::byte, 1024> rx{}, tx{};
+	const tcp::Server refused(model.view(), workspace, other, misplaced.view(), rx, tx);
+	CHECK(refused.closed());
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -253,6 +308,7 @@ int main(int argc, char** argv)
 	QCoreApplication app(argc, argv);
 	refusedWithoutConnection();
 	reading();
+	profileWithApplicationFiles();
 	std::printf("Device files session: %u checks, 0 failures\n", checks);
 	return 0;
 }

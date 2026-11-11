@@ -88,6 +88,17 @@ public:
 		return files_.view();
 	}
 
+	// The profile's own files, in the order a session expects them, to begin an
+	// application's table with its own files after them:
+	//   resource::filesystem(profile.systemFiles(), resource::file("/logs/events.csv", log))
+	// and Server(model, workspace, profile, table.view(), rx, tx).
+	std::array<resource::FileEntry, 3> systemFiles() noexcept
+	{
+		return {resource::file("/telemetry/descriptor.bin", descriptor_),
+		        resource::file("/telemetry/session.bin", sessionFile_),
+		        resource::file("/telemetry/read-many.bin", capabilityFile_)};
+	}
+
 	const Wire& capability() const noexcept
 	{
 		return capability_;

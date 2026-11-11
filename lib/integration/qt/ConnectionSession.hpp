@@ -107,13 +107,13 @@ public:
 		if (const auto files = filesOnlyStorage(status)) {
 			if (!filesSupported())
 				return {client::Status::Unsupported, {}};
-			return files->client.submitResource(
+			return pumpAfter(files->client.submitResource(
 			    request, replyBytes,
 			    [files, callable = std::forward<F>(callback)](
 			        const client::ResultView& result) mutable noexcept {
 				    callable(result);
 			    },
-			    timeoutMs);
+			    timeoutMs));
 		}
 		if (status != client::Status::Ok)
 			return {status, {}};
@@ -122,13 +122,13 @@ public:
 			return {status, {}};
 		if (!filesSupported())
 			return {client::Status::Unsupported, {}};
-		return files::Submitter<HostWorkbench>::submit(
+		return pumpAfter(files::Submitter<HostWorkbench>::submit(
 		    owner->inspector, request, replyBytes,
 		    [owner, callable = std::forward<F>(callback)](
 		        const client::ResultView& result) mutable noexcept {
 			    callable(result);
 		    },
-		    timeoutMs);
+		    timeoutMs));
 	}
 
 	struct BatchRequest {
@@ -251,8 +251,10 @@ public:
 	bool reserveSessionsThrough(quint32 lastUsed);
 	void setWriteChunkBytes(int bytes);
 	void setExchangeTimeout(int milliseconds);
-	// A GUI event-loop timer calls this automatically. Exposed for controlled
-	// owner-loop/test integration; recursive calls do not advance native work.
+	// A GUI event-loop timer calls this automatically, and the session queues
+	// it at once when a reply arrives or a file request is accepted. Exposed for
+	// controlled owner-loop/test integration; recursive calls do not advance
+	// native work.
 	void process();
 Q_SIGNALS:
 	// Synchronous: detach presentation BEFORE closing/draining native work.
@@ -272,6 +274,15 @@ private:
 	// The files-only storage when connected files only. Otherwise null, with
 	// status Ok when the caller should try the telemetry storage, or the reason.
 	std::shared_ptr<FilesOnlyStorage> filesOnlyStorage(client::Status& status) const noexcept;
+	// Queues one process() on the owner loop's next turn, coalesced: a reply
+	// or an accepted request moves without waiting for the timer's tick.
+	void pumpSoon() noexcept;
+	client::Submission pumpAfter(client::Submission submitted) noexcept
+	{
+		if (submitted)
+			pumpSoon();
+		return submitted;
+	}
 	struct Impl;
 
 	struct SubmissionScope {

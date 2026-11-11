@@ -30,6 +30,8 @@ struct ConnectionSession::Impl {
 	quint64 generation = 0;
 	int writeChunk = 0, exchangeTimeout = 10000;
 	bool connected = false, opening = false, terminal = false, working = false;
+	// One process() already queued for the owner loop's next turn.
+	bool pumpQueued = false;
 	bool retiring = false, closeRequested = false, nativeActive = false;
 
 	Impl(ConnectionSession& target, StorageFactory value)
@@ -461,12 +463,14 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 	    Qt::QueuedConnection);
 	QObject::connect(
 	    state->transport.get(), &DeviceTransport::packetReceived, this,
-	    [weak, epoch](const QByteArray& bytes, quint32 session, quint32 id) {
+	    [this, weak, epoch](const QByteArray& bytes, quint32 session, quint32 id) {
 		    if (const auto value = weak.lock(); value && value->generation == epoch) {
 			    if (value->current)
 				    (void)value->current->receivePacket(bytes, session, id);
 			    else if (value->filesOnly)
 				    (void)value->filesOnly->receivePacket(bytes, session, id);
+			    // Settle it, and send what waits behind it, without a tick's wait.
+			    pumpSoon();
 		    }
 	    },
 	    Qt::QueuedConnection);
@@ -700,5 +704,17 @@ void ConnectionSession::process()
 {
 	const auto state = d;
 	state->progress();
+}
+
+void ConnectionSession::pumpSoon() noexcept
+{
+	if (d->pumpQueued)
+		return;
+	d->pumpQueued = true;
+	// The session is the context: nothing runs after it is gone.
+	QTimer::singleShot(0, this, [this] {
+		d->pumpQueued = false;
+		process();
+	});
 }
 } // namespace telemetry::integration::qt

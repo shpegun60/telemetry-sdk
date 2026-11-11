@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <limits>
 #include <ranges>
+#include <utility>
 
 namespace resource {
 template<std::size_t N>
@@ -237,6 +238,18 @@ template<class... Entry>
 constexpr auto filesystem(Entry... entries) noexcept
 {
 	return FileSystem<sizeof...(Entry)>{std::array<FileEntry, sizeof...(Entry)>{entries...}};
+}
+
+// Files that come first - a protocol profile's own, from its systemFiles() -
+// then the application's: its logs, settings and data, in the order listed.
+template<std::size_t N, class... Entry>
+    requires(std::same_as<Entry, FileEntry> && ...)
+constexpr auto filesystem(const std::array<FileEntry, N>& first, Entry... more) noexcept
+{
+	return [&]<std::size_t... I>(std::index_sequence<I...>) {
+		return FileSystem<N + sizeof...(Entry)>{
+		    std::array<FileEntry, N + sizeof...(Entry)>{first[I]..., more...}};
+	}(std::make_index_sequence<N>{});
 }
 } // namespace resource
 

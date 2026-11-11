@@ -54,6 +54,30 @@ public:
 		configureProfile(profile, rx);
 	}
 
+	// A profile with the application's own files after its system ones: files
+	// is a table that begins with profile.systemFiles(), in their order (see
+	// resource::filesystem). A table that does not is refused: the Server
+	// closes, as with overlapping buffers. The Server borrows the table: it, the
+	// profile and every provider in it stay alive at stable addresses for the
+	// Server's lifetime, as with the plain file table.
+	template<class Profile>
+	    requires(std::is_same_v<Profile, EncodedProfile> || std::is_same_v<Profile, ReadManyProfile>)
+	Server(ModelView model, Workspace& workspace, Profile& profile, resource::FileSystemView files,
+	       Output rx, Output tx) noexcept
+	    : Server(model, workspace, files, rx, tx)
+	{
+		const auto system = profile.files();
+		bool begins = files.size() >= system.size();
+		for (std::size_t i = 0; begins && i < system.size(); ++i)
+			begins = files.path(static_cast<resource::FileIndex>(i)) ==
+			         system.path(static_cast<resource::FileIndex>(i));
+		if (!begins) {
+			close();
+			return;
+		}
+		configureProfile(profile, rx);
+	}
+
 	Server(const Server&) = delete;
 	Server& operator=(const Server&) = delete;
 	Server(Server&&) = delete;

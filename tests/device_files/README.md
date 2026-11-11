@@ -17,7 +17,12 @@ installed package. No board; only ephemeral localhost sockets.
   - the descriptor and a 200000-byte file are read with a `FileReader` polled from
     the owner loop, with Field reads queued between its pieces;
   - the connection is cut in the middle of a read, which never ends as complete;
-  - without a connection, the file requests are refused.
+  - without a connection, the file requests are refused;
+  - a device with the encoded profile and its own file after the profile's
+    (`resource::filesystem(profile.systemFiles(), ...)`) connects as a telemetry
+    session, not files only, lists the profile's four files then its own, and has
+    its own file read byte for byte; a table that does not begin with the
+    profile's files is refused by the Server.
 - **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose
   descriptor is mistyped in its name, too small, or read whole and rejected by the
   parser connect files only: `ready()` false, telemetry refused, the limitation

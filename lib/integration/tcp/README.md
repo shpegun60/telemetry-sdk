@@ -75,3 +75,23 @@ session and replay guard. `ReadManyProfile` keeps its previous read-only profile
 The legacy constructors do not acquire Batch link roots. See
 [Qt connection](../../../doc/QtConnectionSession.md#optional-mixed-batch) and
 [installed consumer tests](../../../tests/qt_batch/README.md).
+
+**The device's own files beside a profile's.**
+- A profile serves its own files: the descriptor, `session.bin`,
+  `read-many.bin`, and `batch.bin` for the encoded profile.
+- To serve logs, settings or data as well, begin a table with the profile's
+  files and pass it with the profile. `systemFiles()` names the same providers
+  the profile uses, so a session binds the same way:
+
+```cpp
+const auto table = resource::filesystem(profile.systemFiles(),
+                                        resource::file("/logs/events.csv", eventLog),
+                                        resource::file("/config/settings.csv", settings));
+telemetry::integration::tcp::Server server(model.view(), workspace, profile, table.view(), rx, tx);
+```
+
+- A table that does not begin with the profile's files, in their order, is
+  refused: the Server is closed.
+- The client lists the profile's files first, then the device's.
+  [Device files](../../../tests/device_files/README.md) checks this over a live
+  session.

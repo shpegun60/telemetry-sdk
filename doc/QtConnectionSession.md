@@ -65,6 +65,14 @@ state and guarded handoff/deadline-ordered reply processing for existing hosts;
 its advanced factory does not create a second execution owner. Inspector uses
 this same implementation instead of a private TCP driver.
 
+The owner-loop timer ticks every 5 ms for deadlines and for whatever waits. A
+reply that arrives, and a file request the session accepts, also queue one
+`process()` on the loop's next turn, coalesced: the reply is settled and the next
+request sent without waiting for a tick. Before this, each file request waited
+for two ticks - one to settle its reply, one to send the next - which made a
+listing of 4096 files take over a minute on Windows, where a 5 ms timer fires
+about every 15.6 ms.
+
 All calls and storage access belong to the creating Qt thread. `workbench()` is
 an advanced borrowing seam, available only while ready. Consumer UI code normally
 uses a provider. Borrowed pointers/views cannot outlive their admission/storage.
