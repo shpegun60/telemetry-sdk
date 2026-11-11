@@ -190,13 +190,13 @@ public:
 		return 0;
 	}
 
-	std::size_t encodedBytes(telemetry::integration::link::Input) const noexcept override
+	std::size_t maxEncodedBytes(std::size_t) const noexcept override
 	{
 		return 0;
 	}
 
-	bool encode(telemetry::integration::link::Input,
-	            telemetry::integration::link::Output) noexcept override
+	std::size_t encode(telemetry::integration::link::Input,
+	                   telemetry::integration::link::Output) noexcept override
 	{
 		return false;
 	}
@@ -231,7 +231,8 @@ int main()
 	Refusing refusing;
 	telemetry::integration::link::Framer& framer = refusing;
 	return framer.feed({}).status == telemetry::integration::link::Status::Invalid &&
-	               !framer.expect(telemetry::integration::link::Expect::EncodedReply)
+	               !framer.expect(telemetry::integration::link::Expect::EncodedReply,
+	                              resource::protocol::Op::Read)
 	           ? 0
 	           : 1;
 }
@@ -245,7 +246,8 @@ int main()
 	telemetry::integration::link::Framer& framer = profile;
 	framer.reset();
 	return framer.maxFrameBytes() == telemetry::integration::tcp::ProfileFramer::frameBytes &&
-	               framer.expect(telemetry::integration::link::Expect::EncodedReply)
+	               framer.expect(telemetry::integration::link::Expect::EncodedReply,
+	                             resource::protocol::Op::Read)
 	           ? 0
 	           : 1;
 }

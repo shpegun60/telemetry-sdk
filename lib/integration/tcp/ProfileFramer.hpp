@@ -28,17 +28,18 @@ public:
 		return storage_.size();
 	}
 
-	[[nodiscard]] std::size_t encodedBytes(link::Input packet) const noexcept override
+	[[nodiscard]] std::size_t maxEncodedBytes(std::size_t packetBytes) const noexcept override
 	{
-		return packet.size() <= storage_.size() ? packet.size() : 0;
+		return packetBytes <= storage_.size() ? packetBytes : 0;
 	}
 
-	[[nodiscard]] bool encode(link::Input packet, link::Output out) noexcept override
+	[[nodiscard]] std::size_t encode(link::Input packet, link::Output out) noexcept override
 	{
-		if (packet.empty() || out.size() != encodedBytes(packet))
-			return false;
-		std::memcpy(out.data(), packet.data(), packet.size());
-		return true;
+		const auto size = maxEncodedBytes(packet.size());
+		if (size == 0 || out.size() < size)
+			return 0;
+		std::memcpy(out.data(), packet.data(), size);
+		return size;
 	}
 
 	[[nodiscard]] link::Feed feed(link::Input bytes) noexcept override

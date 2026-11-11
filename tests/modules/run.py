@@ -83,6 +83,9 @@ FORBIDDEN = {
 }
 for _module in MODULES:
     FORBIDDEN[_module] += ('integration/qt/DeviceTransport.hpp',
+                            'integration/qt/Link.hpp',
+                            'integration/qt/LinkTransport.hpp',
+                            'integration/qt/TcpLink.hpp',
                             'integration/qt/DescriptorBootstrap.hpp',
                             'integration/qt/SerialTransport.hpp',
                             'integration/serial/Profile.hpp')

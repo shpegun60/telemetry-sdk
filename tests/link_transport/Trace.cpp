@@ -202,7 +202,8 @@ void scenario(const char* name, Behaviour behaviour, bool reconnect)
 	qt::ConnectionSession session;
 	Trace trace(name, session);
 	session.setWriteChunkBytes(1);
-	session.setExchangeTimeout(2000); // Long enough for a sanitized build to answer.
+	// Only the silent peer is meant to time out; the others get room on a loaded runner.
+	session.setExchangeTimeout(behaviour == Behaviour::Silent ? 2000 : 10000);
 	trace.line(std::string("connect accepted=") +
 	           (session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.port()) ? "1" : "0"));
 	await([&] {

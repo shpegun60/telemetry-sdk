@@ -59,17 +59,18 @@ public:
 
 	// The largest frame this framer delivers and the largest packet it encodes.
 	[[nodiscard]] virtual std::size_t maxFrameBytes() const noexcept = 0;
-	// Bytes encode() writes for this packet; zero when it cannot be encoded.
-	[[nodiscard]] virtual std::size_t encodedBytes(Input packet) const noexcept = 0;
-	// Writes the medium's bytes for one complete packet into out, which holds
-	// exactly encodedBytes(packet). False leaves out unspecified.
-	[[nodiscard]] virtual bool encode(Input packet, Output out) noexcept = 0;
+	// An upper bound on what encode() writes for a packet of packetBytes, found
+	// without reading the packet; zero when no packet of that size fits.
+	[[nodiscard]] virtual std::size_t maxEncodedBytes(std::size_t packetBytes) const noexcept = 0;
+	// Writes the medium's bytes for one complete packet into out in one pass and
+	// returns how many; zero refuses it and leaves out unspecified.
+	[[nodiscard]] virtual std::size_t encode(Input packet, Output out) noexcept = 0;
 	[[nodiscard]] virtual Feed feed(Input bytes) noexcept = 0;
 	[[nodiscard]] virtual Input frame() const noexcept = 0;
 	virtual void release() noexcept = 0;
-	[[nodiscard]] virtual bool
-	expect(Expect reply,
-	       resource::protocol::Op operation = resource::protocol::Op::Read) noexcept = 0;
+	// The operation matters only for a Resource reply, which has no identity
+	// of its own; pass it explicitly either way.
+	[[nodiscard]] virtual bool expect(Expect reply, resource::protocol::Op operation) noexcept = 0;
 	virtual void close() noexcept = 0;
 	// A new connection boundary. No reply is expected until expect().
 	virtual void reset() noexcept = 0;

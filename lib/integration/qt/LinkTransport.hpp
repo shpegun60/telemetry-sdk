@@ -32,6 +32,7 @@ public:
 		QString medium;
 	};
 
+	// Both link and framer are required and owned from here on.
 	LinkTransport(std::unique_ptr<Link> link,
 	              std::unique_ptr<telemetry::integration::link::Framer> framer, Options options,
 	              QObject* parent = nullptr);

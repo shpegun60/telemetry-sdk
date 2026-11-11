@@ -35,6 +35,15 @@ QByteArray copy(Input bytes)
 {
 	return {reinterpret_cast<const char*>(bytes.data()), static_cast<qsizetype>(bytes.size())};
 }
+
+// The link is dereferenced while the transport is built; a missing one is a
+// programming error, reported before anything is connected.
+telemetry::integration::qt::Link&
+required(const std::unique_ptr<telemetry::integration::qt::Link>& link)
+{
+	Q_ASSERT(link);
+	return *link;
+}
 } // namespace
 
 struct LinkTransport::Impl {
@@ -76,8 +85,9 @@ struct LinkTransport::Impl {
 	Impl(LinkTransport& parent, std::unique_ptr<Link> channel,
 	     std::unique_ptr<telemetry::integration::link::Framer> frames, Options settings)
 	    : owner(parent), link(std::move(channel)), framer(std::move(frames)),
-	      device(link->device()), options(std::move(settings))
+	      device(required(link).device()), options(std::move(settings))
 	{
+		Q_ASSERT(link && framer);
 		timeout.setSingleShot(true);
 		discoveryTimeout.setSingleShot(true);
 		QObject::connect(link.get(), &Link::opened, &owner, [this] {
@@ -157,12 +167,16 @@ struct LinkTransport::Impl {
 	// The medium's bytes for one packet, or empty when the framer refuses it.
 	QByteArray encode(Input packet)
 	{
-		const auto size = framer->encodedBytes(packet);
-		if (size == 0)
+		const auto bound = framer->maxEncodedBytes(packet.size());
+		if (bound == 0 || packet.empty())
 			return {};
-		QByteArray bytes(static_cast<qsizetype>(size), Qt::Uninitialized);
-		const resource::Output out{reinterpret_cast<std::byte*>(bytes.data()), size};
-		return framer->encode(packet, out) ? bytes : QByteArray{};
+		QByteArray bytes(static_cast<qsizetype>(bound), Qt::Uninitialized);
+		const resource::Output out{reinterpret_cast<std::byte*>(bytes.data()), bound};
+		const auto written = framer->encode(packet, out);
+		if (written == 0 || written > bound)
+			return {};
+		bytes.truncate(static_cast<qsizetype>(written));
+		return bytes;
 	}
 
 	void scheduleBootstrap(int milliseconds = 0)
@@ -307,7 +321,8 @@ struct LinkTransport::Impl {
 				framer->release();
 				if (phase == Phase::Encoded) {
 					discoveryTimeout.stop();
-					if (!framer->expect(telemetry::integration::link::Expect::EncodedReply)) {
+					if (!framer->expect(telemetry::integration::link::Expect::EncodedReply,
+					                    Op::Read)) {
 						fail(QStringLiteral("Descriptor did not end at a frame boundary"));
 						return;
 					}
