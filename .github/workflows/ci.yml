@@ -24,8 +24,8 @@ jobs:
         uses: ./.github/actions/setup-apt
       - name: Install host and offline ARM tools
         run: |
-          sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends clang-18 cmake ninja-build gcc-arm-none-eabi \
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 cmake ninja-build gcc-arm-none-eabi \
             binutils-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
       - name: Sealed headers, relocation, negative compilation and linking
         shell: bash
@@ -194,8 +194,8 @@ jobs:
             # ARM probes compile objects; only C++ headers and newlib are needed.
             packages=(gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-dev)
           fi
-          sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends "${packages[@]}"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
       - name: Core, noheap, real backends and unchanged bare-metal loop
         shell: bash
         run: |
@@ -243,8 +243,8 @@ jobs:
         uses: ./.github/actions/setup-apt
       - name: Install Clang and its sanitizer runtime
         run: |
-          sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends clang-18 libclang-rt-18-dev binutils
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-18 libclang-rt-18-dev binutils
       - name: Core queue and MPSC publication, cancellation and close/drain
         run: |
           python3 -B tests/async_client/run.py --cxx clang++-18 --thread-sanitize \
@@ -280,7 +280,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install native sanitizer tools
-        run: sudo apt-get -o Acquire::Retries=5 update && sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends clang-18 libclang-rt-18-dev
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang-18 libclang-rt-18-dev
       - name: Install the pinned TypeScript compiler
         run: npm install --prefix "$RUNNER_TEMP/async-tools" typescript@5.9.3 --no-audit --no-fund
       - name: Strict TS, emitted JS, shared traces and real Encoded/RPC servers
@@ -384,7 +384,7 @@ jobs:
       - name: Bound host package downloads
         uses: ./.github/actions/setup-apt
       - name: Install measurement tools
-        run: sudo apt-get -o Acquire::Retries=5 update && sudo apt-get -o Acquire::Retries=5 install -y clang-18 time binutils
+        run: sudo apt-get update && sudo apt-get install -y clang-18 time binutils
       - name: Checkout immutable positional-root baseline
         uses: actions/checkout@v4
         with:
@@ -496,7 +496,7 @@ jobs:
           if-no-files-found: error
       - name: Install Clang LTO linker
         if: matrix.cxx == 'clang++-18'
-        run: sudo apt-get -o Acquire::Retries=5 update && sudo apt-get -o Acquire::Retries=5 install -y lld
+        run: sudo apt-get update && sudo apt-get install -y lld
       - name: Shared ID, slot and numeric contracts
         env:
           CXX: ${{ matrix.cxx }}
@@ -843,13 +843,13 @@ jobs:
         run: |
           packages=(ninja-build qt6-base-dev)
           if [[ '${{ matrix.compiler }}' == 'clang++-18' ]]; then packages+=(clang-18); fi
-          sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends "${packages[@]}"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
       - name: Install offline ARM and browser tools
         if: matrix.mode == 'release'
         run: |
           # Linked codec roots explicitly use -nostdlib, -lgcc, -lc and -lnosys.
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-dev
+          sudo apt-get install -y --no-install-recommends gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-dev
           python3 -m venv "$RUNNER_TEMP/codegen-browser"
           "$RUNNER_TEMP/codegen-browser/bin/pip" install playwright==1.63.0
           "$RUNNER_TEMP/codegen-browser/bin/python" -m playwright install --with-deps chromium
@@ -946,8 +946,8 @@ jobs:
         uses: ./.github/actions/setup-apt
       - name: Install ARM GCC and newlib-nano
         run: |
-          sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y --no-install-recommends gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-arm-none-eabi binutils-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
       - name: Shared Cortex-M7 ID and slot checks
         run: |
           python3 tests/h7s_support/check.py
@@ -1179,7 +1179,7 @@ jobs:
           ref: 2e0abf260848fcb74e4a57b37532188047759643
           path: build/dependencies/cobs
       - name: Install s390x C++ compiler and user-mode emulator
-        run: sudo apt-get -o Acquire::Retries=5 update && sudo apt-get -o Acquire::Retries=5 install -y g++-s390x-linux-gnu qemu-user cmake ninja-build
+        run: sudo apt-get update && sudo apt-get install -y g++-s390x-linux-gnu qemu-user cmake ninja-build
       - name: Canonical codec, resource client, Descriptor and Values bytes
         run: python3 tests/structured/codec/endian.py --build-dir build/endian
       - name: Generated standalone codec on real little and big endian
@@ -1235,8 +1235,8 @@ jobs:
             "telemetry-codegen-core==$version" "telemetry-ux-codegen==$version"
       - name: Install Qt host development and QML runtime
         run: |
-          sudo apt-get -o Acquire::Retries=5 update
-          sudo apt-get -o Acquire::Retries=5 install -y clang-18 cmake ninja-build qt6-base-dev qt6-declarative-dev libqt6serialport6-dev \
+          sudo apt-get update
+          sudo apt-get install -y clang-18 cmake ninja-build qt6-base-dev qt6-declarative-dev libqt6serialport6-dev \
             qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtqml-workerscript
       - name: Check out the qualified COBS transport
@@ -1338,7 +1338,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install Qt
-        run: sudo apt-get -o Acquire::Retries=5 update && sudo apt-get -o Acquire::Retries=5 install -y qt6-base-dev
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev
       - name: Independent resource qmake configurations
         run: python3 tests/structured/resources/run_qmake.py --qmake qmake6 --build-dir build/resource-qmake
       - name: Optional ReadMany qmake selections and include ordering
