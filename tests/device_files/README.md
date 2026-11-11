@@ -23,6 +23,15 @@ installed package. No board; only ephemeral localhost sockets.
     session, not files only, lists the profile's four files then its own, and has
     its own file read byte for byte; a table that does not begin with the
     profile's files is refused by the Server.
+  - the identity file (`wire/IdentityWire.hpp`, `IdentityFile`): its bytes as
+    written and read, a rename, every refusal of the reader (magic, version,
+    flags, size, texts, id) and of the writer (an id unfit for a folder name, a
+    control character, a text too long, broken UTF-8), a later version's extra
+    text skipped, a read in pieces;
+  - the session reads it: already Reading when `ready()` turns true, then Known
+    with the id, name, model and firmware; a rename reaches the next connection;
+    without the file Absent; with another file under its name Unreadable with
+    the reason, the connection still ready; disconnecting forgets it.
 - **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose
   descriptor is mistyped in its name, too small, or read whole and rejected by the
   parser connect files only: `ready()` false, telemetry refused, the limitation

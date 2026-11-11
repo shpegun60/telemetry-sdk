@@ -15,6 +15,25 @@ directly. A `FileReader` submits its next piece from `poll()`, called from the
 owner's loop, never from a completion: the Workbench refuses submissions while
 one of its completions runs.
 
+### The device's identity
+
+When the device lists `/telemetry/identity.bin` (`wire/IdentityWire.hpp`), the
+session reads it once the connection is ready or files only. It is never a
+condition of either.
+- `identityState()` is:
+  - `Absent`: not connected, or the device lists no such file;
+  - `Reading`: set before `ready()` or `filesOnly()` turns true, so a client that
+    reacts to the connection already sees it being read;
+  - `Known`: `deviceId()`, `deviceName()`, `deviceModel()` and `deviceFirmware()`
+    hold it;
+  - `Unreadable`: `identityProblem()` says why in English.
+- `identityChanged()` announces each step, after the native work of the turn,
+  never from inside a completion.
+- The read goes through the session's own queue: Stat, then Read pieces. Each
+  piece is submitted from the owner loop, like a `FileReader`'s.
+- Disconnecting forgets the identity. A later connection reads it again, so a
+  device renamed meanwhile shows its new name.
+
 ### Files only
 
 A device whose file list is read correctly but which offers no usable descriptor

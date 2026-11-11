@@ -72,7 +72,7 @@ def main():
     try:
         prefix = out / 'prefix'
         run('package-configure', [cmake, '-S', ROOT, '-B', out / 'package', *common,
-            '-DTELEMETRY_COMPONENTS=files_client;resource_protocol;qt_connection;tcp_server;tcp_encoded_profile',
+            '-DTELEMETRY_COMPONENTS=files_client;resource_protocol;qt_connection;tcp_server;tcp_encoded_profile;resource_adapter',
             '-DCMAKE_DISABLE_FIND_PACKAGE_Qt6SerialPort=ON', '-DCMAKE_INSTALL_PREFIX=' + str(prefix)])
         run('package-install', [cmake, '--build', out / 'package', '--target', 'install', '-j2'])
         relocated = out / 'relocated-prefix'

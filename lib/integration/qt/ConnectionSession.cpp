@@ -5,6 +5,7 @@
  */
 #include <integration/qt/ConnectionSession.hpp>
 #include <integration/qt/TcpTransport.hpp>
+#include <wire/IdentityWire.hpp>
 #include <QtCore/QPointer>
 #include <QtCore/QThread>
 #include <QtCore/QTimer>
@@ -33,6 +34,23 @@ struct ConnectionSession::Impl {
 	// One process() already queued for the owner loop's next turn.
 	bool pumpQueued = false;
 	bool retiring = false, closeRequested = false, nativeActive = false;
+
+	// The device's identity file: Stat, then Read until its end, one request
+	// at a time. Completions only record; progress() submits the next step,
+	// since a queue refuses submissions from inside its own completions.
+	struct IdentityRead {
+		enum class Step : std::uint8_t { Idle, Stat, Read, Done };
+		Step step = Step::Idle;
+		quint64 epoch = 0; // the connection it belongs to
+		::resource::FileIndex index = 0;
+		::resource::Cursor cursor = 0;
+		::resource::FileSize size = 0;
+		unsigned idlePieces = 0;
+		QByteArray bytes;
+		bool due = false, inFlight = false, changed = false;
+	} identityRead;
+	ConnectionSession::IdentityState identityState = ConnectionSession::IdentityState::Absent;
+	QString identityId, identityName, identityModel, identityFirmware, identityProblem;
 
 	Impl(ConnectionSession& target, StorageFactory value)
 	    : owner(&target), factory(std::move(value))
@@ -99,10 +117,162 @@ struct ConnectionSession::Impl {
 		limitation = ConnectionSession::Limitation::None;
 		limitationText.clear();
 		transport.reset();
+		// The identity is the connected device's; a completion still drained
+		// carries the old epoch and is ignored.
+		const bool hadIdentity = identityState != ConnectionSession::IdentityState::Absent;
+		forgetIdentity();
 		retiring = false;
 		if (owner)
 			Q_EMIT owner->admissionChanged();
 		notify();
+		if (hadIdentity && owner)
+			Q_EMIT owner->identityChanged();
+	}
+
+	void forgetIdentity()
+	{
+		identityRead = {};
+		identityState = ConnectionSession::IdentityState::Absent;
+		identityId.clear();
+		identityName.clear();
+		identityModel.clear();
+		identityFirmware.clear();
+		identityProblem.clear();
+	}
+
+	// Called as a connection becomes ready or files only, before it says so:
+	// a listed identity file is then already Reading when a client looks.
+	void beginIdentity()
+	{
+		forgetIdentity();
+		identityRead.epoch = generation;
+		identityRead.step = IdentityRead::Step::Done;
+		const auto at = discoveredPaths.indexOf(
+		    QString::fromLatin1(::telemetry::protocol::identity::path.data(),
+		                        static_cast<qsizetype>(::telemetry::protocol::identity::path.size())));
+		// discoveredPaths holds the device's list in its order, so a position
+		// is the file's index.
+		if (at < 0)
+			return;
+		identityRead.index = static_cast<::resource::FileIndex>(at);
+		identityRead.step = IdentityRead::Step::Stat;
+		identityRead.due = true;
+		identityState = ConnectionSession::IdentityState::Reading;
+		identityRead.changed = true;
+	}
+
+	void identityFailed(QString reason)
+	{
+		identityRead.step = IdentityRead::Step::Done;
+		identityRead.due = false;
+		identityRead.bytes.clear();
+		identityState = ConnectionSession::IdentityState::Unreadable;
+		identityProblem = std::move(reason);
+		identityRead.changed = true;
+	}
+
+	void identityStatted(quint64 epoch, const files::StatResult& result) noexcept
+	{
+		if (epoch != generation || identityRead.epoch != epoch ||
+		    identityRead.step != IdentityRead::Step::Stat)
+			return;
+		identityRead.inFlight = false;
+		if (!result.succeeded())
+			return identityFailed(QStringLiteral("the device did not answer for it"));
+		if (!::resource::has(result.reply.flags, ::resource::FileFlag::Readable))
+			return identityFailed(QStringLiteral("the device does not let it be read"));
+		if (result.reply.size > ::telemetry::protocol::identity::maxBytes)
+			return identityFailed(QStringLiteral("it is %1 bytes, more than an identity has")
+			                          .arg(result.reply.size));
+		identityRead.size = result.reply.size;
+		identityRead.cursor = 0;
+		identityRead.step = IdentityRead::Step::Read;
+		identityRead.due = true;
+	}
+
+	void identityPiece(quint64 epoch, const files::ReadResult& result) noexcept
+	{
+		if (epoch != generation || identityRead.epoch != epoch ||
+		    identityRead.step != IdentityRead::Step::Read)
+			return;
+		identityRead.inFlight = false;
+		if (!result.succeeded())
+			return identityFailed(QStringLiteral("the device did not let it be read"));
+		const auto& piece = result.reply.data;
+		if (static_cast<std::size_t>(identityRead.bytes.size()) + piece.size() >
+		    ::telemetry::protocol::identity::maxBytes)
+			return identityFailed(QStringLiteral("it is longer than an identity can be"));
+		if (!piece.empty())
+			identityRead.bytes.append(reinterpret_cast<const char*>(piece.data()),
+			                          static_cast<qsizetype>(piece.size()));
+		if (!result.reply.eof) {
+			if (piece.empty() && (result.reply.next == identityRead.cursor || ++identityRead.idlePieces > 64))
+				return identityFailed(QStringLiteral("the device stopped sending it"));
+			identityRead.cursor = result.reply.next;
+			identityRead.due = true;
+			return;
+		}
+		identityRead.step = IdentityRead::Step::Done;
+		telemetry::protocol::identity::Identity parsed;
+		const auto problem = ::telemetry::protocol::identity::parse(
+		    {reinterpret_cast<const std::byte*>(identityRead.bytes.constData()),
+		     static_cast<std::size_t>(identityRead.bytes.size())},
+		    parsed);
+		if (problem != ::telemetry::protocol::identity::Problem::None) {
+			const auto words = ::telemetry::protocol::identity::describe(problem);
+			return identityFailed(
+			    QString::fromLatin1(words.data(), static_cast<qsizetype>(words.size())));
+		}
+		const auto text = [](std::string_view value) {
+			return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
+		};
+		identityId = text(parsed.id);
+		identityName = text(parsed.name);
+		identityModel = text(parsed.model);
+		identityFirmware = text(parsed.firmware);
+		identityState = ConnectionSession::IdentityState::Known;
+		identityRead.bytes.clear();
+		identityRead.changed = true;
+	}
+
+	// Submits the identity's next request when one is due, and says when it
+	// changed; from the owner loop only, outside every completion.
+	void advanceIdentity()
+	{
+		if (!owner || working || retiring || !connected)
+			return;
+		auto& read = identityRead;
+		if (read.due && !read.inFlight && read.epoch == generation) {
+			struct Step {
+				std::weak_ptr<Impl> state;
+				quint64 epoch;
+				void operator()(const files::StatResult& result) noexcept
+				{
+					if (const auto value = state.lock())
+						value->identityStatted(epoch, result);
+				}
+				void operator()(const files::ReadResult& result) noexcept
+				{
+					if (const auto value = state.lock())
+						value->identityPiece(epoch, result);
+				}
+			};
+			const Step step{owner->d, read.epoch};
+			const auto submitted = read.step == IdentityRead::Step::Stat
+			                           ? files::stat(*owner, read.index, step)
+			                           : files::read(*owner, read.index, read.cursor, step);
+			if (submitted) {
+				read.due = false;
+				read.inFlight = true;
+			} else if (submitted.status != client::Status::Busy &&
+			           submitted.status != client::Status::QueueFull) {
+				identityFailed(QStringLiteral("the connection could not ask for it"));
+			}
+		}
+		if (read.changed && owner) {
+			read.changed = false;
+			Q_EMIT owner->identityChanged();
+		}
 	}
 
 	void fail(QString reason)
@@ -161,6 +331,7 @@ struct ConnectionSession::Impl {
 		opening = false;
 		// lastError() keeps meaning why a connection failed or ended.
 		error.clear();
+		beginIdentity();
 		timer.start();
 		if (owner)
 			Q_EMIT owner->admissionChanged();
@@ -310,6 +481,7 @@ struct ConnectionSession::Impl {
 		connected = true;
 		opening = false;
 		error.clear();
+		beginIdentity();
 		timer.start();
 		if (owner)
 			Q_EMIT owner->admissionChanged();
@@ -331,6 +503,8 @@ struct ConnectionSession::Impl {
 			working = false;
 			if (closeRequested || !owner)
 				retire();
+			else
+				advanceIdentity();
 			return;
 		}
 		if (working || retiring || !connected || !current || !transport)
@@ -348,6 +522,8 @@ struct ConnectionSession::Impl {
 			retire();
 		else if (lost)
 			fail(QStringLiteral("Session is no longer current; reconnect explicitly"));
+		else
+			advanceIdentity();
 	}
 };
 
@@ -698,6 +874,36 @@ void ConnectionSession::setExchangeTimeout(int milliseconds)
 	d->exchangeTimeout = std::max(1, milliseconds);
 	if (d->transport)
 		d->transport->setTimeout(d->exchangeTimeout);
+}
+
+ConnectionSession::IdentityState ConnectionSession::identityState() const noexcept
+{
+	return d->identityState;
+}
+
+QString ConnectionSession::deviceId() const
+{
+	return d->identityId;
+}
+
+QString ConnectionSession::deviceName() const
+{
+	return d->identityName;
+}
+
+QString ConnectionSession::deviceModel() const
+{
+	return d->identityModel;
+}
+
+QString ConnectionSession::deviceFirmware() const
+{
+	return d->identityFirmware;
+}
+
+QString ConnectionSession::identityProblem() const
+{
+	return d->identityProblem;
 }
 
 void ConnectionSession::process()

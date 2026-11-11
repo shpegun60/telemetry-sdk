@@ -3,11 +3,12 @@
 cmake_minimum_required(VERSION 3.21)
 project(InstalledDeviceFiles LANGUAGES CXX)
 find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS files_client resource_protocol qt_connection
-    tcp_server tcp_encoded_profile)
+    tcp_server tcp_encoded_profile resource_adapter)
 add_executable(reader Reader.cpp)
 target_link_libraries(reader PRIVATE Telemetry::files_client Telemetry::resource_protocol)
 add_executable(session Session.cpp)
-target_link_libraries(session PRIVATE Telemetry::qt_connection Telemetry::tcp_server Telemetry::tcp_encoded_profile)
+target_link_libraries(session PRIVATE Telemetry::qt_connection Telemetry::tcp_server Telemetry::tcp_encoded_profile
+    Telemetry::resource_adapter)
 add_executable(files_only FilesOnly.cpp)
 target_link_libraries(files_only PRIVATE Telemetry::qt_connection Telemetry::tcp_server)
 foreach(target session files_only)

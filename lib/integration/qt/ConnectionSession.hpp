@@ -34,6 +34,12 @@ class ConnectionSession final : public QObject {
 	Q_PROPERTY(QStringList discoveredPaths READ discoveredPaths NOTIFY stateChanged)
 	Q_PROPERTY(quint64 descriptorReceived READ descriptorReceived NOTIFY discoveryProgressed)
 	Q_PROPERTY(quint64 descriptorTotal READ descriptorTotal NOTIFY discoveryProgressed)
+	Q_PROPERTY(IdentityState identityState READ identityState NOTIFY identityChanged)
+	Q_PROPERTY(QString deviceId READ deviceId NOTIFY identityChanged)
+	Q_PROPERTY(QString deviceName READ deviceName NOTIFY identityChanged)
+	Q_PROPERTY(QString deviceModel READ deviceModel NOTIFY identityChanged)
+	Q_PROPERTY(QString deviceFirmware READ deviceFirmware NOTIFY identityChanged)
+	Q_PROPERTY(QString identityProblem READ identityProblem NOTIFY identityChanged)
 public:
 	// Why a connection carries the device's files only. The program words it;
 	// limitationText() holds an English description of the same. lastError()
@@ -53,6 +59,20 @@ public:
 		Capability
 	};
 	Q_ENUM(Limitation)
+
+	// The device's identity file, /telemetry/identity.bin (wire/IdentityWire.hpp):
+	// read once a connection is ready or files only, never needed for either.
+	enum class IdentityState {
+		// Not connected, or the device lists no identity file.
+		Absent,
+		// Listed and being read; already so when ready() or filesOnly() turns true.
+		Reading,
+		// Read: deviceId() and the others hold it.
+		Known,
+		// Listed, but not readable or not an identity: identityProblem() says why.
+		Unreadable
+	};
+	Q_ENUM(IdentityState)
 
 	using StorageFactory = std::function<std::shared_ptr<ConnectionStorage>(QByteArray)>;
 	explicit ConnectionSession(QObject* parent = nullptr);
@@ -89,6 +109,16 @@ public:
 	// of its size; both zero until the device has said how big it is.
 	quint64 descriptorReceived() const noexcept;
 	quint64 descriptorTotal() const noexcept;
+
+	IdentityState identityState() const noexcept;
+	// The unit's id, which never changes ([A-Za-z0-9._-], at most 64 bytes),
+	// and the name its user gave it (may be empty); empty unless Known.
+	QString deviceId() const;
+	QString deviceName() const;
+	QString deviceModel() const;
+	QString deviceFirmware() const;
+	// Why the identity file is Unreadable, in English; empty otherwise.
+	QString identityProblem() const;
 
 	// Cancels a request of this session's queue that has not been sent yet; its
 	// callback then reports Cancelled. False when there is nothing to cancel.
@@ -268,6 +298,7 @@ Q_SIGNALS:
 	void progressed();
 	void stateChanged();
 	void discoveryProgressed();
+	void identityChanged();
 
 private:
 	std::shared_ptr<ConnectionStorage> operationStorage(client::Status& status) const noexcept;

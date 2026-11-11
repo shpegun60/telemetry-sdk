@@ -49,7 +49,8 @@ They do not own a request FIFO; asynchronous JS/TS operations use `lib/client/we
 | Portable client | `client/DeviceClient.hpp` | `telemetry::client` |
 | Native RPC engine | `client/rpc/RpcClient.hpp` | `telemetry::client::rpc` |
 | Shared TEQ1/RPC contracts | `wire/EncodedWire.hpp`, `wire/RpcWire.hpp` | `telemetry::protocol::encoded`, `telemetry::protocol::rpc` |
-| Resource providers | `integration/telemetry/v3/DescriptorFile.hpp`, `ValuesFile.hpp`, `RpcMailbox.hpp`, `RpcSessionPool.hpp` | `resource::telemetry::v3` |
+| Device identity file (`/telemetry/identity.bin`) | `wire/IdentityWire.hpp` | `telemetry::protocol::identity` |
+| Resource providers | `integration/telemetry/v3/DescriptorFile.hpp`, `ValuesFile.hpp`, `IdentityFile.hpp`, `RpcMailbox.hpp`, `RpcSessionPool.hpp` | `resource::telemetry::v3` |
 | TEQ1 server | `integration/encoded/Dispatcher.hpp` | `telemetry::integration::encoded` |
 | Encoded backend | `integration/encoded/Backend.hpp` | `telemetry::integration::encoded` |
 | Retrying Encoded backend | `integration/encoded/RetryingBackend.hpp` | `telemetry::integration::encoded` |
