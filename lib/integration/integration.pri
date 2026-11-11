@@ -61,7 +61,8 @@ contains(CONFIG, resource_telemetry):isEmpty(TELEMETRY_RESOURCE_ADAPTER_PRI_INCL
     TELEMETRY_RESOURCE_ADAPTER_PRI_INCLUDED = 1
     include($$PWD/../telemetry/telemetry.pri)
     include($$PWD/../resource/resource.pri)
-    include($$PWD/../wire/wire.pri)
+    INCLUDEPATH *= $$PWD/..
+    HEADERS *= $$PWD/../wire/IdentityWire.hpp
     HEADERS += $$PWD/telemetry/v3/DescriptorFile.hpp \
         $$PWD/telemetry/v3/IdentityFile.hpp \
         $$PWD/telemetry/v3/ValuesFile.hpp \

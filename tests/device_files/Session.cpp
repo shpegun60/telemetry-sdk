@@ -348,6 +348,28 @@ void identityBytes()
 	}
 	CHECK(joined.size() == file.size() && std::equal(joined.begin(), joined.end(), file.bytes().begin()));
 	CHECK(file.read(file.size() + 1, piece).status == resource::Status::InvalidCursor);
+	// A rename between two pieces of one read: that read stays the old bytes
+	// whole, and the next read from 0 is the new name.
+	const std::vector<std::byte> before(file.bytes().begin(), file.bytes().end());
+	joined.clear();
+	cursor = 0;
+	for (bool renamed = false;;) {
+		const auto result = file.read(cursor, piece);
+		CHECK(result.status == resource::Status::Ok);
+		joined.insert(joined.end(), piece.begin(), piece.begin() + result.written);
+		cursor = result.next;
+		if (!renamed) {
+			CHECK(file.rename("Renamed midway"));
+			renamed = true;
+		}
+		if (result.eof)
+			break;
+	}
+	CHECK(joined == before && view(joined).second.name == "Стенд 2");
+	std::array<std::byte, id::maxBytes> whole{};
+	const auto again = file.read(0, whole);
+	CHECK(again.eof && view(std::span(whole).first(again.written)).second.name == "Renamed midway");
+	CHECK(file.rename("Стенд 2"));
 
 	// The reader's refusals.
 	std::vector<std::byte> bytes(file.bytes().begin(), file.bytes().end());

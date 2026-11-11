@@ -14,8 +14,9 @@
  *   auto files = resource::filesystem(profile.systemFiles(),
  *       resource::file(telemetry::protocol::identity::path, identity), ...);
  *
- * It owns its bytes (at most identity::writtenBytes), so the texts given to
- * set() and rename() need not outlive the call. No heap.
+ * It owns its bytes (at most identity::writtenBytes, twice: the current ones
+ * and those of the read in progress), so the texts given to set() and
+ * rename() need not outlive the call. No heap.
  */
 #ifndef RESOURCE_TELEMETRY_V3_IDENTITY_FILE_HPP
 #define RESOURCE_TELEMETRY_V3_IDENTITY_FILE_HPP
@@ -37,8 +38,10 @@ namespace resource::telemetry::v3 {
 // - bytes(): The file as served.
 //
 // Call set() and rename() from the context that serves the file (or with it
-// paused): a read that spans a change sees the new bytes from there on. The
-// whole file fits one READ on any transport that carries writtenBytes.
+// paused). A READ at cursor 0 takes a snapshot that the read's later pieces
+// come from, so a rename between pieces never mixes two versions; the next read
+// from 0 sees the new name. The whole file fits one READ on any transport that
+// carries writtenBytes.
 class IdentityFile {
 	using Identity = ::telemetry::protocol::identity::Identity;
 
@@ -80,20 +83,25 @@ public:
 
 	[[nodiscard]] ReadResult read(Cursor cursor, Output output) const noexcept
 	{
-		if (cursor > size_) {
+		if (cursor == 0 && !output.empty()) {
+			served_ = bytes_;
+			servedSize_ = size_;
+		}
+		const auto size = cursor == 0 ? size_ : servedSize_;
+		if (cursor > size) {
 			return {Status::InvalidCursor, cursor};
 		}
-		if (cursor == size_) {
+		if (cursor == size) {
 			return {Status::Ok, cursor, 0, true};
 		}
 		if (output.empty()) {
 			return {Status::BufferTooSmall, cursor};
 		}
-		const auto remaining = size_ - static_cast<std::size_t>(cursor);
+		const auto remaining = size - static_cast<std::size_t>(cursor);
 		const auto count = output.size() < remaining ? output.size() : remaining;
-		std::memcpy(output.data(), bytes_.data() + cursor, count);
+		std::memcpy(output.data(), served_.data() + cursor, count);
 		const auto next = cursor + count;
-		return {Status::Ok, next, static_cast<std::uint32_t>(count), next == size_};
+		return {Status::Ok, next, static_cast<std::uint32_t>(count), next == size};
 	}
 
 	std::span<const std::byte> bytes() const noexcept
@@ -111,6 +119,9 @@ private:
 
 	std::array<std::byte, ::telemetry::protocol::identity::writtenBytes> bytes_{};
 	std::size_t size_ = 0;
+	// The bytes of the read in progress, taken at its cursor 0.
+	mutable std::array<std::byte, ::telemetry::protocol::identity::writtenBytes> served_{};
+	mutable std::size_t servedSize_ = 0;
 };
 
 } // namespace resource::telemetry::v3

@@ -100,7 +100,7 @@ Available components are `core`, `runtime`, `resource`, `resource_protocol`, `cl
 `encoded_backend`, `rpc_client`, `rpc_backend`, `dynamic_client`, `read_many_client`, `read_many_static_client`, `batch_client`, `batch_static_client`, `batch_server`, `inspector`, `workbench`, `read_many_workbench` and
 `tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `files_client`, `files_workbench`, `link`, `tcp_link`, `qt_connection`,
 `qt_tcp_transport`, `qt_transport` and `qt_serial_transport`. Shared header components
-`common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire` and `rpc_wire`
+`common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire`, `rpc_wire` and `identity_wire`
 are selected automatically as needed. Multiple components use a semicolon list.
 The native RPC engine is `rpc_client`; its DeviceClient adapter is `rpc_backend`.
 The default root build includes the Inspector, Workbench and TCP components. Set

@@ -322,6 +322,7 @@ int main()
 #elif defined(MODULE_RESOURCE_ADAPTER)
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <integration/telemetry/v3/DescriptorFile.hpp>
+#include <integration/telemetry/v3/IdentityFile.hpp>
 #include <integration/telemetry/v3/ValuesFile.hpp>
 
 int main()
@@ -330,7 +331,20 @@ int main()
 	resource::telemetry::v3::DescriptorFile file{descriptor};
 	std::array<std::byte, 64> out{};
 	const auto result = file.read(0, out);
-	return result.status == resource::Status::Ok && result.written == 64 ? 0 : 1;
+	// The device's identity, as firmware serves it: an MCU UID as its id.
+	const std::array<std::byte, 12> uid{std::byte{0x00}, std::byte{0x28}, std::byte{0x00}, std::byte{0x3a}};
+	std::array<char, 24> text{};
+	resource::telemetry::v3::IdentityFile identity;
+	const bool named = identity.set(telemetry::protocol::identity::hexId(uid, text), "Probe", "M7", "1.0") &&
+	                   identity.rename("Probe 2");
+	std::array<std::byte, telemetry::protocol::identity::writtenBytes> whole{};
+	const auto served = identity.read(0, whole);
+	telemetry::protocol::identity::Identity parsed;
+	const bool read = served.eof &&
+	                  telemetry::protocol::identity::parse(std::span(whole).first(served.written), parsed) ==
+	                      telemetry::protocol::identity::Problem::None &&
+	                  parsed.name == "Probe 2";
+	return result.status == resource::Status::Ok && result.written == 64 && named && read ? 0 : 1;
 }
 #elif defined(MODULE_ENCODED_SERVER)
 #include <integration/encoded/Dispatcher.hpp>
