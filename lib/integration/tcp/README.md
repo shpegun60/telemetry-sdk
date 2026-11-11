@@ -75,3 +75,49 @@ session and replay guard. `ReadManyProfile` keeps its previous read-only profile
 The legacy constructors do not acquire Batch link roots. See
 [Qt connection](../../../doc/QtConnectionSession.md#optional-mixed-batch) and
 [installed consumer tests](../../../tests/qt_batch/README.md).
+
+**The device's own files beside a profile's.**
+- A profile serves its own files: the descriptor, `session.bin`,
+  `read-many.bin`, and `batch.bin` for the encoded profile.
+- To serve logs, settings or data as well, begin a table with the profile's
+  files and pass it with the profile. `systemFiles()` names the same providers
+  the profile uses, so a session binds the same way:
+
+```cpp
+const auto table = resource::filesystem(profile.systemFiles(),
+                                        resource::file("/logs/events.csv", eventLog),
+                                        resource::file("/config/settings.csv", settings));
+telemetry::integration::tcp::Server server(model.view(), workspace, profile, table.view(), rx, tx);
+```
+
+- A table that does not begin with the profile's files, in their order, is
+  refused: the Server is closed.
+- The client lists the profile's files first, then the device's.
+  [Device files](../../../tests/device_files/README.md) checks this over a live
+  session.
+
+**Which unit it is: `/telemetry/identity.bin`.** The descriptor is the same for
+every unit of one firmware, so a client cannot tell two boards apart by it, nor
+keep each one's files apart. A device that serves an identity file can be:
+- **id:** unique to the unit and never changing - the MCU's unique ID
+  (`identity::hexId` formats it) or a serial number from production; letters,
+  digits, `.`, `_` and `-`, at most 64 bytes.
+- **name:** what its user calls it; may be empty or change.
+- **model, firmware:** optional.
+
+```cpp
+resource::telemetry::v3::IdentityFile identity; // IdentityFile.hpp, tcp_encoded_profile
+std::array<char, 24> text{};
+identity.set(telemetry::protocol::identity::hexId(uid, text), savedName, "PA-3", "1.4.2");
+const auto table = resource::filesystem(profile.systemFiles(),
+                                        resource::file(telemetry::protocol::identity::path, identity),
+                                        resource::file("/logs/events.csv", eventLog));
+```
+
+- The bytes are defined once, in `wire/IdentityWire.hpp`, writer and reader
+  together; at most 512 bytes, so one READ returns the file.
+- `rename()` changes the name in place; call it from the context that serves
+  the file. Clients read the identity when they connect.
+- `qt::ConnectionSession` reads it once a connection is ready or files only, and
+  offers `identityState`, `deviceId`, `deviceName`, `deviceModel`,
+  `deviceFirmware`; a missing or broken file never refuses a connection.

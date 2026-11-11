@@ -15,6 +15,25 @@ directly. A `FileReader` submits its next piece from `poll()`, called from the
 owner's loop, never from a completion: the Workbench refuses submissions while
 one of its completions runs.
 
+### The device's identity
+
+When the device lists `/telemetry/identity.bin` (`wire/IdentityWire.hpp`), the
+session reads it once the connection is ready or files only. It is never a
+condition of either.
+- `identityState()` is:
+  - `Absent`: not connected, or the device lists no such file;
+  - `Reading`: set before `ready()` or `filesOnly()` turns true, so a client that
+    reacts to the connection already sees it being read;
+  - `Known`: `deviceId()`, `deviceName()`, `deviceModel()` and `deviceFirmware()`
+    hold it;
+  - `Unreadable`: `identityProblem()` says why in English.
+- `identityChanged()` announces each step, after the native work of the turn,
+  never from inside a completion.
+- The read goes through the session's own queue: Stat, then Read pieces. Each
+  piece is submitted from the owner loop, like a `FileReader`'s.
+- Disconnecting forgets the identity. A later connection reads it again, so a
+  device renamed meanwhile shows its new name.
+
 ### Files only
 
 A device whose file list is read correctly but which offers no usable descriptor
@@ -64,6 +83,14 @@ request/reply storage and owner-loop timer. `ConnectionStorage` factors that own
 state and guarded handoff/deadline-ordered reply processing for existing hosts;
 its advanced factory does not create a second execution owner. Inspector uses
 this same implementation instead of a private TCP driver.
+
+The owner-loop timer ticks every 5 ms for deadlines and for whatever waits. A
+reply that arrives, and a file request the session accepts, also queue one
+`process()` on the loop's next turn, coalesced: the reply is settled and the next
+request sent without waiting for a tick. Before this, each file request waited
+for two ticks - one to settle its reply, one to send the next - which made a
+listing of 4096 files take over a minute on Windows, where a 5 ms timer fires
+about every 15.6 ms.
 
 All calls and storage access belong to the creating Qt thread. `workbench()` is
 an advanced borrowing seam, available only while ready. Consumer UI code normally

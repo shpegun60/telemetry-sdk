@@ -49,7 +49,8 @@ They do not own a request FIFO; asynchronous JS/TS operations use `lib/client/we
 | Portable client | `client/DeviceClient.hpp` | `telemetry::client` |
 | Native RPC engine | `client/rpc/RpcClient.hpp` | `telemetry::client::rpc` |
 | Shared TEQ1/RPC contracts | `wire/EncodedWire.hpp`, `wire/RpcWire.hpp` | `telemetry::protocol::encoded`, `telemetry::protocol::rpc` |
-| Resource providers | `integration/telemetry/v3/DescriptorFile.hpp`, `ValuesFile.hpp`, `RpcMailbox.hpp`, `RpcSessionPool.hpp` | `resource::telemetry::v3` |
+| Device identity file (`/telemetry/identity.bin`) | `wire/IdentityWire.hpp` | `telemetry::protocol::identity` |
+| Resource providers | `integration/telemetry/v3/DescriptorFile.hpp`, `ValuesFile.hpp`, `IdentityFile.hpp`, `RpcMailbox.hpp`, `RpcSessionPool.hpp` | `resource::telemetry::v3` |
 | TEQ1 server | `integration/encoded/Dispatcher.hpp` | `telemetry::integration::encoded` |
 | Encoded backend | `integration/encoded/Backend.hpp` | `telemetry::integration::encoded` |
 | Retrying Encoded backend | `integration/encoded/RetryingBackend.hpp` | `telemetry::integration::encoded` |
@@ -99,7 +100,7 @@ Available components are `core`, `runtime`, `resource`, `resource_protocol`, `cl
 `encoded_backend`, `rpc_client`, `rpc_backend`, `dynamic_client`, `read_many_client`, `read_many_static_client`, `batch_client`, `batch_static_client`, `batch_server`, `inspector`, `workbench`, `read_many_workbench` and
 `tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `files_client`, `files_workbench`, `link`, `tcp_link`, `qt_connection`,
 `qt_tcp_transport`, `qt_transport` and `qt_serial_transport`. Shared header components
-`common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire` and `rpc_wire`
+`common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire`, `rpc_wire` and `identity_wire`
 are selected automatically as needed. Multiple components use a semicolon list.
 The native RPC engine is `rpc_client`; its DeviceClient adapter is `rpc_backend`.
 The default root build includes the Inspector, Workbench and TCP components. Set
