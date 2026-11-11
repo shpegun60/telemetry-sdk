@@ -40,6 +40,32 @@ reentrant `process()` does not run another callback. The active closure stays
 alive until its invocation returns. Destruction of the client from a callback
 is outside the lifecycle contract.
 
+## Resource requests for the device's files
+
+`Operation::Resource` puts a raw Resource List, Stat or Read on the same queue as
+every other request, so reading the device's files never bypasses it. The payload
+is the complete Resource request built with `resource::protocol::client::makeList`,
+`makeStat` or `makeRead`; the endpoint is 0; the reply bound is at most
+`chunkReplyHeaderSize + maxPayloadSize`. The result's payload is the raw Resource
+reply, which the caller parses with `parseList`, `parseStat` or `parseRead` inside
+its callback, since the view is borrowed.
+
+- The value 7 is client-only. It never appears in an Encoded header, and the Encoded
+  operation space keeps it reserved.
+- Only `EncodedBackend` constructed with `enableResource` admits it; any other
+  backend, and the RPC backend, answers `Unsupported` at submission.
+- The packet carries `ReplyFrame::Resource` and the Resource operation byte, and it
+  is marked `mayExecute = false`: List, Stat and Read change nothing on the device,
+  so a cancelled one never counts as possibly executed. A Resource reply has no
+  identity of its own; the port matches it by position, as the one outstanding
+  exchange.
+- A port frames such replies only if its transport says so:
+  `DeviceTransport::supportsResourceReplies()`. `LinkTransport` does; it switches
+  its framer to the Resource reply when the packet is sent - not when it is staged,
+  because a staged packet can still be discarded - and back to Encoded right after
+  the reply.
+- Writing files is not part of this family; it comes as a separate request.
+
 ## Memory and results
 
 `N` includes Reserved, Queued, Active and Completing slots. `PayloadBytes` is one

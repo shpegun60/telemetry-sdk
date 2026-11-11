@@ -31,6 +31,8 @@ enum class Operation : std::uint8_t {
 	FieldRead = 4,
 	ReadMany = 5,
 	Batch = 6
+	// 7 is reserved and never valid on this wire: the client queue uses it for
+	// raw Resource requests (client::Operation::Resource), sent without a header.
 };
 
 enum class Status : std::uint8_t {

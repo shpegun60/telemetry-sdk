@@ -90,7 +90,7 @@ def main():
         prefix.rename(relocated)
         consumer = out / 'consumer'
         consumer.mkdir()
-        for name in ('Framer.cpp', 'Channel.cpp', 'Trace.cpp', 'CMakeLists.txt'):
+        for name in ('Framer.cpp', 'Channel.cpp', 'Resource.cpp', 'Trace.cpp', 'CMakeLists.txt'):
             shutil.copy2(HERE / name, consumer / name)
         search = str(relocated) + (';' + args.qt_prefix if args.qt_prefix else '')
         run('consumer-configure', [cmake, '-S', consumer, '-B', out / 'consumer-build', *common,
@@ -104,7 +104,8 @@ def main():
             return out / 'consumer-build' / (target + ('.exe' if os.name == 'nt' else ''))
 
         for target, pattern, floor in (('framer', r'Link framer: (\d+) checks, 0 failures', 60),
-                                       ('channel', r'Link channel: (\d+) checks, 0 failures', 25)):
+                                       ('channel', r'Link channel: (\d+) checks, 0 failures', 25),
+                                       ('resource', r'Resource exchange: (\d+) checks, 0 failures', 40)):
             found = re.findall(pattern, run(target + '-execute', [executable(target)], 60))
             if len(found) != 1 or int(found[0]) < floor:
                 raise RuntimeError('Missing maintained nonzero check count: ' + target)

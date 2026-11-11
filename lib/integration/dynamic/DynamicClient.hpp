@@ -519,6 +519,7 @@ private:
 				return true;
 			case client::Operation::ReadMany:
 			case client::Operation::Batch:
+			case client::Operation::Resource:
 				return false;
 		}
 		return false;

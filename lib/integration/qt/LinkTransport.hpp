@@ -49,6 +49,8 @@ public:
 	QString peerAddress() const override;
 	void setWriteChunkBytes(int bytes) noexcept override;
 	void setTimeout(int milliseconds) noexcept override;
+	// Every LinkTransport frames Resource replies through its framer.
+	bool supportsResourceReplies() const noexcept override;
 
 protected:
 	Link& link() noexcept;

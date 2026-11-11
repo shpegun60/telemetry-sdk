@@ -69,6 +69,10 @@ struct LinkTransport::Impl {
 	quint32 session = 0, requestId = 0;
 	Phase phase = Phase::Closed;
 	bool awaiting = false, staged = false, writing = false, notified = false;
+	// A Resource request staged or outstanding after discovery. The framer reads
+	// Resource replies only while it is set and returns to Encoded right after.
+	bool resourceStaged = false, resourceExchange = false;
+	std::uint8_t resourceOperation = 0;
 	quint64 generation = 0;
 
 	template<class Callback>
@@ -124,6 +128,7 @@ struct LinkTransport::Impl {
 		tx.clear();
 		framer->close();
 		awaiting = staged = writing = false;
+		resourceStaged = resourceExchange = false;
 	}
 
 	void fail(QString reason)
@@ -291,6 +296,28 @@ struct LinkTransport::Impl {
 				     QStringLiteral(" frame"));
 				return;
 			}
+			if (phase == Phase::Encoded && resourceExchange) {
+				// A Resource reply has no identity; it answers the one outstanding
+				// request. Bytes beyond it were never asked for.
+				if (!awaiting || !incoming.isEmpty() || device.bytesAvailable() != 0) {
+					fail(QStringLiteral("Unsolicited bytes after a Resource reply"));
+					return;
+				}
+				const auto bytes = copy(framer->frame());
+				framer->release();
+				resourceExchange = awaiting = false;
+				timeout.stop();
+				if (!framer->expect(telemetry::integration::link::Expect::EncodedReply, Op::Read)) {
+					fail(QStringLiteral("Resource reply did not end at a frame boundary"));
+					return;
+				}
+				auto* target = &owner;
+				const auto sentSession = session, sentId = requestId;
+				later(0, [target, bytes, sentSession, sentId] {
+					Q_EMIT target->packetReceived(bytes, sentSession, sentId);
+				});
+				return;
+			}
 			if (phase == Phase::Encoded) {
 				const auto parsed = ew::parse(framer->frame());
 				if (!parsed || !parsed.header.reply) {
@@ -419,9 +446,17 @@ bool LinkTransport::stage(telemetry::client::Packet packet)
 {
 	if (!canStage() || !packet)
 		return false;
+	const bool resource = packet.reply == telemetry::client::ReplyFrame::Resource;
+	// Only List, Stat and Read are framed after discovery.
+	if (resource && (packet.resourceOperation < 1 || packet.resourceOperation > 3))
+		return false;
 	auto bytes = impl_->encode(packet.bytes);
 	if (bytes.isEmpty())
 		return false;
+	// The framer is switched only once the packet is really sent: a staged
+	// packet may still be discarded, and then nothing about the stream changed.
+	impl_->resourceStaged = resource;
+	impl_->resourceOperation = packet.resourceOperation;
 	impl_->tx = std::move(bytes);
 	impl_->session = packet.session;
 	impl_->requestId = packet.requestId;
@@ -435,8 +470,18 @@ bool LinkTransport::sendStaged()
 {
 	if (!impl_->staged || !ready())
 		return false;
+	if (impl_->resourceStaged &&
+	    !impl_->framer->expect(telemetry::integration::link::Expect::ResourceReply,
+	                           static_cast<resource::protocol::Op>(impl_->resourceOperation))) {
+		// Encoded traffic leaves the framer alone, exactly as before. A Resource
+		// request switches it at a frame boundary; anything else is a broken stream.
+		impl_->fail(QStringLiteral("Resource request is not at a frame boundary"));
+		return false;
+	}
 	impl_->staged = false;
 	impl_->awaiting = true;
+	impl_->resourceExchange = impl_->resourceStaged;
+	impl_->resourceStaged = false;
 	impl_->timeout.start(impl_->timeoutMs);
 	impl_->flush();
 	return ready();
@@ -447,6 +492,7 @@ void LinkTransport::discardStaged()
 	if (impl_->staged) {
 		impl_->staged = false;
 		impl_->tx.clear();
+		impl_->resourceStaged = false;
 	}
 }
 
@@ -464,6 +510,11 @@ QString LinkTransport::peerAddress() const
 void LinkTransport::setWriteChunkBytes(int bytes) noexcept
 {
 	impl_->writeChunk = bytes > 0 ? bytes : std::numeric_limits<int>::max();
+}
+
+bool LinkTransport::supportsResourceReplies() const noexcept
+{
+	return true;
 }
 
 void LinkTransport::setTimeout(int milliseconds) noexcept

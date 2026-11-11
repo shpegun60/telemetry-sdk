@@ -24,12 +24,16 @@ namespace encoded_wire = ::telemetry::protocol::encoded;
 
 class EncodedBackend final : public ::telemetry::client::Backend {
 public:
+	// enableResource admits raw Resource List, Stat and Read requests on this
+	// queue. Only a port that can frame a Resource reply after discovery may set it.
 	explicit EncodedBackend(::telemetry::client::Output txStorage,
 	                        ::telemetry::client::Output resultStorage,
 	                        ::telemetry::client::Clock clock, std::uint32_t timeoutMs = 30000,
-	                        bool enableReadMany = false, bool enableBatch = false) noexcept
+	                        bool enableReadMany = false, bool enableBatch = false,
+	                        bool enableResource = false) noexcept
 	    : tx_(txStorage), result_(resultStorage), clock_(clock), timeoutMs_(timeoutMs),
-	      readManyEnabled_(enableReadMany), batchEnabled_(enableBatch)
+	      readManyEnabled_(enableReadMany), batchEnabled_(enableBatch),
+	      resourceEnabled_(enableResource)
 	{
 		if (clock_.read == nullptr || timeoutMs_ == 0 ||
 		    timeoutMs_ > ::telemetry::client::maxTimeoutMs || overlaps(tx_, result_))
@@ -52,6 +56,11 @@ public:
 		return batchEnabled_;
 	}
 
+	[[nodiscard]] bool supportsResource() const noexcept
+	{
+		return resourceEnabled_;
+	}
+
 	[[nodiscard]] ::telemetry::client::Status start(::telemetry::client::RequestView request,
 	                                                std::uint32_t now) noexcept override
 	{
@@ -67,12 +76,16 @@ public:
 			return ::telemetry::client::Status::Unsupported;
 		if (request.operation == ::telemetry::client::Operation::Batch && !batchEnabled_)
 			return ::telemetry::client::Status::Unsupported;
+		if (request.operation == ::telemetry::client::Operation::Resource && !resourceEnabled_)
+			return ::telemetry::client::Status::Unsupported;
 		if (nextId_ == UINT32_MAX)
 			return ::telemetry::client::Status::IdsExhausted;
 		if (request.payload.size() > UINT32_MAX)
 			return ::telemetry::client::Status::InvalidArgument;
 		if (result_.size() < request.responseBytes)
 			return ::telemetry::client::Status::BufferTooSmall;
+		if (request.operation == ::telemetry::client::Operation::Resource)
+			return startResource(request, now);
 		encoded_wire::Header header{};
 		header.operation = static_cast<encoded_wire::Operation>(request.operation);
 		header.session = generation_;
@@ -90,6 +103,8 @@ public:
 		txBytes_ = built.written;
 		deadline_ = now + (request.timeoutMs < timeoutMs_ ? request.timeoutMs : timeoutMs_);
 		prepared_ = false;
+		resource_ = false;
+		operation_ = request.operation;
 		completion_ = {};
 		completion_.operation = request.operation;
 		state_ = State::Offered;
@@ -183,7 +198,16 @@ public:
 	{
 		if (state_ != State::Offered)
 			return {};
-		return {::telemetry::client::Input{tx_.data(), txBytes_}, generation_, request_.requestId};
+		::telemetry::client::Packet packet{::telemetry::client::Input{tx_.data(), txBytes_},
+		                                   generation_, request_.requestId};
+		if (resource_) {
+			packet.reply = ::telemetry::client::ReplyFrame::Resource;
+			packet.resourceOperation = std::to_integer<std::uint8_t>(tx_[0]);
+			// List, Stat and Read change nothing on the device, so a cancelled
+			// one never counts as possibly executed.
+			packet.mayExecute = false;
+		}
+		return packet;
 	}
 
 	[[nodiscard]] bool prepareHandoff(std::uint32_t generation,
@@ -219,6 +243,8 @@ public:
 		process(clock_.now());
 		if (!active())
 			return false;
+		if (resource_)
+			return completeResource(bytes);
 		const auto parsed = encoded_wire::parse(bytes);
 		if (!parsed) {
 			finish(::telemetry::client::Status::MalformedReply);
@@ -274,13 +300,56 @@ private:
 		return admitted_ && generation == generation_ && requestId == request_.requestId;
 	}
 
+	// A Resource request travels as the device's raw Resource packet, without a
+	// TEQ1 header; its identity stays local, and its reply is matched by position.
+	[[nodiscard]] ::telemetry::client::Status
+	startResource(::telemetry::client::RequestView request, std::uint32_t now) noexcept
+	{
+		if (request.payload.empty() || request.endpointId != 0)
+			return ::telemetry::client::Status::InvalidArgument;
+		const auto operation = std::to_integer<unsigned>(request.payload[0]);
+		// List, Stat and Read only; writing files is a separate, later request.
+		if (operation < 1 || operation > 3)
+			return ::telemetry::client::Status::Unsupported;
+		if (request.payload.size() > tx_.size())
+			return ::telemetry::client::Status::BufferTooSmall;
+		std::memmove(tx_.data(), request.payload.data(), request.payload.size());
+		request_ = {};
+		request_.session = generation_;
+		request_.requestId = nextId_ + 1;
+		request_.expectedResponseBytes = request.responseBytes;
+		nextId_ = request_.requestId;
+		txBytes_ = request.payload.size();
+		deadline_ = now + (request.timeoutMs < timeoutMs_ ? request.timeoutMs : timeoutMs_);
+		prepared_ = false;
+		resource_ = true;
+		operation_ = request.operation;
+		completion_ = {};
+		completion_.operation = request.operation;
+		state_ = State::Offered;
+		return ::telemetry::client::Status::Ok;
+	}
+
+	[[nodiscard]] bool completeResource(::telemetry::client::Input bytes) noexcept
+	{
+		if (bytes.size() > result_.size() || bytes.size() > request_.expectedResponseBytes) {
+			finish(::telemetry::client::Status::MalformedReply);
+			return true;
+		}
+		if (!bytes.empty())
+			std::memmove(result_.data(), bytes.data(), bytes.size());
+		completion_.status = ::telemetry::client::Status::Ok;
+		completion_.payload = ::telemetry::client::Input{result_.data(), bytes.size()};
+		state_ = State::Completed;
+		txBytes_ = 0;
+		return true;
+	}
+
 	void finish(::telemetry::client::Status reason) noexcept
 	{
-		completion_.status =
-		    prepared_ && !::telemetry::client::isReadOnly(
-		                     static_cast<::telemetry::client::Operation>(request_.operation))
-		        ? ::telemetry::client::Status::OutcomeUnknown
-		        : reason;
+		completion_.status = prepared_ && !::telemetry::client::isReadOnly(operation_)
+		                         ? ::telemetry::client::Status::OutcomeUnknown
+		                         : reason;
 		completion_.payload = {};
 		completion_.dispatch = completion_.endpointStatus = completion_.codec = 0;
 		if (prepared_) {
@@ -303,12 +372,15 @@ private:
 	std::uint32_t nextId_ = 0;
 	std::uint32_t deadline_ = 0;
 	std::uint32_t recoveryGeneration_ = 0;
+	::telemetry::client::Operation operation_ = ::telemetry::client::Operation::FieldRead;
 	State state_ = State::Idle;
 	bool admitted_ = false;
 	bool prepared_ = false;
 	bool recovery_ = false;
+	bool resource_ = false;
 	bool readManyEnabled_ = false;
 	bool batchEnabled_ = false;
+	bool resourceEnabled_ = false;
 };
 
 } // namespace telemetry::integration::encoded
