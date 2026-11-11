@@ -14,7 +14,7 @@ endif()
 set(BUILD_TESTING OFF CACHE BOOL "Build only maintained serial checks" FORCE)
 set(INSPECTOR_ENABLE_SERIAL ON CACHE BOOL "Exercise the actual serial port" FORCE)
 # Resolve imported targets in this parent scope before Qt's deferred finalization.
-find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS inspector workbench
+find_package(Telemetry 0.1 CONFIG REQUIRED COMPONENTS inspector workbench
     read_many_workbench encoded_backend encoded_server core tcp_server resource_adapter qt_serial_transport)
 add_subdirectory("${TELEMETRY_UX_ROOT}/examples/inspector" example)
 set_target_properties(telemetry-inspector-qml PROPERTIES

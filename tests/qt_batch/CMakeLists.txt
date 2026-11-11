@@ -1,7 +1,7 @@
 # Installed public Qt/TCP Mixed Batch consumer; no UX or board. MIT.
 cmake_minimum_required(VERSION 3.21)
 project(InstalledQtBatch LANGUAGES CXX)
-find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS qt_connection tcp_encoded_profile)
+find_package(Telemetry 0.1 CONFIG REQUIRED COMPONENTS qt_connection tcp_encoded_profile)
 add_executable(session Session.cpp)
 target_link_libraries(session PRIVATE Telemetry::qt_connection Telemetry::tcp_encoded_profile)
 target_compile_definitions(session PRIVATE QT_NO_KEYWORDS)

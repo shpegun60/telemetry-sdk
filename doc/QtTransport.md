@@ -30,7 +30,7 @@ COBS types or source paths. No second framing engine or COBS package is added.
 An installed consumer needs only the prefix and a matching Qt installation:
 
 ```cmake
-find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS qt_serial_transport)
+find_package(Telemetry 0.1 CONFIG REQUIRED COMPONENTS qt_serial_transport)
 target_link_libraries(application PRIVATE Telemetry::qt_serial_transport)
 ```
 
