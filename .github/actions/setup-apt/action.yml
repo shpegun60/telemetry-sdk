@@ -1,16 +1,18 @@
 # Bound host package downloads without changing Ubuntu source suites or signing keys.
 name: Configure bounded Ubuntu package downloads
-description: Prefer official x64 mirrors and bound APT retries and connection timeouts.
+description: Keep the runner's own mirrors and retry APT downloads with bounded timeouts.
 runs:
   using: composite
   steps:
-    - name: Configure runner-local APT sources and download limits
+    - name: Configure APT retries and download limits
       shell: bash
       run: |
-        if [[ $(dpkg --print-architecture) == amd64 && -f /etc/apt/apt-mirrors.txt ]]; then
-          printf '%s\n' https://archive.ubuntu.com/ubuntu/ https://security.ubuntu.com/ubuntu/ |
-            sudo tee /etc/apt/apt-mirrors.txt
-        fi
-        printf '%s\n' 'Acquire::Retries "1";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' |
+        # The runner image lists its regional mirror first and the official
+        # archive as a fallback in /etc/apt/apt-mirrors.txt; keep that list.
+        # Replacing it with only archive.ubuntu.com and security.ubuntu.com
+        # failed for hours in November 2026 with "Temporary failure resolving"
+        # on the runners, while the regional mirror stayed reachable.
+        printf '%s\n' 'Acquire::Retries "5";' 'Acquire::http::Timeout "30";' 'Acquire::https::Timeout "30";' |
           sudo tee /etc/apt/apt.conf.d/zz-telemetry-ci
+        if [[ -f /etc/apt/apt-mirrors.txt ]]; then cat /etc/apt/apt-mirrors.txt; fi
         apt-config dump Acquire::Retries Acquire::http::Timeout Acquire::https::Timeout
