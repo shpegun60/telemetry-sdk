@@ -8,6 +8,13 @@ The carrier, `TcpTransport`, is a `LinkTransport` over a `TcpLink` and the TCP
 profile's `ProfileFramer`: the exchange rules live in `LinkTransport` and serve
 any medium that supplies a `Link` and a `Framer`.
 
+The device's files are read on the same queue: `filesSupported()` says whether
+the connection can, and `submitResource()` makes the session a files client, so
+`files::list`, `files::stat`, `files::read` and `files::FileReader` take it
+directly. A `FileReader` submits its next piece from `poll()`, called from the
+owner's loop, never from a completion: the Workbench refuses submissions while
+one of its completions runs.
+
 ```cpp
 #include <integration/qt/ConnectionSession.hpp>
 telemetry::integration::qt::ConnectionSession device;

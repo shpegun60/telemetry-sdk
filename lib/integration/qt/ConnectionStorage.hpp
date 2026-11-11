@@ -65,7 +65,8 @@ public:
 	client::Clock clock{this, +[](void* owner) noexcept {
 		                    return static_cast<ConnectionStorage*>(owner)->now();
 	                    }};
-	encoded::EncodedBackend backend{tx, rx, clock, 30000, true, true};
+	// ReadMany, Batch and the device's files (Resource requests) on one queue.
+	encoded::EncodedBackend backend{tx, rx, clock, 30000, true, true, true};
 	std::array<std::byte, 65536> serviceStorage{};
 	HostWorkbench inspector{backend, clock, serviceStorage};
 	std::vector<Reply> replies;

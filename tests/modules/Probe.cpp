@@ -251,6 +251,35 @@ int main()
 	           ? 0
 	           : 1;
 }
+#elif defined(MODULE_FILES_CLIENT)
+#include <integration/files/Client.hpp>
+
+// Any client with submitResource drives a reader; this one refuses.
+struct Refusing {
+	template<class F>
+	telemetry::client::Submission submitResource(telemetry::client::Input, std::uint32_t, F&&,
+	                                             std::uint32_t) noexcept
+	{
+		return {telemetry::client::Status::NotAdmitted, {}};
+	}
+};
+
+struct Sink {
+	bool operator()(telemetry::client::Input) noexcept
+	{
+		return true;
+	}
+};
+
+int main()
+{
+	Refusing client;
+	telemetry::integration::files::FileReader<Refusing, Sink> reader{client, Sink{}};
+	return reader.start(0) == telemetry::client::Status::NotAdmitted &&
+	               reader.state() == telemetry::integration::files::ReadState::Failed
+	           ? 0
+	           : 1;
+}
 #elif defined(MODULE_RESOURCE)
 #include <resource/Resource.hpp>
 

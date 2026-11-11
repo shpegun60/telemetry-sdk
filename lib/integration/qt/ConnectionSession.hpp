@@ -10,6 +10,7 @@
 #include <integration/qt/ConnectionStorage.hpp>
 #include <integration/read_many/Workbench.hpp>
 #include <integration/batch/Workbench.hpp>
+#include <integration/files/Workbench.hpp>
 #include <functional>
 #include <optional>
 
@@ -45,6 +46,33 @@ public:
 	std::optional<read_many::wire::Capability> readManyCapability() const noexcept;
 	bool batchSupported() const noexcept;
 	std::optional<batch::wire::Capability> batchCapability() const noexcept;
+	// Whether the device's files can be read on this connection: it is ready
+	// and its transport frames Resource replies after discovery.
+	bool filesSupported() const noexcept;
+
+	// A raw Resource List, Stat or Read on this session's one queue. This makes
+	// the session a files client: files::list, stat, read and FileReader take
+	// it directly. The reply view ends at callback return.
+	template<class F>
+	client::Submission submitResource(client::Input request, std::uint32_t replyBytes, F&& callback,
+	                                  std::uint32_t timeoutMs = 30000) noexcept
+	{
+		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&, const client::ResultView&>);
+		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
+		client::Status status;
+		auto owner = operationStorage(status);
+		if (!owner)
+			return {status, {}};
+		if (!filesSupported())
+			return {client::Status::Unsupported, {}};
+		return files::Submitter<HostWorkbench>::submit(
+		    owner->inspector, request, replyBytes,
+		    [owner, callable = std::forward<F>(callback)](
+		        const client::ResultView& result) mutable noexcept {
+			    callable(result);
+		    },
+		    timeoutMs);
+	}
 
 	struct BatchRequest {
 		client::Operation operation;

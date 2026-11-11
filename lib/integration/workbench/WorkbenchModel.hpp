@@ -27,6 +27,10 @@ namespace telemetry::integration::batch::detail {
 struct WorkbenchAccess;
 }
 
+namespace telemetry::integration::files::detail {
+struct WorkbenchAccess;
+}
+
 namespace telemetry::integration::workbench {
 
 enum class Phase : std::uint8_t {
@@ -685,6 +689,7 @@ public:
 private:
 	friend struct ::telemetry::integration::read_many::detail::WorkbenchAccess;
 	friend struct ::telemetry::integration::batch::detail::WorkbenchAccess;
+	friend struct ::telemetry::integration::files::detail::WorkbenchAccess;
 	template<std::size_t, std::size_t, std::size_t, std::size_t, bool>
 	friend class WorkbenchState;
 

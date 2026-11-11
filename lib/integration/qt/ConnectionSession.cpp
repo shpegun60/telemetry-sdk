@@ -407,6 +407,12 @@ std::optional<batch::wire::Capability> ConnectionSession::batchCapability() cons
 	return batchSupported() ? d->current->batch : std::nullopt;
 }
 
+bool ConnectionSession::filesSupported() const noexcept
+{
+	return ready() && d->transport && d->transport->supportsResourceReplies() &&
+	       d->current->backend.supportsResource();
+}
+
 std::shared_ptr<ConnectionStorage>
 ConnectionSession::operationStorage(client::Status& status) const noexcept
 {

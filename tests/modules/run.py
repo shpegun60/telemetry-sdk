@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 MODULES = ('core', 'runtime', 'dynamic_client', 'read_many_client', 'read_many_static_client', 'batch_client', 'batch_static_client', 'inspector', 'workbench', 'read_many_workbench', 'resource', 'resource_protocol', 'client', 'resource_adapter',
            'encoded_server', 'batch_server', 'rpc_server', 'rpc_sessions', 'encoded_backend', 'rpc_client', 'rpc_backend', 'tcp_server',
-           'link', 'tcp_link')
+           'link', 'tcp_link', 'files_client')
 FORBIDDEN = {
     'batch_static_client': ('telemetry/runtime/RuntimeSchema.hpp',
                             'integration/dynamic/DynamicClient.hpp', 'telemetry/Telemetry.hpp',
@@ -80,6 +80,10 @@ FORBIDDEN = {
     # A framer is medium framing only: no client, Model, server or Encoded wire.
     'link': ('client/DeviceClient.hpp', 'telemetry/Telemetry.hpp', 'wire/EncodedWire.hpp'),
     'tcp_link': ('client/DeviceClient.hpp', 'telemetry/Telemetry.hpp', 'integration/encoded/Dispatcher.hpp'),
+    # Reading the device's files needs the client and the Resource wire only.
+    'files_client': ('telemetry/Telemetry.hpp', 'integration/dynamic/DynamicClient.hpp',
+                     'integration/workbench/WorkbenchModel.hpp', 'resource/protocol/Protocol.hpp',
+                     'integration/files/Workbench.hpp'),
 }
 for _module in MODULES:
     FORBIDDEN[_module] += ('integration/qt/DeviceTransport.hpp',
