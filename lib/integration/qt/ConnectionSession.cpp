@@ -407,6 +407,12 @@ std::optional<batch::wire::Capability> ConnectionSession::batchCapability() cons
 	return batchSupported() ? d->current->batch : std::nullopt;
 }
 
+bool ConnectionSession::cancel(client::RequestHandle handle) noexcept
+{
+	const auto owner = d->current;
+	return owner && files::Submitter<HostWorkbench>::cancel(owner->inspector, handle);
+}
+
 bool ConnectionSession::filesSupported() const noexcept
 {
 	return ready() && d->transport && d->transport->supportsResourceReplies() &&

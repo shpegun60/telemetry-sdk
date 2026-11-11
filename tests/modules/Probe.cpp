@@ -280,6 +280,17 @@ int main()
 	           ? 0
 	           : 1;
 }
+#elif defined(MODULE_FILES_WORKBENCH)
+#include <integration/files/Workbench.hpp>
+#include <type_traits>
+using Workbench = telemetry::integration::workbench::WorkbenchModel<2, 64, 64>;
+using Files = telemetry::integration::files::Submitter<Workbench>;
+static_assert(std::is_empty_v<Files>);
+
+int main()
+{
+	return sizeof(Workbench) > sizeof(void*) ? 0 : 1;
+}
 #elif defined(MODULE_RESOURCE)
 #include <resource/Resource.hpp>
 

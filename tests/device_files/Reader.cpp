@@ -96,6 +96,7 @@ public:
 	struct Pending {
 		std::vector<std::byte> request;
 		std::function<void(const cl::ResultView&)> callback;
+		std::uint64_t sequence = 0;
 	};
 
 	std::size_t replyBytes = 12 + 16;
@@ -113,8 +114,25 @@ public:
 			refuseNext = cl::Status::Ok;
 			return {status, {}};
 		}
-		pending.push_back({{request.begin(), request.end()}, std::forward<F>(callback)});
-		return {cl::Status::Ok, {this, ++sequence, 1}};
+		pending.push_back(
+		    {{request.begin(), request.end()}, std::forward<F>(callback), ++sequence});
+		return {cl::Status::Ok, {this, sequence, 1}};
+	}
+
+	bool cancel(cl::RequestHandle handle) noexcept
+	{
+		for (auto it = pending.begin(); it != pending.end(); ++it) {
+			if (it->sequence != handle.sequence)
+				continue;
+			auto cancelled = std::move(*it);
+			pending.erase(it);
+			cl::ResultView result{};
+			result.status = cl::Status::Cancelled;
+			result.operation = cl::Operation::Resource;
+			cancelled.callback(result);
+			return true;
+		}
+		return false;
 	}
 
 	void answer()
@@ -139,13 +157,17 @@ public:
 		next.callback(result);
 	}
 
-	// A well-formed Read reply with no data, not at the end, and the cursor
-	// left where it was: what a misbehaving device could send.
-	void noProgress(resource::Cursor cursor)
+	// A well-formed Read reply, not at the end, with the cursor left where it
+	// was - with no data or with some: what a misbehaving device could send.
+	void noProgress(resource::Cursor cursor, std::uint16_t count = 0)
 	{
 		auto next = std::move(pending.front());
 		pending.pop_front();
-		std::array<std::byte, 12> bytes{};
+		std::vector<std::byte> bytes(12 + count, std::byte{0x33});
+		bytes[0] = std::byte{0};
+		bytes[9] = std::byte{0};
+		bytes[10] = std::byte(count & 0xffu);
+		bytes[11] = std::byte(count >> 8);
 		for (unsigned i = 0; i < 8; ++i)
 			bytes[1 + i] = std::byte((cursor >> (8 * i)) & 0xffu);
 		cl::ResultView result{};
@@ -282,6 +304,16 @@ void endings()
 	device.noProgress(0);
 	CHECK(stalled.finished() && stalled.state() == files::ReadState::Stalled);
 
+	// Data without a moving cursor would repeat forever; nothing reaches the sink.
+	Collected repeated;
+	Reader looping{device, Sink{&repeated}};
+	CHECK(looping.start(0) == cl::Status::Ok);
+	device.answer();
+	CHECK(looping.poll() == cl::Status::Ok && looping.inFlight());
+	device.noProgress(0, 5);
+	CHECK(looping.finished() && looping.state() == files::ReadState::Malformed &&
+	      repeated.bytes.empty());
+
 	Reader writeOnlyReader{device, Sink{&collected}};
 	CHECK(writeOnlyReader.start(4) == cl::Status::Ok);
 	drive(device, writeOnlyReader);
@@ -320,16 +352,30 @@ void cancelling()
 	Device device;
 	Collected collected;
 
-	// Cancel while a piece is in flight: that piece completes, nothing follows.
+	// Cancel while a piece waits in the queue: the queue cancels it at once.
 	Reader inFlight{device, Sink{&collected}};
 	CHECK(inFlight.start(0) == cl::Status::Ok);
 	device.answer();
 	CHECK(inFlight.poll() == cl::Status::Ok && inFlight.inFlight());
 	inFlight.cancel();
-	CHECK(!inFlight.finished());
-	device.answer();
 	CHECK(inFlight.finished() && inFlight.state() == files::ReadState::Cancelled);
 	CHECK(inFlight.poll() == cl::Status::Ok && device.pending.empty());
+
+	// A piece the queue can no longer cancel completes, and nothing follows it.
+	Device sent;
+	Collected sentBytes;
+	files::FileReader<Device, Sink> late{sent, Sink{&sentBytes}};
+	CHECK(late.start(0) == cl::Status::Ok);
+	sent.answer();
+	CHECK(late.poll() == cl::Status::Ok && late.inFlight());
+	auto held = std::move(sent.pending.front());
+	sent.pending.pop_front(); // As if already on the wire: cancel finds nothing.
+	late.cancel();
+	CHECK(!late.finished());
+	sent.pending.push_front(std::move(held));
+	sent.answer();
+	CHECK(late.finished() && late.state() == files::ReadState::Cancelled &&
+	      sentBytes.bytes.size() == 16);
 
 	// Cancel between pieces ends it at once.
 	Reader between{device, Sink{&collected}};

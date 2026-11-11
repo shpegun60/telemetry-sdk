@@ -20,6 +20,7 @@
 #include <client/ClientResult.hpp>
 #include <resource/protocol/Packets.hpp>
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <type_traits>
 #include <utility>
@@ -27,7 +28,11 @@
 namespace telemetry::integration::files {
 namespace rc = ::resource::protocol::client;
 
-// The largest Resource reply: a chunk header and a full payload.
+// The largest Resource reply: a chunk header and a full payload. A Read request
+// cannot limit the size of the piece the device answers with, so a client needs
+// result storage for the largest piece its device sends: this bound, or the
+// device's known piece size plus the chunk header. A smaller replyBytes turns a
+// larger piece into MalformedReply.
 inline constexpr std::uint32_t maxReplyBytes = static_cast<std::uint32_t>(
     ::resource::protocol::wire::chunkReplyHeaderSize + ::resource::protocol::wire::maxPayloadSize);
 
@@ -41,6 +46,16 @@ struct Submitter {
 	                                               std::uint32_t timeoutMs) noexcept
 	{
 		return owner.submitResource(request, replyBytes, std::forward<F>(callback), timeoutMs);
+	}
+
+	// Cancels a queued request where the client can; false where it cannot,
+	// and the request then completes or times out on its own.
+	static bool cancel(Client& owner, client::RequestHandle handle) noexcept
+	{
+		if constexpr (requires { owner.cancel(handle); })
+			return owner.cancel(handle);
+		else
+			return false;
 	}
 };
 
@@ -192,6 +207,12 @@ public:
 	FileReader(const FileReader&) = delete;
 	FileReader& operator=(const FileReader&) = delete;
 
+	// A completion still queued would call into a destroyed reader.
+	~FileReader()
+	{
+		assert(!inFlight_ && "FileReader destroyed with a request in flight");
+	}
+
 	// Starts reading the file at index. Busy while a read is running.
 	[[nodiscard]] client::Status start(::resource::FileIndex index) noexcept
 	{
@@ -227,6 +248,7 @@ public:
 		if (submitted) {
 			due_ = false;
 			inFlight_ = true;
+			handle_ = submitted.handle;
 		} else if (submitted.status != client::Status::Busy &&
 		           submitted.status != client::Status::QueueFull) {
 			clientStatus_ = submitted.status;
@@ -235,7 +257,8 @@ public:
 		return submitted.status;
 	}
 
-	// Stops after the request in flight, if any; that one completes or times out.
+	// Stops the read. A request still waiting in the queue is cancelled there,
+	// where the client allows it; one already sent completes or times out.
 	void cancel() noexcept
 	{
 		if (state_ != ReadState::Running)
@@ -243,6 +266,8 @@ public:
 		cancelRequested_ = true;
 		if (!inFlight_)
 			finish(ReadState::Cancelled);
+		else
+			(void)Submitter<Client>::cancel(owner_, handle_);
 	}
 
 	[[nodiscard]] ReadState state() const noexcept
@@ -344,19 +369,24 @@ private:
 		if (!accepted(result))
 			return;
 		const auto data = result.reply.data;
+		// Reading again from an unmoved cursor would repeat the same piece
+		// forever: a device that does not move it, and has not ended, is broken.
+		if (!result.reply.eof && result.reply.next == cursor_) {
+			finish(data.empty() ? ReadState::Stalled : ReadState::Malformed);
+			return;
+		}
 		if (!data.empty() && !sink_(data)) {
 			finish(ReadState::SinkStopped);
 			return;
 		}
 		received_ += data.size();
-		const bool moved = result.reply.next != cursor_;
 		cursor_ = result.reply.next;
 		if (result.reply.eof) {
 			finish(ReadState::Complete);
 			return;
 		}
 		// The same bound discovery uses for pieces that carry nothing.
-		if (data.empty() && (!moved || ++idlePieces_ > 4096)) {
+		if (data.empty() && ++idlePieces_ > 4096) {
 			finish(ReadState::Stalled);
 			return;
 		}
@@ -381,6 +411,7 @@ private:
 	Sink sink_;
 	std::uint32_t timeoutMs_;
 	std::uint32_t replyBytes_;
+	client::RequestHandle handle_{};
 	::resource::FileIndex index_ = 0;
 	::resource::Cursor cursor_ = 0;
 	::resource::FileSize size_ = 0;

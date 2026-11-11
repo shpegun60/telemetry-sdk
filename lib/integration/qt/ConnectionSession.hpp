@@ -50,6 +50,10 @@ public:
 	// and its transport frames Resource replies after discovery.
 	bool filesSupported() const noexcept;
 
+	// Cancels a request of this session's queue that has not been sent yet; its
+	// callback then reports Cancelled. False when there is nothing to cancel.
+	bool cancel(client::RequestHandle handle) noexcept;
+
 	// A raw Resource List, Stat or Read on this session's one queue. This makes
 	// the session a files client: files::list, stat, read and FileReader take
 	// it directly. The reply view ends at callback return.
