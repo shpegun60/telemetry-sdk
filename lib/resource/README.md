@@ -132,22 +132,22 @@ inline constinit const auto settingsFiles = resource::filesystem(
     resource::file("/settings.bin", settings));
 ```
 
-For a file the host replaces whole - settings, a calibration table - use
-`StagedFile`. It borrows the file's bytes and a stage of the same size; the
-pieces of a write are staged, and the bytes change only when the piece marked
-`final` completes the whole file. Until then reads return the old bytes, and a
-write that stops part way (cancelled, disconnected, refused) leaves them whole.
-Cursor 0 starts a new transfer and drops an unfinished one. A stream longer or
-shorter than the file is refused with `InvalidData` and changes nothing. An
-optional `onCommit(context, bytes)` sees the complete new bytes before they
-replace the old ones and returns a status: `Ok` lets them in; anything else -
-a value out of range, storage that failed - is the WRITE's answer and the old
-bytes stay. It runs synchronously inside the request, so slow storage delays
-the reply against the client's timeout:
+`write()` receives the file in pieces; the piece marked `final` is the end of
+the file, and the provider decides what the end means - typically it applies
+the bytes it collected. A provider that keeps the file across a power cut adds
+`save()`: the client sends SAVE after the write, and the provider persists what
+the file holds now. It may do so at once, or in steps for slow storage -
+returning a moved cursor and `complete=false` until the bytes are really in
+non-volatile memory, so the task that serves requests never blocks:
 
 ```cpp
-inline std::array<std::byte, 64> calibration{}, calibrationStage{};
-inline resource::StagedFile calibrationFile{calibration, calibrationStage};
+class CalibrationFile {
+public:
+    resource::FileSize size() const noexcept;
+    resource::ReadResult read(resource::Cursor, resource::Output) const noexcept;
+    resource::WriteResult write(resource::Cursor, resource::Input, bool final) noexcept;
+    resource::SaveResult save(resource::Cursor) noexcept;
+};
 ```
 
 A provider that writes in place may be left part old, part new by an
@@ -156,8 +156,12 @@ interrupted write; say so where it is documented.
 `size()` is required and returns an exact u32 size. At least one of `read()`
 or `write()` must exist. Omit `write()` for read-only files; omit `read()` for
 write-only files. There is no virtual base class or registration macro.
-`file()` creates one immutable operation table per provider type, and STAT
-computes Readable/Writable from the callbacks that actually exist.
+`save()` is optional. It does not require `write()` - a file may keep what
+changes in it by itself - but like every file it needs `read()` or `write()`.
+A `save()` of another shape is a compile-time error, never a file that
+silently does not keep its bytes. `file()` creates one immutable operation
+table per provider type, and STAT computes Readable/Writable/Savable from the
+callbacks that actually exist.
 
 A complete, compilable read/write provider and a three-file table are in
 [the resource example](../../examples/resources/README.md). The example is
@@ -172,9 +176,9 @@ DescriptorFile and ValuesFile providers themselves are read-only.
 application objects / immutable byte arrays
         | file(path, provider)
         v
-resource::FileSystem --> stat / read / write / path by u32 index
+resource::FileSystem --> stat / read / write / save / path by u32 index
         |
-        +-- resource::protocol::process --> LIST / STAT / READ / WRITE packets
+        +-- resource::protocol::process --> LIST / STAT / READ / WRITE / SAVE packets
         |                                  caller supplies UART/TCP/framing
         |
         +-- optional resource::telemetry::v3 providers
@@ -188,7 +192,6 @@ resource/
   File.hpp, FileSystem.hpp       bindings and flat indexed table
   FileView.hpp                   lazy file facade and forward iterator
   BytesFile.hpp, ChunkWriter.hpp byte-array provider and output utility
-  StagedFile.hpp                 writable bytes committed whole on the final piece
   resource.pri                   one qmake manifest
   protocol/                      generic packet operations
 ```

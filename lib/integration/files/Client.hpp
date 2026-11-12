@@ -1,9 +1,9 @@
 /*
  * @file Client.hpp
- * @brief The device's files over the client's one queue: list, stat, read and write in pieces.
+ * @brief The device's files over the client's one queue: list, stat, read and write in pieces, save.
  * @author Ruslan Kovtun (shpegun60). SPDX-License-Identifier: MIT.
  *
- * Every request is a raw Resource List, Stat, Read or Write submitted as
+ * Every request is a raw Resource List, Stat, Read, Write or Save submitted as
  * client::Operation::Resource on the same queue as every other request, so file
  * traffic never bypasses it. Results are parsed inside the completion and
  * handed to the caller's callback; their views borrow the queue's result
@@ -78,6 +78,7 @@ using ListResult = Result<rc::ListReply>;
 using StatResult = Result<rc::StatReply>;
 using ReadResult = Result<rc::ReadReply>;
 using WriteResult = Result<rc::WriteReply>;
+using SaveResult = Result<rc::SaveReply>;
 
 namespace detail {
 template<class Reply, class F>
@@ -92,6 +93,10 @@ struct Parsing {
 		if (operation.status == client::Status::Ok) {
 			if constexpr (std::is_same_v<Reply, rc::WriteReply>) {
 				const auto parsed = rc::parseWrite(operation.payload, submitted);
+				result.parsed = bool(parsed);
+				result.reply = parsed.response;
+			} else if constexpr (std::is_same_v<Reply, rc::SaveReply>) {
+				const auto parsed = rc::parseSave(operation.payload);
 				result.parsed = bool(parsed);
 				result.reply = parsed.response;
 			} else if constexpr (std::is_same_v<Reply, rc::ListReply>) {
@@ -123,9 +128,9 @@ template<class Reply, class Client, class F>
 	              "A file completion must be constructed without exceptions");
 	if (request.empty() || !replyBytes || replyBytes > maxReplyBytes)
 		return {client::Status::InvalidArgument, {}};
-	return Submitter<Client>::submit(owner, request, replyBytes,
-	                                 Parsing<Reply, std::decay_t<F>>{std::forward<F>(callback), submitted},
-	                                 timeoutMs);
+	return Submitter<Client>::submit(
+	    owner, request, replyBytes,
+	    Parsing<Reply, std::decay_t<F>>{std::forward<F>(callback), submitted}, timeoutMs);
 }
 
 template<class Reply, class Client, class F, std::size_t N>
@@ -185,15 +190,32 @@ read(Client& owner, ::resource::FileIndex index, ::resource::Cursor cursor, F&& 
 // was lost unless the provider tolerates it.
 template<class Client, class F>
 [[nodiscard]] client::Submission
-write(Client& owner, ::resource::Output scratch, ::resource::FileIndex index, ::resource::Cursor cursor,
-      client::Input data, bool final, F&& callback, std::uint32_t timeoutMs = 30000,
+write(Client& owner, ::resource::Output scratch, ::resource::FileIndex index,
+      ::resource::Cursor cursor, client::Input data, bool final, F&& callback,
+      std::uint32_t timeoutMs = 30000,
       std::uint32_t replyBytes = ::resource::protocol::wire::writeReplySize) noexcept
 {
 	const auto built = rc::makeWrite(scratch, index, cursor, data, final);
 	if (built.status != rc::BuildStatus::Ok)
 		return {client::Status::InvalidArgument, {}};
 	return detail::submit<rc::WriteReply>(owner, client::Input{scratch.data(), built.written},
-	                                      std::forward<F>(callback), timeoutMs, replyBytes, data.size());
+	                                      std::forward<F>(callback), timeoutMs, replyBytes,
+	                                      data.size());
+}
+
+// One SAVE step for the file at index, from cursor (0 to start): the device
+// persists what the file holds now. The reply's next continues it until
+// complete. Send it only to a file whose Stat says Savable.
+template<class Client, class F>
+[[nodiscard]] client::Submission
+save(Client& owner, ::resource::FileIndex index, ::resource::Cursor cursor, F&& callback,
+     std::uint32_t timeoutMs = 30000,
+     std::uint32_t replyBytes = ::resource::protocol::wire::saveReplySize) noexcept
+{
+	std::array<std::byte, ::resource::protocol::wire::saveRequestSize> request{};
+	const auto built = rc::makeSave(request, index, cursor);
+	return detail::submit<rc::SaveReply>(owner, request, built.written, std::forward<F>(callback),
+	                                     timeoutMs, replyBytes);
 }
 
 enum class ReadState : std::uint8_t {
@@ -461,18 +483,19 @@ private:
 enum class WriteState : std::uint8_t {
 	Idle,
 	Running,
-	// The device took every byte and said the file is complete.
+	// Written: the device took every byte and applied the file. Or saved: the
+	// device persisted it.
 	Complete,
-	// Stopped between pieces; written() says how far it got. What the device
-	// keeps of an unfinished write is its provider's (a staged one keeps the
-	// old file whole).
+	// Stopped between requests; written() says how far a write got. What the
+	// device keeps of an unfinished write is its provider's.
 	Cancelled,
 	// The queue refused or failed a request; see clientStatus(). A timeout
-	// leaves the device's file not known: the piece may or may not have been
-	// taken, and it is never sent again.
+	// leaves the device's file not known: the request may or may not have
+	// been taken, and it is never sent again.
 	Failed,
 	// The device answered with an error status; see deviceStatus().
 	Refused,
+	// By its Stat, the file is not Writable (a write) or not Savable (a save).
 	NotWritable,
 	// The device's file is not the size of what was to be written. A WRITE
 	// shorter or longer than the file has no meaning the protocol defines.
@@ -480,30 +503,36 @@ enum class WriteState : std::uint8_t {
 	// A reply was not a well-formed reply of its operation, or the device
 	// said complete before it had every byte.
 	Malformed,
-	// The device kept answering without taking bytes, without moving its
-	// cursor, or without completing after the final piece.
+	// The device answered without progress - no byte taken and its cursor
+	// where it was - or took too many replies without bytes, or SAVE steps,
+	// without completing.
 	Stalled
 };
 
-// Writes one whole file: Stat, then Write piece by piece, the last piece marked
-// final, until the device says the file is complete. One request is in flight
-// at a time, and, as for FileReader, the next is submitted by poll() from the
-// owner's loop, never from a completion.
+// Writes one whole file, or saves one; one run at a time.
 //
-// The bytes are the caller's: borrowed from start() until finished(). They are
-// sent in pieces of at most chunkBytes (at most MaxChunk), whose request is
-// built in the writer's own buffer. A piece the device took only partly is
-// continued from its returned cursor, still final if it was. The file must be
-// writable and of the bytes' size (unless sizeChangeAllowed: a provider that
-// defines replacing the whole file, such as the identity file).
+// start(): Stat, then Write piece by piece, the last piece marked final - the
+// end of the file, which the device applies - until it says complete. The
+// file must be writable and of the bytes' size. The bytes are the caller's,
+// borrowed until finished(); they go in pieces of at most chunkBytes (at most
+// MaxChunk), built in the writer's own buffer. A piece the device took only
+// partly is continued from its returned cursor, still final if it was.
 //
-// Nothing is ever resent on its own: WRITE has no deduplication, so a lost
-// reply ends the write as Failed and the device's file is then not known.
-// A provider is expected to finish the file within the request that ends it,
-// as StagedFile does; one that answers "not complete yet" is asked again with
-// an empty final piece at most 16 times, with no delay between, and then the
-// write ends as Stalled. Stat and Write replies are reserved at their exact
-// sizes (6 and 14 bytes).
+// save(): Stat, then SAVE from cursor 0, step by step, until the device says
+// complete - it persists what the file holds now. The file must be Savable;
+// Stat first keeps SAVE from a device that does not have the operation.
+// Writing several files and saving them afterwards is a run per file.
+//
+// One request is in flight at a time, and, as for FileReader, the next is
+// submitted by poll() from the owner's loop, never from a completion. Nothing
+// is ever resent on its own: WRITE has no deduplication, so a lost reply ends
+// the run as Failed and the device's file is then not known. A reply without
+// progress - no byte taken, the cursor where it was - ends the run as Stalled
+// at once; the protocol has no such Ok answer. Replies that take no byte while
+// the cursor moves are bounded, with no delay between: 16 once every byte was
+// sent with final and the device only has to finish, 4096 before that, as
+// FileReader bounds pieces that carry nothing; a save, 4096 steps. Replies are
+// reserved at their exact sizes (Stat 6, Write 14, Save 10 bytes).
 template<class Client, std::size_t MaxChunk = 1024>
 class FileWriter {
 	static_assert(MaxChunk > 0 && MaxChunk <= ::resource::protocol::wire::maxPayloadSize,
@@ -523,31 +552,26 @@ public:
 		assert(!inFlight_ && "FileWriter destroyed with a request in flight");
 	}
 
-	// Starts writing bytes as the whole file at index. Busy while one is running.
+	// Starts writing bytes as the whole file at index. Busy while a run is running.
 	[[nodiscard]] client::Status start(::resource::FileIndex index, client::Input bytes,
-	                                   std::size_t chunkBytes = MaxChunk,
-	                                   bool sizeChangeAllowed = false) noexcept
+	                                   std::size_t chunkBytes = MaxChunk) noexcept
 	{
 		if (state_ == WriteState::Running || inFlight_)
 			return client::Status::Busy;
 		if (chunkBytes == 0)
 			return client::Status::InvalidArgument;
-		index_ = index;
-		bytes_ = bytes;
+		begin(index, bytes);
 		chunk_ = chunkBytes < MaxChunk ? chunkBytes : MaxChunk;
-		sizeChange_ = sizeChangeAllowed;
-		cursor_ = 0;
-		sent_ = 0;
-		submitted_ = 0;
-		idle_ = 0;
-		size_ = 0;
-		finalSent_ = false;
-		statted_ = false;
-		due_ = true;
-		cancelRequested_ = false;
-		clientStatus_ = client::Status::Ok;
-		deviceStatus_ = ::resource::Status::Ok;
-		state_ = WriteState::Running;
+		return poll();
+	}
+
+	// Starts saving the file at index on the device. Busy while a run is running.
+	[[nodiscard]] client::Status save(::resource::FileIndex index) noexcept
+	{
+		if (state_ == WriteState::Running || inFlight_)
+			return client::Status::Busy;
+		begin(index, {});
+		saving_ = true;
 		return poll();
 	}
 
@@ -564,15 +588,19 @@ public:
 		if (!statted_) {
 			submitted = files::stat(owner_, index_, Step{this}, timeoutMs_,
 			                        ::resource::protocol::wire::statReplySize);
+		} else if (saving_) {
+			submitted = files::save(owner_, index_, cursor_, Step{this}, timeoutMs_,
+			                        ::resource::protocol::wire::saveReplySize);
 		} else {
 			const auto remaining = bytes_.size() - static_cast<std::size_t>(sent_);
 			const auto count = remaining < chunk_ ? remaining : chunk_;
+			// The last piece carries final: the end of the file.
 			const bool final = count == remaining;
-			submitted = files::write(owner_, ::resource::Output{buffer_.data(), buffer_.size()}, index_,
-			                         cursor_, bytes_.subspan(static_cast<std::size_t>(sent_), count),
-			                         final, Step{this}, timeoutMs_, ::resource::protocol::wire::writeReplySize);
+			submitted =
+			    files::write(owner_, ::resource::Output{buffer_.data(), buffer_.size()}, index_,
+			                 cursor_, bytes_.subspan(static_cast<std::size_t>(sent_), count), final,
+			                 Step{this}, timeoutMs_, ::resource::protocol::wire::writeReplySize);
 			if (submitted) {
-				submitted_ = count;
 				finalSent_ = final;
 			}
 		}
@@ -588,9 +616,9 @@ public:
 		return submitted.status;
 	}
 
-	// Stops before the next piece. A request still waiting in the queue is
+	// Stops before the next request. A request still waiting in the queue is
 	// cancelled there where the client allows it; one already sent completes
-	// or times out, and what it wrote stays written.
+	// or times out, and what it did stays done.
 	void cancel() noexcept
 	{
 		if (state_ != WriteState::Running)
@@ -622,13 +650,13 @@ public:
 		return state_ == WriteState::Running && due_ && !inFlight_;
 	}
 
-	// The device's file size from Stat.
+	// The device's file size from Stat (a write run).
 	[[nodiscard]] ::resource::FileSize size() const noexcept
 	{
 		return size_;
 	}
 
-	// Bytes the device has taken, of total().
+	// Bytes the device has taken, of total() (a write run).
 	[[nodiscard]] std::uint64_t written() const noexcept
 	{
 		return sent_;
@@ -662,7 +690,30 @@ private:
 		{
 			writer->piece(result);
 		}
+
+		void operator()(const SaveResult& result) noexcept
+		{
+			writer->saved(result);
+		}
 	};
+
+	void begin(::resource::FileIndex index, client::Input bytes) noexcept
+	{
+		index_ = index;
+		bytes_ = bytes;
+		cursor_ = 0;
+		sent_ = 0;
+		idle_ = 0;
+		size_ = 0;
+		finalSent_ = false;
+		statted_ = false;
+		saving_ = false;
+		due_ = true;
+		cancelRequested_ = false;
+		clientStatus_ = client::Status::Ok;
+		deviceStatus_ = ::resource::Status::Ok;
+		state_ = WriteState::Running;
+	}
 
 	template<class Reply>
 	bool accepted(const Result<Reply>& result) noexcept
@@ -692,12 +743,13 @@ private:
 	{
 		if (!accepted(result))
 			return;
-		if (!::resource::has(result.reply.flags, ::resource::FileFlag::Writable)) {
+		if (!::resource::has(result.reply.flags, saving_ ? ::resource::FileFlag::Savable
+		                                                 : ::resource::FileFlag::Writable)) {
 			finish(WriteState::NotWritable);
 			return;
 		}
 		size_ = result.reply.size;
-		if (!sizeChange_ && size_ != bytes_.size()) {
+		if (!saving_ && size_ != bytes_.size()) {
 			finish(WriteState::SizeMismatch);
 			return;
 		}
@@ -711,31 +763,41 @@ private:
 			return;
 		const auto& reply = result.reply;
 		sent_ += reply.consumed;
-		const bool moved = reply.consumed > 0 || reply.next != cursor_;
-		cursor_ = reply.next;
 		const bool all = sent_ == bytes_.size();
 		if (reply.complete) {
 			finish(all ? WriteState::Complete : WriteState::Malformed);
 			return;
 		}
-		// Everything sent and final, not complete: an empty final asks the
-		// device to finish, a bounded number of times.
-		if (all && finalSent_ && reply.consumed == submitted_) {
-			if (++idle_ > maxIdle) {
-				finish(WriteState::Stalled);
-				return;
-			}
-			next();
+		if (reply.consumed == 0 && reply.next == cursor_) {
+			finish(WriteState::Stalled);
 			return;
 		}
-		if (!moved) {
-			if (++idle_ > maxIdle) {
-				finish(WriteState::Stalled);
-				return;
-			}
-		} else {
+		cursor_ = reply.next;
+		// Every byte sent with final, not complete: an empty final asks the
+		// device to finish. Replies that take no byte are bounded either way.
+		if (reply.consumed > 0) {
 			idle_ = 0;
+		} else if (++idle_ > (all && finalSent_ ? maxFinishing : maxIdle)) {
+			finish(WriteState::Stalled);
+			return;
 		}
+		next();
+	}
+
+	// A SAVE step answered: complete, or continued from its cursor.
+	void saved(const SaveResult& result) noexcept
+	{
+		if (!accepted(result))
+			return;
+		if (result.reply.complete) {
+			finish(WriteState::Complete);
+			return;
+		}
+		if (result.reply.next == cursor_ || ++idle_ > maxIdle) {
+			finish(WriteState::Stalled);
+			return;
+		}
+		cursor_ = result.reply.next;
 		next();
 	}
 
@@ -753,7 +815,7 @@ private:
 		due_ = false;
 	}
 
-	static constexpr unsigned maxIdle = 16;
+	static constexpr unsigned maxIdle = 4096, maxFinishing = 16;
 
 	Client& owner_;
 	std::uint32_t timeoutMs_;
@@ -765,12 +827,11 @@ private:
 	::resource::FileSize size_ = 0;
 	std::uint64_t sent_ = 0;
 	std::size_t chunk_ = MaxChunk;
-	std::size_t submitted_ = 0;
 	unsigned idle_ = 0;
 	client::Status clientStatus_ = client::Status::Ok;
 	::resource::Status deviceStatus_ = ::resource::Status::Ok;
 	WriteState state_ = WriteState::Idle;
-	bool sizeChange_ = false, finalSent_ = false, statted_ = false, due_ = false, inFlight_ = false,
+	bool finalSent_ = false, statted_ = false, saving_ = false, due_ = false, inFlight_ = false,
 	     cancelRequested_ = false;
 };
 } // namespace telemetry::integration::files

@@ -2,7 +2,7 @@
 
 Authors: Ruslan Kovtun (shpegun60), codexAi. MIT.
 
-This C++20 suite exercises the flat filesystem and LIST/STAT/READ/WRITE
+This C++20 suite exercises the flat filesystem and LIST/STAT/READ/WRITE/SAVE
 protocol independently of telemetry, PFR and any optional provider.
 
 ```sh
@@ -13,20 +13,27 @@ python tests/resources/run.py --cxx arm-none-eabi-g++ --arm --build-dir build/re
 ```
 
 - `CoreCheck.cpp` retains provider, cursor, path, partial-buffer, LIST progress,
-  packet-boundary and output-canary checks. LIST never calls `size()`.
+  packet-boundary and output-canary checks. LIST never calls `size()`. SAVE is
+  checked in steps until complete and at once, a provider's refusal, a step that
+  does not move and an error that moves its cursor or says complete (both
+  InternalError), a file without `save()` (NotWritable, cursor
+  echoed), an unknown index, every malformed length, a small reply buffer, the
+  Savable STAT flag, operation 6 still unknown, and `makeSave`/`parseSave`.
 - `BoundaryCheck.cpp` adds an independent reply byte grammar. A fixed-seed
-  corpus tests 34,688 complete, truncated, extended, single-byte-mutated and
-  biased random packets against `parseRead`, `parseList`, `parseStat` and
-  `parseWrite`. Accepted data/path ranges must remain inside the original
+  corpus tests 39,832 complete, truncated, extended, single-byte-mutated and
+  biased random packets against `parseRead`, `parseList`, `parseStat`,
+  `parseWrite` and `parseSave`; a STAT reply keeps any flag bits. Accepted data/path ranges must remain inside the original
   packet; every validated LIST iterator is exhausted and counted. A further
   5,000 generated requests check server output canaries, parseable replies,
   unchanged request bytes and absence of provider callbacks for malformed
-  requests. Positive controls require all provider operations and all four
-  reply parsers to be exercised. Its 306,653 conditions are counted by the
+  requests, SAVE among them against a provider that saves in steps. Positive
+  controls require all provider operations and all five reply parsers to be
+  exercised. Its 384,182 conditions are counted by the
   host runner; ARM compiles this same body without executing it. This finite
   deterministic corpus is additional boundary coverage, not an exhaustive
   proof or a measurement of transport concurrency.
-- `Negative.cpp` has 38 intended compile-time refusals and an executed
+- `Negative.cpp` has 39 intended compile-time refusals, the last a `save()` of
+  another shape that would leave a file silently not Savable, and an executed
   positive binding control. The runner verifies the particular diagnostic;
   a missing unrelated header cannot satisfy a lifetime refusal.
   The 34 positive controls use public `FileSystem`/`FileView` metadata and
@@ -38,14 +45,6 @@ python tests/resources/run.py --cxx arm-none-eabi-g++ --arm --build-dir build/re
   executed conditions are counted separately. `BytesFileNegative.cpp` rejects
   temporary arrays, conversion proxies and braced buffers; the host also
   checks the u32 size ceiling during constant evaluation.
-- `StagedFileCheck.cpp` checks the staged writable provider: a write changes the
-  file only when its final piece completes the whole file; reads return the old
-  bytes while a write is staged; a cursor out of place, a stream too long or too
-  short, an empty piece that does not end it, and a stage smaller than the file
-  are refused and keep the old bytes; a new transfer drops an unfinished one; the
-  commit hook sees the new bytes first and its refusal keeps the old ones; an
-  empty file completes with one empty final piece. Its 36 executed conditions
-  are counted separately, and it is compiled for Cortex-M7 at -O2 and -Os.
 - `FileViewCheck.cpp` executes 88 conditions for lazy enumeration, checked
   indexing, current size/capabilities, explicit read/write, borrowed lifetime
   through temporary views, independent forward iterators, empty ranges and

@@ -34,16 +34,25 @@ template<class T>
 concept WritableProvider = requires(T& provider, Cursor cursor, Input input, bool final) {
 	{ provider.write(cursor, input, final) } noexcept -> std::same_as<WriteResult>;
 };
+// Persists what the file holds now (what write() applied): save(cursor) from
+// 0 until complete, a bounded step per request, so complete is said only
+// once the bytes are really kept; a file that keeps them at once answers
+// {Ok, cursor, true}.
+template<class T>
+concept SavableProvider = requires(T& provider, Cursor cursor) {
+	{ provider.save(cursor) } noexcept -> std::same_as<SaveResult>;
+};
 template<class T>
 concept Provider =
     !std::is_volatile_v<T> && SizedProvider<T> && (ReadableProvider<T> || WritableProvider<T>);
 
 // Callbacks borrow the descriptor context for one synchronous operation.
-// A missing read/write callback is the sole capability declaration.
+// A missing read/write/save callback is the sole capability declaration.
 struct FileOps {
 	FileSize (*size)(const void*) noexcept;
 	ReadResult (*read)(const void*, Cursor, Output) noexcept;
 	WriteResult (*write)(void*, Cursor, Input, bool) noexcept;
+	SaveResult (*save)(void*, Cursor) noexcept;
 };
 
 namespace detail {
@@ -93,6 +102,17 @@ inline constexpr FileOps operations = [] {
 		ops.write = +[](void* context, Cursor cursor, Input input, bool final) noexcept {
 			return static_cast<T*>(context)->write(cursor, input, final);
 		};
+	}
+	if constexpr (SavableProvider<T>) {
+		ops.save = +[](void* context, Cursor cursor) noexcept {
+			return static_cast<T*>(context)->save(cursor);
+		};
+	} else {
+		// A save() that is not exactly this one would leave the file silently
+		// not Savable, and what it writes never kept.
+		static_assert(
+		    !requires { &T::save; },
+		    "save() must be SaveResult save(Cursor) noexcept, callable on the provider");
 	}
 	return ops;
 }();

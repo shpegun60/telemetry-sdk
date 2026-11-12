@@ -214,6 +214,7 @@ void framingChecks() noexcept
 	const std::array<std::byte, 4> payload{std::byte{0x54}, std::byte{0}, std::byte{4},
 	                                       std::byte{0xff}};
 	run(rc::makeWrite(packet, 0, 0, payload, true));
+	run(rc::makeSave(packet, 0, 0));
 	const auto request = encoded(packet, ew::Operation::FieldWrite, 7, 1, 0, payload);
 	splitFrames(request);
 	const auto handled = telemetry::integration::encoded::dispatchEncoded(

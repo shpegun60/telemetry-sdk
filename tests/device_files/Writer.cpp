@@ -1,9 +1,8 @@
-// FileWriter and StagedFile against the real Resource protocol handler,
+// FileWriter and files' write() and save() against the real Resource protocol handler,
 // without a network: every way a write can end, deterministically. MIT.
 #include <integration/files/Client.hpp>
 #include <resource/BytesFile.hpp>
 #include <resource/FileSystem.hpp>
-#include <resource/StagedFile.hpp>
 #include <resource/protocol/Protocol.hpp>
 #include <algorithm>
 #include <array>
@@ -67,6 +66,20 @@ struct NeverComplete {
 	}
 };
 
+// Moves its cursor without ever taking a byte.
+struct Drifting {
+	[[nodiscard]] resource::FileSize size() const noexcept
+	{
+		return 8;
+	}
+
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input,
+	                                          bool) noexcept
+	{
+		return {resource::Status::Ok, cursor + 1, 0, false};
+	}
+};
+
 // Says complete after its first piece, with bytes still to come.
 struct EarlyComplete {
 	[[nodiscard]] resource::FileSize size() const noexcept
@@ -77,7 +90,8 @@ struct EarlyComplete {
 	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input input,
 	                                          bool) noexcept
 	{
-		return {resource::Status::Ok, cursor + input.size(), static_cast<std::uint32_t>(input.size()), true};
+		return {resource::Status::Ok, cursor + input.size(),
+		        static_cast<std::uint32_t>(input.size()), true};
 	}
 };
 
@@ -88,68 +102,140 @@ struct Refusing {
 		return 4;
 	}
 
-	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input, bool) noexcept
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input,
+	                                          bool) noexcept
 	{
 		return {resource::Status::InvalidData, cursor};
 	}
 };
 
-// Replaces the whole file with a stream of any size (as the identity file does).
-struct Replacing {
-	std::vector<std::byte> bytes = std::vector<std::byte>(5);
-	std::vector<std::byte> incoming;
+// N bytes to read and write: the pieces of a write are kept apart and the
+// file changes only when the final piece completes it (byte-offset cursors);
+// unless they begin with 0xFF when guarded - as a device validating a setting.
+template<std::size_t N>
+struct Store {
+	std::array<std::byte, N> bytes{};
+	std::array<std::byte, N> incoming{};
+	std::size_t taken = 0;
+	unsigned applied = 0;
+	bool guarded = false;
 
 	[[nodiscard]] resource::FileSize size() const noexcept
 	{
-		return static_cast<resource::FileSize>(bytes.size());
+		return N;
 	}
 
-	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input input,
+	[[nodiscard]] resource::ReadResult read(resource::Cursor cursor,
+	                                        resource::Output output) const noexcept
+	{
+		return resource::BytesFile{bytes}.read(cursor, output);
+	}
+
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input in,
 	                                          bool final) noexcept
 	{
 		if (cursor == 0)
-			incoming.clear();
-		incoming.insert(incoming.end(), input.begin(), input.end());
-		if (final)
-			bytes = incoming;
-		return {resource::Status::Ok, cursor + input.size() + (input.empty() ? 1 : 0),
-		        static_cast<std::uint32_t>(input.size()), final};
+			taken = 0;
+		if (cursor != taken || in.size() > N - taken)
+			return {resource::Status::InvalidCursor, cursor};
+		if constexpr (N > 0)
+			std::copy(in.begin(), in.end(), incoming.begin() + static_cast<std::ptrdiff_t>(taken));
+		taken += in.size();
+		if (!final)
+			return in.empty() ? resource::WriteResult{resource::Status::InvalidData, cursor}
+			                  : resource::WriteResult{resource::Status::Ok, taken,
+			                                          static_cast<std::uint32_t>(in.size())};
+		if (taken != N || (guarded && N > 0 && incoming[0] == std::byte{0xff}))
+			return {resource::Status::InvalidData, cursor};
+		bytes = incoming;
+		++applied;
+		taken = 0;
+		return {resource::Status::Ok, N, static_cast<std::uint32_t>(in.size()), true};
+	}
+
+	[[nodiscard]] std::size_t staged() const noexcept
+	{
+		return taken;
 	}
 };
 
-std::array<std::byte, 40> stagedBytes{};
-std::array<std::byte, 40> stageBuffer{};
-unsigned commits = 0;
-std::array<std::byte, 0> emptyBytes{};
-std::array<std::byte, 0> emptyStage{};
+Store<40> stagedStore;
+Store<8> guardedStore{{}, {}, 0, 0, true};
+Store<0> emptyStore;
+
+// Written as a Store, and persisted on SAVE: at once, or refusing.
+struct Persisting : Store<8> {
+	unsigned persisted = 0;
+	resource::Status refuse = resource::Status::Ok;
+
+	[[nodiscard]] resource::SaveResult save(resource::Cursor cursor) noexcept
+	{
+		if (refuse != resource::Status::Ok)
+			return {refuse, cursor};
+		++persisted;
+		return {resource::Status::Ok, cursor, true};
+	}
+};
+
+Persisting persisting;
+
+// Keeps its bytes in three steps, as slow flash would.
+struct Stepwise : Store<8> {
+	unsigned steps = 0;
+
+	[[nodiscard]] resource::SaveResult save(resource::Cursor cursor) noexcept
+	{
+		++steps;
+		return cursor < 2 ? resource::SaveResult{resource::Status::Ok, cursor + 1, false}
+		                  : resource::SaveResult{resource::Status::Ok, cursor, true};
+	}
+};
+
+Stepwise stepwise;
+
+// Moves its cursor on every SAVE and never completes.
+struct Endless : Store<8> {
+	unsigned steps = 0;
+
+	[[nodiscard]] resource::SaveResult save(resource::Cursor cursor) noexcept
+	{
+		++steps;
+		return {resource::Status::Ok, cursor + 1, false};
+	}
+};
+
+Endless endless;
+Drifting drifting{};
 std::array<std::byte, 6> readOnlyBytes{};
-resource::StagedFile staged{stagedBytes, stageBuffer, [](void*, resource::Input bytes) noexcept {
-	                            ++commits;
-	                            CHECK(bytes.size() == 40);
-	                            return resource::Status::Ok;
-                            }};
-// Refuses new bytes that begin with 0xFF, as a device validating a setting.
-std::array<std::byte, 8> guardedBytes{};
-std::array<std::byte, 8> guardedStage{};
-resource::StagedFile guarded{guardedBytes, guardedStage, [](void*, resource::Input bytes) noexcept {
-	                             return bytes[0] == std::byte{0xff} ? resource::Status::InvalidData
-	                                                                : resource::Status::Ok;
-                             }};
-resource::StagedFile emptyStaged{emptyBytes, emptyStage};
 const resource::BytesFile readOnly{readOnlyBytes};
 Halving halving{};
 NeverComplete neverComplete{};
 EarlyComplete earlyComplete{};
 Refusing refusing{};
-Replacing replacing{};
 const auto table = resource::filesystem(
-    resource::file("/cfg/staged.bin", staged), resource::file("/cfg/empty.bin", emptyStaged),
+    resource::file("/cfg/staged.bin", stagedStore), resource::file("/cfg/empty.bin", emptyStore),
     resource::file("/cfg/read-only.bin", readOnly), resource::file("/cfg/halving.bin", halving),
-    resource::file("/cfg/never.bin", neverComplete), resource::file("/cfg/early.bin", earlyComplete),
-    resource::file("/cfg/refusing.bin", refusing), resource::file("/cfg/replacing.bin", replacing),
-    resource::file("/cfg/guarded.bin", guarded));
-enum : resource::FileIndex { StagedIndex, EmptyIndex, ReadOnlyIndex, HalvingIndex, NeverIndex, EarlyIndex,
-	                         RefusingIndex, ReplacingIndex, GuardedIndex };
+    resource::file("/cfg/never.bin", neverComplete),
+    resource::file("/cfg/early.bin", earlyComplete), resource::file("/cfg/refusing.bin", refusing),
+    resource::file("/cfg/guarded.bin", guardedStore),
+    resource::file("/cfg/persisting.bin", persisting),
+    resource::file("/cfg/stepwise.bin", stepwise), resource::file("/cfg/endless.bin", endless),
+    resource::file("/cfg/drifting.bin", drifting));
+
+enum : resource::FileIndex {
+	StagedIndex,
+	EmptyIndex,
+	ReadOnlyIndex,
+	HalvingIndex,
+	NeverIndex,
+	EarlyIndex,
+	RefusingIndex,
+	GuardedIndex,
+	PersistingIndex,
+	StepwiseIndex,
+	EndlessIndex,
+	DriftingIndex
+};
 
 // A client that queues file requests and lets the test answer each one.
 class Device {
@@ -170,14 +256,16 @@ public:
 	                              std::uint32_t timeoutMs) noexcept
 	{
 		CHECK((replyLimit == resource::protocol::wire::statReplySize ||
-		       replyLimit == resource::protocol::wire::writeReplySize) &&
+		       replyLimit == resource::protocol::wire::writeReplySize ||
+		       replyLimit == resource::protocol::wire::saveReplySize) &&
 		      timeoutMs == 30000);
 		if (refuseNext != cl::Status::Ok) {
 			const auto status = refuseNext;
 			refuseNext = cl::Status::Ok;
 			return {status, {}};
 		}
-		pending.push_back({{request.begin(), request.end()}, std::forward<F>(callback), ++sequence});
+		pending.push_back(
+		    {{request.begin(), request.end()}, std::forward<F>(callback), ++sequence});
 		sent.emplace_back(request.begin(), request.end());
 		return {cl::Status::Ok, {this, sequence, 1}};
 	}
@@ -231,6 +319,17 @@ public:
 		next.callback(result);
 	}
 
+	void shortError()
+	{
+		auto next = std::move(pending.front());
+		pending.pop_front();
+		const std::array<std::byte, 1> bytes{std::byte(resource::Status::InvalidData)};
+		cl::ResultView result{};
+		result.operation = cl::Operation::Resource;
+		result.payload = bytes;
+		next.callback(result);
+	}
+
 	// The final flag and the payload length of each WRITE sent, in order.
 	struct Piece {
 		bool final;
@@ -245,13 +344,22 @@ public:
 				out.push_back({request[13] != std::byte{}, request.size() - 16});
 		return out;
 	}
+
+	// SAVE requests sent.
+	[[nodiscard]] std::size_t saves() const
+	{
+		return static_cast<std::size_t>(
+		    std::count_if(sent.begin(), sent.end(), [](const auto& request) {
+			    return !request.empty() && request[0] == std::byte(resource::protocol::Op::Save);
+		    }));
+	}
 };
 
 using Writer = files::FileWriter<Device, 16>;
 
-void drive(Device& device, Writer& writer)
+void drive(Device& device, Writer& writer, unsigned turns = 1000)
 {
-	for (unsigned turn = 0; turn < 1000 && !writer.finished(); ++turn) {
+	for (unsigned turn = 0; turn < turns && !writer.finished(); ++turn) {
 		if (!device.pending.empty())
 			device.answer();
 		(void)writer.poll();
@@ -266,37 +374,6 @@ std::vector<std::byte> pattern(std::size_t size, unsigned seed)
 	return bytes;
 }
 
-// The staged file on its own: reads keep the old bytes while a write is
-// staged; a stream too long or too short is refused and changes nothing.
-void stagedAlone()
-{
-	std::array<std::byte, 4> bytes{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
-	std::array<std::byte, 4> stage{};
-	resource::StagedFile file{bytes, stage};
-	const std::array<std::byte, 2> ab{std::byte{0xa}, std::byte{0xb}};
-	CHECK(file.write(2, ab, false).status == resource::Status::InvalidCursor);
-	auto result = file.write(0, ab, false);
-	CHECK(result.status == resource::Status::Ok && result.consumed == 2 && result.next == 2 && !result.complete &&
-	      file.staged() == 2);
-	std::array<std::byte, 4> out{};
-	CHECK(file.read(0, out).written == 4 && out == bytes && bytes[0] == std::byte{1});
-	// Shorter than the file: refused, the old bytes kept.
-	CHECK(file.write(2, {}, true).status == resource::Status::InvalidData && bytes[0] == std::byte{1} &&
-	      file.staged() == 0);
-	// Longer: refused, nothing staged from it.
-	const std::array<std::byte, 5> five{};
-	CHECK(file.write(0, five, true).status == resource::Status::InvalidData && bytes[0] == std::byte{1});
-	// A new transfer drops an unfinished one.
-	CHECK(file.write(0, ab, false).status == resource::Status::Ok);
-	CHECK(file.write(0, ab, false).status == resource::Status::Ok);
-	result = file.write(2, ab, true);
-	CHECK(result.status == resource::Status::Ok && result.complete && bytes[0] == std::byte{0xa} &&
-	      bytes[3] == std::byte{0xb} && file.staged() == 0);
-	// A continuation with nothing in it and no end is no progress: refused.
-	CHECK(file.write(0, ab, false).status == resource::Status::Ok &&
-	      file.write(2, {}, false).status == resource::Status::InvalidData);
-}
-
 void complete()
 {
 	Device device;
@@ -304,21 +381,24 @@ void complete()
 	const auto bytes = pattern(40, 3);
 	CHECK(writer.start(StagedIndex, bytes) == cl::Status::Ok && writer.inFlight());
 	drive(device, writer);
-	CHECK(writer.state() == files::WriteState::Complete && writer.written() == 40 && writer.total() == 40 &&
-	      writer.size() == 40);
-	CHECK(std::equal(bytes.begin(), bytes.end(), stagedBytes.begin()) && commits == 1);
-	// Pieces of 16, 16 and 8; final on the last only.
+	CHECK(writer.state() == files::WriteState::Complete && writer.written() == 40 &&
+	      writer.total() == 40 && writer.size() == 40);
+	CHECK(std::equal(bytes.begin(), bytes.end(), stagedStore.bytes.begin()) &&
+	      stagedStore.applied == 1);
+	// Pieces of 16, 16 and 8, final on the last only; writing never saves.
 	const auto pieces = device.writes();
 	CHECK(pieces.size() == 3 && !pieces[0].final && !pieces[1].final && pieces[2].final &&
-	      pieces[0].size == 16 && pieces[1].size == 16 && pieces[2].size == 8);
+	      pieces[0].size == 16 && pieces[1].size == 16 && pieces[2].size == 8 &&
+	      device.saves() == 0);
 	// A smaller piece size given at the start.
 	Device again;
 	Writer small{again};
 	const auto other = pattern(40, 9);
 	CHECK(small.start(StagedIndex, other, 10) == cl::Status::Ok);
 	drive(again, small);
-	CHECK(small.state() == files::WriteState::Complete && again.writes().size() == 4 && commits == 2 &&
-	      std::equal(other.begin(), other.end(), stagedBytes.begin()));
+	CHECK(small.state() == files::WriteState::Complete && again.writes().size() == 4 &&
+	      stagedStore.applied == 2 &&
+	      std::equal(other.begin(), other.end(), stagedStore.bytes.begin()));
 	// An empty file: one empty final piece.
 	Device empty;
 	Writer nothing{empty};
@@ -326,13 +406,6 @@ void complete()
 	drive(empty, nothing);
 	CHECK(nothing.state() == files::WriteState::Complete && empty.writes().size() == 1 &&
 	      empty.writes()[0].final && empty.writes()[0].size == 0);
-	// A provider that replaces the whole file takes another size when allowed.
-	Device replace;
-	Writer whole{replace};
-	const auto seven = pattern(7, 1);
-	CHECK(whole.start(ReplacingIndex, seven, 16, true) == cl::Status::Ok);
-	drive(replace, whole);
-	CHECK(whole.state() == files::WriteState::Complete && replacing.bytes.size() == 7);
 }
 
 // A device that takes part of a piece: the rest is sent from the cursor it
@@ -347,14 +420,112 @@ void partial()
 	CHECK(writer.state() == files::WriteState::Complete && writer.written() == 32 &&
 	      std::equal(bytes.begin(), bytes.end(), halving.bytes.begin()));
 	const auto pieces = device.writes();
-	// 16 -> 8 taken, then 8 -> 4, ...; every piece sent once the first 16 are
-	// taken carries final only when it reaches the end.
-	CHECK(pieces.size() > 4 && pieces.front().size == 16 && !pieces.front().final && pieces.back().final);
-	// Once a piece is final, every resend of its rest is final too.
+	// 16 -> 8 taken, then the rest from the returned cursor; once a piece is
+	// final, every resend of its rest is final too.
+	CHECK(pieces.size() > 4 && pieces.front().size == 16 && !pieces.front().final &&
+	      pieces.back().final);
 	bool finalOnlyAtEnd = true;
 	for (std::size_t i = 0; i + 1 < pieces.size(); ++i)
 		finalOnlyAtEnd = finalOnlyAtEnd && (!pieces[i].final || pieces[i + 1].final);
 	CHECK(finalOnlyAtEnd);
+}
+
+// Saving is a run of its own: written first, then Stat and SAVE until
+// complete. A refusal is Refused with its status; a file that cannot save is
+// NotWritable by its Stat, and no SAVE is sent.
+void saving()
+{
+	{
+		Device device;
+		Writer writer{device};
+		const auto bytes = pattern(8, 4);
+		CHECK(writer.start(PersistingIndex, bytes) == cl::Status::Ok);
+		drive(device, writer);
+		CHECK(writer.state() == files::WriteState::Complete && device.saves() == 0 &&
+		      persisting.persisted == 0 &&
+		      std::equal(bytes.begin(), bytes.end(), persisting.bytes.begin()));
+		CHECK(writer.save(PersistingIndex) == cl::Status::Ok);
+		drive(device, writer);
+		CHECK(writer.state() == files::WriteState::Complete && device.saves() == 1 &&
+		      persisting.persisted == 1 && writer.total() == 0 && writer.size() == 8);
+		// In steps: SAVE again from each returned cursor until complete.
+		CHECK(writer.save(StepwiseIndex) == cl::Status::Ok);
+		drive(device, writer);
+		CHECK(writer.state() == files::WriteState::Complete && stepwise.steps == 3 &&
+		      device.saves() == 4);
+	}
+	{
+		Device device;
+		Writer writer{device};
+		persisting.refuse = resource::Status::InternalError;
+		CHECK(writer.save(PersistingIndex) == cl::Status::Ok);
+		drive(device, writer);
+		CHECK(writer.state() == files::WriteState::Refused &&
+		      writer.deviceStatus() == resource::Status::InternalError &&
+		      persisting.persisted == 1);
+		persisting.refuse = resource::Status::Ok;
+		const auto before = device.saves();
+		CHECK(writer.save(StagedIndex) == cl::Status::Ok);
+		drive(device, writer);
+		CHECK(writer.state() == files::WriteState::NotWritable && device.saves() == before);
+	}
+	// A save that never completes: bounded steps, then Stalled.
+	{
+		Device device;
+		Writer writer{device};
+		CHECK(writer.save(EndlessIndex) == cl::Status::Ok);
+		drive(device, writer, 10000);
+		CHECK(writer.state() == files::WriteState::Stalled && endless.steps == 4097 &&
+		      device.saves() == 4097);
+	}
+	// In the middle of a save: a reply that is not one, the one-byte
+	// InvalidData, a timeout, and a cancel while its SAVE waits in the queue.
+	const auto interrupted = [](auto&& interrupt, files::WriteState expected) {
+		Device device;
+		Writer writer{device};
+		stepwise.steps = 0;
+		CHECK(writer.save(StepwiseIndex) == cl::Status::Ok);
+		device.answer(); // Stat
+		(void)writer.poll();
+		device.answer(); // the first step
+		(void)writer.poll();
+		CHECK(device.pending.size() == 1 && stepwise.steps == 1);
+		interrupt(device, writer);
+		for (int turn = 0; turn < 5; ++turn)
+			(void)writer.poll();
+		CHECK(writer.finished() && writer.state() == expected && device.pending.empty() &&
+		      device.saves() == 2);
+		return writer.deviceStatus();
+	};
+	interrupted(
+	    [](Device& device, Writer&) {
+		    device.garbage();
+	    },
+	    files::WriteState::Malformed);
+	CHECK(interrupted(
+	          [](Device& device, Writer&) {
+		          device.shortError();
+	          },
+	          files::WriteState::Refused) == resource::Status::InvalidData);
+	interrupted(
+	    [](Device& device, Writer&) {
+		    device.fail(cl::Status::Timeout);
+	    },
+	    files::WriteState::Failed);
+	interrupted(
+	    [](Device&, Writer& writer) {
+		    writer.cancel();
+	    },
+	    files::WriteState::Cancelled);
+	// One SAVE on its own.
+	Device device;
+	bool done = false;
+	CHECK(files::save(device, PersistingIndex, 0, [&](const files::SaveResult& result) noexcept {
+		CHECK(result.succeeded() && result.reply.complete);
+		done = true;
+	}));
+	device.answer();
+	CHECK(done && persisting.persisted == 2);
 }
 
 void endings()
@@ -374,7 +545,8 @@ void endings()
 		const auto bytes = pattern(39, 0);
 		CHECK(writer.start(StagedIndex, bytes) == cl::Status::Ok);
 		drive(device, writer);
-		CHECK(writer.state() == files::WriteState::SizeMismatch && writer.size() == 40 && device.writes().empty());
+		CHECK(writer.state() == files::WriteState::SizeMismatch && writer.size() == 40 &&
+		      device.writes().empty());
 	}
 	{
 		Device device;
@@ -406,13 +578,15 @@ void endings()
 		drive(device, writer);
 		CHECK(writer.state() == files::WriteState::Refused &&
 		      writer.deviceStatus() == resource::Status::InvalidData &&
-		      std::all_of(guardedBytes.begin(), guardedBytes.end(), [](std::byte b) { return b == std::byte{}; }));
+		      std::all_of(guardedStore.bytes.begin(), guardedStore.bytes.end(), [](std::byte b) {
+			      return b == std::byte{};
+		      }));
 		const auto good = pattern(8, 1);
 		Writer again{device};
 		CHECK(again.start(GuardedIndex, good) == cl::Status::Ok);
 		drive(device, again);
 		CHECK(again.state() == files::WriteState::Complete &&
-		      std::equal(good.begin(), good.end(), guardedBytes.begin()));
+		      std::equal(good.begin(), good.end(), guardedStore.bytes.begin()));
 	}
 	// Complete before every byte: malformed.
 	{
@@ -431,8 +605,19 @@ void endings()
 		CHECK(writer.start(NeverIndex, bytes) == cl::Status::Ok);
 		drive(device, writer);
 		const auto pieces = device.writes();
-		CHECK(writer.state() == files::WriteState::Stalled && writer.written() == 8 && pieces.size() > 2 &&
-		      pieces.size() < 40 && pieces.back().final && pieces.back().size == 0);
+		CHECK(writer.state() == files::WriteState::Stalled && writer.written() == 8 &&
+		      pieces.size() > 2 && pieces.size() < 40 && pieces.back().final &&
+		      pieces.back().size == 0);
+	}
+	// The cursor moves, no byte is ever taken: bounded, then Stalled.
+	{
+		Device device;
+		Writer writer{device};
+		const auto bytes = pattern(8, 0);
+		CHECK(writer.start(DriftingIndex, bytes) == cl::Status::Ok);
+		drive(device, writer, 10000);
+		CHECK(writer.state() == files::WriteState::Stalled && writer.written() == 0 &&
+		      device.writes().size() == 4097);
 	}
 	// A timeout ends it as Failed and nothing is sent again.
 	{
@@ -447,7 +632,8 @@ void endings()
 		for (int turn = 0; turn < 5; ++turn)
 			(void)writer.poll();
 		CHECK(writer.finished() && writer.state() == files::WriteState::Failed &&
-		      writer.clientStatus() == cl::Status::Timeout && device.sent.size() == before && device.pending.empty());
+		      writer.clientStatus() == cl::Status::Timeout && device.sent.size() == before &&
+		      device.pending.empty());
 	}
 }
 
@@ -457,15 +643,17 @@ void cancelling()
 {
 	Device device;
 	Writer writer{device};
-	const auto old = std::vector<std::byte>(stagedBytes.begin(), stagedBytes.end());
+	const auto old = std::vector<std::byte>(stagedStore.bytes.begin(), stagedStore.bytes.end());
 	const auto bytes = pattern(40, 11);
 	CHECK(writer.start(StagedIndex, bytes) == cl::Status::Ok);
-	device.answer();  // Stat
+	device.answer(); // Stat
 	(void)writer.poll();
-	device.answer();  // the first piece
+	device.answer(); // the first piece
 	writer.cancel();
-	CHECK(writer.finished() && writer.state() == files::WriteState::Cancelled && writer.written() == 16);
-	CHECK(std::equal(old.begin(), old.end(), stagedBytes.begin()) && staged.staged() == 16);
+	CHECK(writer.finished() && writer.state() == files::WriteState::Cancelled &&
+	      writer.written() == 16);
+	CHECK(std::equal(old.begin(), old.end(), stagedStore.bytes.begin()) &&
+	      stagedStore.staged() == 16);
 	// Cancelled while a piece waits in the queue: the queue cancels it.
 	Writer queued{device};
 	CHECK(queued.start(StagedIndex, bytes) == cl::Status::Ok && queued.inFlight());
@@ -475,7 +663,8 @@ void cancelling()
 	Writer fresh{device};
 	CHECK(fresh.start(StagedIndex, bytes) == cl::Status::Ok);
 	drive(device, fresh);
-	CHECK(fresh.state() == files::WriteState::Complete && std::equal(bytes.begin(), bytes.end(), stagedBytes.begin()));
+	CHECK(fresh.state() == files::WriteState::Complete &&
+	      std::equal(bytes.begin(), bytes.end(), stagedStore.bytes.begin()));
 }
 
 void submissions()
@@ -485,7 +674,8 @@ void submissions()
 	// A busy queue leaves the write due; the next poll submits it.
 	Writer busy{device};
 	device.refuseNext = cl::Status::Busy;
-	CHECK(busy.start(StagedIndex, bytes) == cl::Status::Busy && busy.state() == files::WriteState::Running && busy.due());
+	CHECK(busy.start(StagedIndex, bytes) == cl::Status::Busy &&
+	      busy.state() == files::WriteState::Running && busy.due());
 	CHECK(busy.poll() == cl::Status::Ok && busy.inFlight());
 	drive(device, busy);
 	CHECK(busy.state() == files::WriteState::Complete);
@@ -493,33 +683,41 @@ void submissions()
 	Writer refused{device};
 	device.refuseNext = cl::Status::NotAdmitted;
 	CHECK(refused.start(StagedIndex, bytes) == cl::Status::NotAdmitted && refused.finished() &&
-	      refused.state() == files::WriteState::Failed && refused.clientStatus() == cl::Status::NotAdmitted);
+	      refused.state() == files::WriteState::Failed &&
+	      refused.clientStatus() == cl::Status::NotAdmitted);
 	Writer twice{device};
-	CHECK(twice.start(StagedIndex, bytes) == cl::Status::Ok && twice.start(StagedIndex, bytes) == cl::Status::Busy);
+	CHECK(twice.start(StagedIndex, bytes) == cl::Status::Ok &&
+	      twice.start(StagedIndex, bytes) == cl::Status::Busy);
 	drive(device, twice);
-	CHECK(twice.state() == files::WriteState::Complete && twice.start(StagedIndex, bytes, 0) == cl::Status::InvalidArgument);
+	CHECK(twice.state() == files::WriteState::Complete &&
+	      twice.start(StagedIndex, bytes, 0) == cl::Status::InvalidArgument);
 	// One request on its own: a piece the caller builds in its scratch.
 	std::array<std::byte, 16 + 4> scratch{};
 	const std::array<std::byte, 4> four{std::byte{9}, std::byte{8}, std::byte{7}, std::byte{6}};
 	bool done = false;
-	CHECK(files::write(device, scratch, RefusingIndex, 0, four, true, [&](const files::WriteResult& result) noexcept {
-		CHECK(result.parsed && result.reply.status == resource::Status::InvalidData && !result.succeeded());
-		done = true;
-	}));
+	CHECK(files::write(device, scratch, RefusingIndex, 0, four, true,
+	                   [&](const files::WriteResult& result) noexcept {
+		                   CHECK(result.parsed &&
+		                         result.reply.status == resource::Status::InvalidData &&
+		                         !result.succeeded());
+		                   done = true;
+	                   }));
 	device.answer();
 	CHECK(done);
 	// A scratch too small for the piece is refused before anything is sent.
 	std::array<std::byte, 10> tiny{};
-	CHECK(files::write(device, tiny, RefusingIndex, 0, four, true, [](const files::WriteResult&) noexcept {}).status ==
-	      cl::Status::InvalidArgument);
+	CHECK(files::write(device, tiny, RefusingIndex, 0, four, true,
+	                   [](const files::WriteResult&) noexcept {
+	                   })
+	          .status == cl::Status::InvalidArgument);
 }
 } // namespace
 
 int main()
 {
-	stagedAlone();
 	complete();
 	partial();
+	saving();
 	endings();
 	cancelling();
 	submissions();

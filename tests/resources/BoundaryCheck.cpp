@@ -24,7 +24,7 @@ using namespace resource;
 namespace {
 unsigned checks = 0;
 unsigned packets = 0;
-std::array<unsigned, 4> accepted{};
+std::array<unsigned, 5> accepted{};
 
 #define CHECK(...)                                                                                 \
 	do {                                                                                           \
@@ -114,7 +114,7 @@ bool listGrammar(Input input)
 
 bool statGrammar(Input input)
 {
-	return shortReply(input) || (input.size() == 6 && byte(input, 0) <= 8 && byte(input, 5) <= 3);
+	return shortReply(input) || (input.size() == 6 && byte(input, 0) <= 8);
 }
 
 bool writeGrammar(Input input, std::size_t submitted)
@@ -128,6 +128,14 @@ bool writeGrammar(Input input, std::size_t submitted)
 	const auto consumed = word(input, 9, 4);
 	return consumed <= submitted &&
 	       (byte(input, 0) == 0 || (consumed == 0 && byte(input, 13) == 0));
+}
+
+bool saveGrammar(Input input)
+{
+	if (shortReply(input))
+		return true;
+	return input.size() == 10 && byte(input, 0) <= 8 && byte(input, 9) <= 1 &&
+	       (byte(input, 0) == 0 || byte(input, 9) == 0);
 }
 
 // Accepted borrowed ranges must refer solely to this immutable packet.
@@ -146,11 +154,13 @@ void inspect(Input input, std::size_t submitted)
 	const auto list = client::parseList(input);
 	const auto stat = client::parseStat(input);
 	const auto write = client::parseWrite(input, submitted);
+	const auto save = client::parseSave(input);
 	CHECK(bool(read) == readGrammar(input));
 	CHECK(bool(list) == listGrammar(input));
 	CHECK(bool(stat) == statGrammar(input));
 	CHECK(bool(write) == writeGrammar(input, submitted));
-	const std::array<bool, 4> valid{bool(read), bool(list), bool(stat), bool(write)};
+	CHECK(bool(save) == saveGrammar(input));
+	const std::array<bool, 5> valid{bool(read), bool(list), bool(stat), bool(write), bool(save)};
 	for (std::size_t i = 0; i < valid.size(); ++i)
 		accepted[i] += valid[i];
 	if (read) {
@@ -192,6 +202,14 @@ void inspect(Input input, std::size_t submitted)
 			CHECK(write.response.complete == (byte(input, 13) != 0));
 		}
 	}
+	if (save) {
+		CHECK(save.shortError == shortReply(input));
+		if (!save.shortError) {
+			CHECK(static_cast<unsigned>(save.response.status) == byte(input, 0));
+			CHECK(save.response.next == word(input, 1, 8));
+			CHECK(save.response.complete == (byte(input, 9) != 0));
+		}
+	}
 }
 
 std::uint32_t next(std::uint32_t& seed)
@@ -202,9 +220,10 @@ std::uint32_t next(std::uint32_t& seed)
 
 void replyCorpus()
 {
-	// Success/error seeds, a binary READ, two LIST records and both WRITE states.
-	const std::array<std::size_t, 8> lengths{12, 12, 15, 22, 6, 14, 14, 1};
-	std::array<std::array<std::byte, 64>, 8> seeds{};
+	// Success/error seeds, a binary READ, two LIST records, both WRITE states and
+	// both SAVE states.
+	const std::array<std::size_t, 10> lengths{12, 12, 15, 22, 6, 14, 14, 1, 10, 10};
+	std::array<std::array<std::byte, 64>, 10> seeds{};
 	seeds[1][0] = std::byte(Status::InvalidCursor);
 	seeds[2][9] = std::byte{1};
 	put(seeds[2], 10, 3, 2);
@@ -226,6 +245,10 @@ void replyCorpus()
 	seeds[5][13] = std::byte{1};
 	seeds[6][0] = std::byte(Status::NotWritable);
 	seeds[7][0] = std::byte(Status::InvalidData);
+	put(seeds[8], 1, 4, 8);
+	seeds[8][9] = std::byte{1};
+	seeds[9][0] = std::byte(Status::NotWritable);
+	put(seeds[9], 1, 2, 8);
 	for (std::size_t row = 0; row < seeds.size(); ++row) {
 		const auto length = lengths[row];
 		for (std::size_t size = 0; size <= length + 1; ++size)
@@ -257,11 +280,12 @@ void replyCorpus()
 }
 
 // A conforming provider counts all callbacks and writes only the supplied span.
-// Public methods: size() inspect length; read() copy bytes; write() consume bytes.
+// Public methods: size() inspect length; read() copy bytes; write() consume bytes;
+// save() persist in three steps.
 struct Provider {
 	std::array<std::byte, 8> data{};
 	mutable unsigned sizes = 0, reads = 0;
-	unsigned writes = 0;
+	unsigned writes = 0, saves = 0;
 
 	FileSize size() const noexcept
 	{
@@ -296,6 +320,15 @@ struct Provider {
 		return {Status::Ok, cursor + count, static_cast<std::uint32_t>(count),
 		        final && count == input.size()};
 	}
+
+	SaveResult save(Cursor cursor) noexcept
+	{
+		++saves;
+		if (cursor > 2)
+			return {Status::InvalidCursor, cursor};
+		return cursor < 2 ? SaveResult{Status::Ok, cursor + 1, false}
+		                  : SaveResult{Status::Ok, cursor, true};
+	}
 };
 
 bool requestGrammar(Input input)
@@ -312,6 +345,8 @@ bool requestGrammar(Input input)
 		case 4:
 			return input.size() >= 16 && byte(input, 13) <= 1 &&
 			       word(input, 14, 2) == input.size() - 16;
+		case 5:
+			return input.size() == 13;
 		default:
 			return false;
 	}
@@ -329,14 +364,14 @@ void requestCorpus()
 			item = std::byte(next(seed) >> 24);
 		std::size_t size = next(seed) % 65;
 		if (trial % 2 == 0) {
-			request[0] = std::byte(1 + (trial / 2) % 4);
+			request[0] = std::byte(1 + (trial / 2) % 5);
 			const auto op = byte(request, 0);
-			size = op == 1 ? 9 : op == 2 ? 5 : op == 3 ? 13 : 16 + trial % 7;
+			size = op == 1 ? 9 : op == 2 ? 5 : op == 3 || op == 5 ? 13 : 16 + trial % 7;
 			put(request, 1, 0, 4);
 			if (op == 1)
 				put(request, 1, trial % 3, 8);
 			if (op >= 3)
-				put(request, 5, trial % 10, 8);
+				put(request, 5, op == 5 ? trial % 4 : trial % 10, 8);
 			if (op == 4) {
 				request[13] = std::byte(trial % 3);
 				put(request, 14, size - 16, 2);
@@ -344,7 +379,7 @@ void requestCorpus()
 		}
 		const auto input = Input(request).first(size);
 		const auto original = request;
-		const auto callbacks = provider.sizes + provider.reads + provider.writes;
+		const auto callbacks = provider.sizes + provider.reads + provider.writes + provider.saves;
 		const auto capacity = static_cast<std::size_t>(trial % 65);
 		response.fill(std::byte{0xa5});
 		const auto result =
@@ -356,7 +391,7 @@ void requestCorpus()
 		}));
 		if (!requestGrammar(input)) {
 			CHECK(result.status == Status::InvalidData);
-			CHECK(provider.sizes + provider.reads + provider.writes == callbacks);
+			CHECK(provider.sizes + provider.reads + provider.writes + provider.saves == callbacks);
 			CHECK(result.written == (capacity == 0 ? 0 : 1));
 		}
 		if (result.written != 0) {
@@ -377,6 +412,9 @@ void requestCorpus()
 					case 4:
 						CHECK(client::parseWrite(reply, size - 16));
 						break;
+					case 5:
+						CHECK(client::parseSave(reply));
+						break;
 				}
 			}
 		}
@@ -384,6 +422,7 @@ void requestCorpus()
 	CHECK(provider.sizes > 100);
 	CHECK(provider.reads > 100);
 	CHECK(provider.writes > 100);
+	CHECK(provider.saves > 100);
 }
 } // namespace
 
@@ -392,6 +431,6 @@ int main()
 	replyCorpus();
 	requestCorpus();
 	std::printf("Resource boundaries: %u checks passed\n", checks);
-	std::printf("Reply corpus: %u packets; accepted read/list/stat/write %u/%u/%u/%u\n", packets,
-	            accepted[0], accepted[1], accepted[2], accepted[3]);
+	std::printf("Reply corpus: %u packets; accepted read/list/stat/write/save %u/%u/%u/%u/%u\n",
+	            packets, accepted[0], accepted[1], accepted[2], accepted[3], accepted[4]);
 }

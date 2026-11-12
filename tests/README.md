@@ -70,8 +70,7 @@ The [native TCP suite](tcp_stream/README.md) checks bounded Resource/TEQ1 stream
 framing, real dispatch, preflight, reentrancy, no-heap and Cortex-M7 compilation.
 The [device files suite](device_files/README.md) checks `files::FileReader` and
 `files::FileWriter` against the real Resource protocol handler without a network -
-every way a read or a write ends, a staged file keeping its old bytes when a write
-stops -
+every way a read, a write or a save ends -
 and the files of a live `ConnectionSession` over TCP with Field reads between the
 pieces and a connection lost mid-read.
 The [link transport suite](link_transport/README.md) checks the Qt-free TCP

@@ -38,7 +38,9 @@ enum class Status : std::uint8_t {
 enum class FileFlag : std::uint8_t {
 	None = 0,
 	Readable = 1,
-	Writable = 2
+	Writable = 2,
+	// The file persists what it holds on SAVE.
+	Savable = 4
 };
 using FileFlags = FileFlag;
 
@@ -84,6 +86,21 @@ struct WriteResult {
 	constexpr WriteResult(Status resultStatus = Status::Ok, Cursor nextCursor = 0,
 	                      std::uint32_t byteCount = 0, bool finished = false) noexcept
 	    : next(nextCursor), consumed(byteCount), status(resultStatus), complete(finished)
+	{}
+};
+
+// SAVE persists in steps: Ok and not complete must move the cursor; an error
+// leaves the cursor and is never complete.
+// Public methods:
+// - SaveResult(): Report save outcome.
+struct SaveResult {
+	Cursor next = 0;
+	Status status = Status::Ok;
+	bool complete = false;
+
+	constexpr SaveResult(Status resultStatus = Status::Ok, Cursor nextCursor = 0,
+	                     bool finished = false) noexcept
+	    : next(nextCursor), status(resultStatus), complete(finished)
 	{}
 };
 

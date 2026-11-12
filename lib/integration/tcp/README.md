@@ -17,12 +17,12 @@ failed reader keeps its existing status without consuming input.
 
 ## Boundaries and bootstrap
 
-Request first bytes 1–4 select Resource LIST/STAT/READ/WRITE. Their sizes are
-9/5/13 bytes or 16 plus the little-endian u16 at offset 14. First byte `0x54`
+Request first bytes 1–5 select Resource LIST/STAT/READ/WRITE/SAVE. Their sizes
+are 9/5/13 bytes, 16 plus the little-endian u16 at offset 14, or 13 for SAVE. First byte `0x54`
 selects TEQ1, whose size is 32 plus little-endian u32 `payloadBytes` at offset20.
 Full existing TEQ1 validation still applies. Bounds are checked before addition.
 
-Resource replies require one known outstanding operation: STAT6, WRITE14,
+Resource replies require one known outstanding operation: STAT6, WRITE14, SAVE10,
 LIST/READ12 plus u16 at offset10. A single `InvalidData` byte is never a completed
 reply: EOF or timeout closes the connection. A valid normal error envelope can
 start with the same byte, so it cannot be classified from that byte alone.

@@ -47,7 +47,7 @@ signatures та transfer results; [Descriptor/Values](DescriptorAndValues.md)
 | Передати одне значення/виклик як байти без Model | Family catalog `index().readEncoded/writeEncoded/executeEncoded/callEncoded` | Операція, packed ID, payload |
 | Передати те саме через compiled boundary | `readFieldEncoded`, `writeFieldEncoded`, `executeCommandEncoded`, `callServiceEncoded` з `ModelView` | Операція, u32 packed ID, payload |
 | Надати набір файлів із власними шляхами | `resource::filesystem(file(path, provider), ...)` | u32 індекс файла |
-| Передати файлові операції як пакети | `resource::protocol::process(view, request, response)` | LIST/STAT/READ/WRITE |
+| Передати файлові операції як пакети | `resource::protocol::process(view, request, response)` | LIST/STAT/READ/WRITE/SAVE |
 | Прочитати опис Model та всі його Fields | `resource::telemetry::v3::DescriptorFile` і `ValuesFile` | Файли, додані в звичайну таблицю ресурсів |
 | Зібрати RPC request, виконати один encoded dispatch і прочитати result | Optional `resource::telemetry::v3::RpcMailbox` | Resource file index, transaction ID, operation та endpoint ID |
 | Узгодити Model перед керівними викликами | Окремий приклад Bind/Exchange | Контекст підключення, який належить транспорту |
@@ -292,14 +292,16 @@ path/data немає NUL. Пакет має точну довжину; зайв�
 | STAT=2 | `u8 op, u32 index` | `u8 status, u32 size, u8 flags` |
 | READ=3 | `u8 op, u32 index, u64 cursor` | `u8 status, u64 next, u8 eof, u16 dataSize, data[]` |
 | WRITE=4 | `u8 op, u32 index, u64 cursor, u8 final, u16 dataSize, data[]` | `u8 status, u64 next, u32 consumed, u8 complete` |
+| SAVE=5 | `u8 op, u32 index, u64 cursor` | `u8 status, u64 next, u8 complete` |
 
 LIST повертає `[u16 pathLength][path bytes]` для кожного цілого запису.
 Його cursor — порядковий індекс наступного файла, а не cursor provider.
 LIST не викликає `size()` або читання provider. STAT питає поточний size.
 READ/WRITE використовують provider cursor і його правила progress.
 
-Розміри request: LIST 9, STAT 5, READ 13, WRITE `16 + dataSize` байтів.
-Response header LIST/READ має 12 байтів, STAT — 6, WRITE — 14.
+Розміри request: LIST 9, STAT 5, READ 13, WRITE `16 + dataSize`, SAVE 13 байтів.
+Response header LIST/READ має 12 байтів, STAT — 6, WRITE — 14, SAVE — 10.
+SAVE asks a Savable provider to persist the file, repeated from `next` until `complete`.
 READ payload не перевищує 65535 байтів. Цілий LIST path разом із u16
 length повинен поміститися в 65535, тому максимум path — 65533 байти.
 Core дозволяє довші локальні шляхи; packet LIST поверне `InvalidData`
@@ -316,7 +318,7 @@ count/status/progress перетворюється на `InternalError`.
 Resource статуси: `Ok`, `InvalidFile`, `NotReadable`, `NotWritable`,
 `InvalidCursor`, `CursorExpired`, `BufferTooSmall`, `InvalidData`,
 `InternalError`. Їхні wire коди 0..8 за цим порядком фіксовані.
-`Readable=1`, `Writable=2`; read/write файл має flags=3.
+`Readable=1`, `Writable=2`, `Savable=4`; read/write файл має flags=3.
 
 ### Клієнт: зібрати request і перевірити response
 
@@ -450,7 +452,7 @@ explicit guard — різні linked boundaries, а не runtime checks кожн
 
 У прикладі застосунок вибрав свій header: `u8 operation + u32 LE ID`,
 потім native payload. Це **тільки формат прикладу**, а не wire protocol
-telemetry чи resource LIST/STAT/READ/WRITE. `onCompletePacket` отримує
+telemetry чи resource LIST/STAT/READ/WRITE/SAVE. `onCompletePacket` отримує
 повний packet; UART/TCP framing він не реалізує. Повернений `guide::Reply`
 є локальним результатом. Реальний transport явно кодує свій response
 header/status і передає лише успішно записаний payload.
