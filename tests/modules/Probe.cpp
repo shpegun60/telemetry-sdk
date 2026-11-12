@@ -11,25 +11,12 @@
 static constexpr telemetry::ServiceCatalogTable services{};
 static constexpr telemetry::Model model{telemetry::emptyFields, telemetry::emptyCommands, services};
 #endif
-#if defined(MODULE_CORE)
-#include <telemetry/encoded/Dispatcher.hpp>
+#if defined(MODULE_RUNTIME) || defined(MODULE_VALUES_READER)
+#include <telemetry/runtime/RuntimeSchema.hpp>
 
-int main()
+// The frozen empty v3 registry, constructed without importing its producer.
+static std::array<std::byte, 348> emptyRegistry()
 {
-	std::array<std::byte, 256> scratch{};
-	telemetry::Workspace workspace{scratch};
-	const auto result = telemetry::dispatchEncoded(model.view(), telemetry::Operation::FieldRead, 0,
-	                                               {}, {}, workspace);
-	return result.dispatch == telemetry::DispatchStatus::NotFound ? 0 : 1;
-}
-#elif defined(MODULE_RUNTIME)
-#include <telemetry/runtime/DynamicValueView.hpp>
-#include <telemetry/runtime/DynamicValueWriter.hpp>
-
-int main()
-{
-	namespace rt = telemetry::runtime;
-	// Construct the frozen empty v3 registry without importing its producer.
 	std::array<std::byte, 348> descriptor{};
 	auto number = [&](std::size_t offset, std::uint64_t value, unsigned width) {
 		for (unsigned i = 0; i < width; ++i)
@@ -64,6 +51,28 @@ int main()
 		hash =
 		    (hash ^ std::to_integer<std::uint8_t>(value)) * telemetry::descriptor::fingerprintPrime;
 	number(16, hash, 8);
+	return descriptor;
+}
+#endif
+#if defined(MODULE_CORE)
+#include <telemetry/encoded/Dispatcher.hpp>
+
+int main()
+{
+	std::array<std::byte, 256> scratch{};
+	telemetry::Workspace workspace{scratch};
+	const auto result = telemetry::dispatchEncoded(model.view(), telemetry::Operation::FieldRead, 0,
+	                                               {}, {}, workspace);
+	return result.dispatch == telemetry::DispatchStatus::NotFound ? 0 : 1;
+}
+#elif defined(MODULE_RUNTIME)
+#include <telemetry/runtime/DynamicValueView.hpp>
+#include <telemetry/runtime/DynamicValueWriter.hpp>
+
+int main()
+{
+	namespace rt = telemetry::runtime;
+	const auto descriptor = emptyRegistry();
 	std::array<rt::RuntimeType, 12> types{};
 	std::array<rt::RuntimeMember, 0> members{};
 	std::array<rt::RuntimeEnumEntry, 0> enums{};
@@ -96,6 +105,47 @@ int main()
 		return 7;
 	const auto updated = edited.value.get<std::uint32_t>();
 	return updated && updated.value == replacement && payload[0] == std::byte{0x12} ? 0 : 8;
+}
+#elif defined(MODULE_VALUES_READER)
+#include <integration/telemetry/v3/ValuesReader.hpp>
+
+int main()
+{
+	namespace rt = telemetry::runtime;
+	namespace v3 = resource::telemetry::v3;
+	const auto descriptor = emptyRegistry();
+	std::array<rt::RuntimeType, 12> types{};
+	std::array<rt::RuntimeMember, 0> members{};
+	std::array<rt::RuntimeEnumEntry, 0> enums{};
+	std::array<rt::RuntimeCatalog, 0> catalogs{};
+	std::array<rt::RuntimeEndpoint, 0> endpoints{};
+	rt::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs, endpoints};
+	const auto parsed = rt::RuntimeSchema::parse(descriptor, workspace);
+	if (parsed.status != rt::Status::Ok)
+		return 1;
+	// The values of a device with no Fields: the header alone, naming its descriptor.
+	std::array<std::byte, v3::valuesHeaderBytes> values{};
+	auto number = [&](std::size_t offset, std::uint64_t value, unsigned width) {
+		for (unsigned i = 0; i < width; ++i)
+			values[offset + i] = std::byte((value >> (8 * i)) & 0xffu);
+	};
+	for (std::size_t i = 0; i < v3::valuesMagic.size(); ++i)
+		values[i] = v3::valuesMagic[i];
+	number(4, v3::valuesMajor, 2);
+	number(6, v3::valuesMinor, 2);
+	number(12, values.size(), 4);
+	number(16, parsed.schema.fingerprint(), 8);
+	unsigned visits = 0;
+	const auto read = v3::readValues(values, parsed.schema, [&](const v3::ValuesEntry&) {
+		++visits;
+	});
+	values[16] ^= std::byte{1};
+	const auto other = v3::readValues(values, parsed.schema, [&](const v3::ValuesEntry&) {
+		++visits;
+	});
+	return read == v3::ValuesProblem::None && other == v3::ValuesProblem::Fingerprint && visits == 0
+	           ? 0
+	           : 2;
 }
 #elif defined(MODULE_DYNAMIC_CLIENT)
 #include <integration/dynamic/DynamicClient.hpp>
@@ -332,18 +382,21 @@ int main()
 	std::array<std::byte, 64> out{};
 	const auto result = file.read(0, out);
 	// The device's identity, as firmware serves it: an MCU UID as its id.
-	const std::array<std::byte, 12> uid{std::byte{0x00}, std::byte{0x28}, std::byte{0x00}, std::byte{0x3a}};
+	const std::array<std::byte, 12> uid{std::byte{0x00}, std::byte{0x28}, std::byte{0x00},
+	                                    std::byte{0x3a}};
 	std::array<char, 24> text{};
 	resource::telemetry::v3::IdentityFile identity;
-	const bool named = identity.set(telemetry::protocol::identity::hexId(uid, text), "Probe", "M7", "1.0") &&
-	                   identity.rename("Probe 2");
+	const bool named =
+	    identity.set(telemetry::protocol::identity::hexId(uid, text), "Probe", "M7", "1.0") &&
+	    identity.rename("Probe 2");
 	std::array<std::byte, telemetry::protocol::identity::writtenBytes> whole{};
 	const auto served = identity.read(0, whole);
 	telemetry::protocol::identity::Identity parsed;
-	const bool read = served.eof &&
-	                  telemetry::protocol::identity::parse(std::span(whole).first(served.written), parsed) ==
-	                      telemetry::protocol::identity::Problem::None &&
-	                  parsed.name == "Probe 2";
+	const bool read =
+	    served.eof &&
+	    telemetry::protocol::identity::parse(std::span(whole).first(served.written), parsed) ==
+	        telemetry::protocol::identity::Problem::None &&
+	    parsed.name == "Probe 2";
 	return result.status == resource::Status::Ok && result.written == 64 && named && read ? 0 : 1;
 }
 #elif defined(MODULE_ENCODED_SERVER)

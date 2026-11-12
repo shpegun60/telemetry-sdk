@@ -50,6 +50,8 @@ They do not own a request FIFO; asynchronous JS/TS operations use `lib/client/we
 | Native RPC engine | `client/rpc/RpcClient.hpp` | `telemetry::client::rpc` |
 | Shared TEQ1/RPC contracts | `wire/EncodedWire.hpp`, `wire/RpcWire.hpp` | `telemetry::protocol::encoded`, `telemetry::protocol::rpc` |
 | Device identity file (`/telemetry/identity.bin`) | `wire/IdentityWire.hpp` | `telemetry::protocol::identity` |
+| Values file layout (`/telemetry/values.bin`) | `integration/telemetry/v3/ValuesFormat.hpp` | `resource::telemetry::v3` |
+| Values file read on a host, against its descriptor | `integration/telemetry/v3/ValuesReader.hpp` | `resource::telemetry::v3` |
 | Resource providers | `integration/telemetry/v3/DescriptorFile.hpp`, `ValuesFile.hpp`, `IdentityFile.hpp`, `RpcMailbox.hpp`, `RpcSessionPool.hpp` | `resource::telemetry::v3` |
 | TEQ1 server | `integration/encoded/Dispatcher.hpp` | `telemetry::integration::encoded` |
 | Encoded backend | `integration/encoded/Backend.hpp` | `telemetry::integration::encoded` |
@@ -71,7 +73,11 @@ The Resource provider namespace denotes an extension implemented by Integration;
 generic Resource contains no Telemetry headers or providers. The descriptor
 builder is independent of Resource read results. DescriptorFile performs the
 actual result mapping at the file boundary. Values retains its existing wire
-format and sampling behavior.
+format and sampling behavior. Its layout is the header-only `values_wire`, which
+`resource_adapter` writes on the device and `values_reader` reads on a host:
+`readValues` checks a whole values.bin against a parsed RuntimeSchema - magic,
+version, size, the descriptor's fingerprint, every status and blank - before
+it hands out one span per Field for DynamicValueView. `qt_connection` brings it.
 
 Old Client and Resource/Telemetry include trees and compatibility facades are
 removed. Applications must update their includes and client/transport namespaces
@@ -98,9 +104,9 @@ target_link_libraries(application PRIVATE Telemetry::core)
 Available components are `core`, `runtime`, `resource`, `resource_protocol`, `client`,
 `codec`, `resource_adapter`, `encoded_server`, `rpc_server`, `rpc_sessions`,
 `encoded_backend`, `rpc_client`, `rpc_backend`, `dynamic_client`, `read_many_client`, `read_many_static_client`, `batch_client`, `batch_static_client`, `batch_server`, `inspector`, `workbench`, `read_many_workbench` and
-`tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `files_client`, `files_workbench`, `link`, `tcp_link`, `qt_connection`,
+`tcp_server`, `tcp_encoded_profile`, `batch_workbench`, `files_client`, `files_workbench`, `link`, `tcp_link`, `values_reader`, `qt_connection`,
 `qt_tcp_transport`, `qt_transport` and `qt_serial_transport`. Shared header components
-`common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire`, `rpc_wire` and `identity_wire`
+`common`, `delegate`, `reflection`, `resource_wire`, `encoded_wire`, `rpc_wire`, `identity_wire` and `values_wire`
 are selected automatically as needed. Multiple components use a semicolon list.
 The native RPC engine is `rpc_client`; its DeviceClient adapter is `rpc_backend`.
 The default root build includes the Inspector, Workbench and TCP components. Set

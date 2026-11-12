@@ -8,5 +8,7 @@ isEmpty(TELEMETRY_QT_CONNECTION_PRI_INCLUDED) {
     CONFIG += telemetry_encoded_backend
     include($$PWD/../integration.pri)
     HEADERS *= $$PWD/ConnectionStorage.hpp $$PWD/ConnectionSession.hpp
+    # values_reader: a values.bin read against its descriptor.
+    HEADERS *= $$PWD/../telemetry/v3/ValuesFormat.hpp $$PWD/../telemetry/v3/ValuesReader.hpp
     SOURCES *= $$PWD/ConnectionStorage.cpp $$PWD/ConnectionSession.cpp
 }

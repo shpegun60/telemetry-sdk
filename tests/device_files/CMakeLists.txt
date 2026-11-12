@@ -3,8 +3,11 @@
 cmake_minimum_required(VERSION 3.21)
 project(InstalledDeviceFiles LANGUAGES CXX)
 find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS files_client resource_protocol qt_connection
-    tcp_server tcp_encoded_profile resource_adapter)
+    tcp_server tcp_encoded_profile resource_adapter values_reader)
 add_executable(reader Reader.cpp)
+# values.bin written as the device serves it, read back on the host.
+add_executable(values Values.cpp)
+target_link_libraries(values PRIVATE Telemetry::values_reader Telemetry::resource_adapter)
 target_link_libraries(reader PRIVATE Telemetry::files_client Telemetry::resource_protocol)
 add_executable(session Session.cpp)
 target_link_libraries(session PRIVATE Telemetry::qt_connection Telemetry::tcp_server Telemetry::tcp_encoded_profile
@@ -14,7 +17,7 @@ target_link_libraries(files_only PRIVATE Telemetry::qt_connection Telemetry::tcp
 foreach(target session files_only)
     target_compile_definitions(${target} PRIVATE QT_NO_KEYWORDS)
 endforeach()
-foreach(target reader session files_only)
+foreach(target reader values session files_only)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
 endforeach()
 # GCC 13 at -O3 reports the always-emplaced std::optional inside the ReadMany

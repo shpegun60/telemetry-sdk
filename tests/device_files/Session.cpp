@@ -93,8 +93,9 @@ public:
 			auto* candidate = listener.nextPendingConnection();
 			socket = candidate;
 			pending.clear();
-			server = make ? make(*this)
-			              : std::make_unique<tcp::Server>(model.view(), workspace, table.view(), rx, tx);
+			server =
+			    make ? make(*this)
+			         : std::make_unique<tcp::Server>(model.view(), workspace, table.view(), rx, tx);
 			QObject::connect(candidate, &QTcpSocket::readyRead, &listener, [this, candidate] {
 				if (socket == candidate)
 					read();
@@ -253,6 +254,7 @@ void reading()
 	}));
 	CHECK(!session.filesSupported());
 }
+
 // A device with the full profile serves its own files after the profile's:
 // the session is a telemetry one, not files only, it lists the profile's four
 // files then the application's, and reads the application's byte for byte. A
@@ -264,7 +266,8 @@ void profileWithApplicationFiles()
 	    resource::filesystem(profile.systemFiles(), resource::file("/logs/large.bin", largeFile));
 	CHECK(withFiles.view().size() == 5 && withFiles.view().path(4) == "/logs/large.bin");
 	Peer peer([&](Peer& at) {
-		return std::make_unique<tcp::Server>(model.view(), at.workspace, profile, withFiles.view(), at.rx, at.tx);
+		return std::make_unique<tcp::Server>(model.view(), at.workspace, profile, withFiles.view(),
+		                                     at.rx, at.tx);
 	});
 	qt::ConnectionSession session;
 	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
@@ -284,14 +287,15 @@ void profileWithApplicationFiles()
 	CHECK(await([&] {
 		return listed;
 	}));
-	CHECK(paths.size() == 5 && paths[0] == "/telemetry/descriptor.bin" && paths[1] == "/telemetry/session.bin" &&
-	      paths[4] == "/logs/large.bin");
+	CHECK(paths.size() == 5 && paths[0] == "/telemetry/descriptor.bin" &&
+	      paths[1] == "/telemetry/session.bin" && paths[4] == "/logs/large.bin");
 
 	std::vector<std::byte> read;
 	Reader reader(session, Sink{&read});
 	CHECK(reader.start(4) == cl::Status::Ok);
 	CHECK(run(reader) && reader.state() == files::ReadState::Complete);
-	CHECK(read.size() == largeBytes.size() && std::equal(read.begin(), read.end(), largeBytes.begin()));
+	CHECK(read.size() == largeBytes.size() &&
+	      std::equal(read.begin(), read.end(), largeBytes.begin()));
 	session.disconnect();
 
 	tcp::EncodedProfile other(std::span<const std::byte>(packed), descriptor.fingerprint());
@@ -324,15 +328,16 @@ void identityBytes()
 	      parsed.name == "Bench analyzer" && parsed.model == "PA-3" && parsed.firmware == "1.4.2");
 	CHECK(file.size() == id::headerBytes + 4 * 2 + 24 + 14 + 4 + 5);
 	// A rename keeps the rest; Cyrillic is UTF-8 like any other name.
-	CHECK(file.rename("Стенд 2") && file.name() == "Стенд 2" && file.id() == "0028003A3132510D33373935" &&
-	      file.firmware() == "1.4.2");
+	CHECK(file.rename("Стенд 2") && file.name() == "Стенд 2" &&
+	      file.id() == "0028003A3132510D33373935" && file.firmware() == "1.4.2");
 	// Refused, and nothing changes: an id unfit for a folder name, a control
 	// character, a text too long, a broken UTF-8 sequence.
 	for (const auto bad : {std::string_view{}, std::string_view{".hidden"}, std::string_view{"a/b"},
 	                       std::string_view{"a b"}, std::string_view{"x:1"}})
 		CHECK(!file.set(bad, "name"));
 	CHECK(!file.set("A1", "tab\there") && !file.set("A1", std::string(65, 'n')) &&
-	      !file.set("A1", "\xC3") && !file.set("A1", "\xC0\xAF") && !file.set("A1", "\xED\xA0\x80"));
+	      !file.set("A1", "\xC3") && !file.set("A1", "\xC0\xAF") &&
+	      !file.set("A1", "\xED\xA0\x80"));
 	CHECK(file.name() == "Стенд 2");
 	// Read in pieces as a device's READ does.
 	std::array<std::byte, 7> piece{};
@@ -346,7 +351,8 @@ void identityBytes()
 		if (result.eof)
 			break;
 	}
-	CHECK(joined.size() == file.size() && std::equal(joined.begin(), joined.end(), file.bytes().begin()));
+	CHECK(joined.size() == file.size() &&
+	      std::equal(joined.begin(), joined.end(), file.bytes().begin()));
 	CHECK(file.read(file.size() + 1, piece).status == resource::Status::InvalidCursor);
 	// A rename between two pieces of one read: that read stays the old bytes
 	// whole, and the next read from 0 is the new name.
@@ -388,7 +394,8 @@ void identityBytes()
 	// A later version's fifth text is skipped.
 	auto longer = bytes;
 	longer[10] = std::byte{5};
-	longer.insert(longer.end(), {std::byte{3}, std::byte{0}, std::byte{'n'}, std::byte{'e'}, std::byte{'w'}});
+	longer.insert(longer.end(),
+	              {std::byte{3}, std::byte{0}, std::byte{'n'}, std::byte{'e'}, std::byte{'w'}});
 	longer[8] = std::byte(longer.size());
 	CHECK(view(longer).first == id::Problem::None && view(longer).second.name == "Стенд 2");
 
@@ -408,14 +415,15 @@ void sessionIdentity()
 	CHECK(identity.set("EMU-00A1", "Bench analyzer", "Demo", "0.1.0"));
 	const auto make = [](tcp::EncodedProfile& profile, const auto& files) {
 		return [&profile, &files](Peer& at) {
-			return std::make_unique<tcp::Server>(model.view(), at.workspace, profile, files.view(), at.rx, at.tx);
+			return std::make_unique<tcp::Server>(model.view(), at.workspace, profile, files.view(),
+			                                     at.rx, at.tx);
 		};
 	};
 
 	tcp::EncodedProfile profile(std::span<const std::byte>(packed), descriptor.fingerprint());
-	const auto served = resource::filesystem(profile.systemFiles(),
-	                                         resource::file(telemetry::protocol::identity::path, identity),
-	                                         resource::file("/logs/large.bin", largeFile));
+	const auto served = resource::filesystem(
+	    profile.systemFiles(), resource::file(telemetry::protocol::identity::path, identity),
+	    resource::file("/logs/large.bin", largeFile));
 	Peer peer(make(profile, served));
 	qt::ConnectionSession session;
 	int announced = 0;
@@ -425,7 +433,8 @@ void sessionIdentity()
 	bool readingWhenReady = false;
 	QObject::connect(&session, &qt::ConnectionSession::stateChanged, &session, [&] {
 		if (session.ready() && !readingWhenReady)
-			readingWhenReady = session.identityState() == qt::ConnectionSession::IdentityState::Reading;
+			readingWhenReady =
+			    session.identityState() == qt::ConnectionSession::IdentityState::Reading;
 	});
 	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent);
 	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
@@ -433,11 +442,14 @@ void sessionIdentity()
 		return session.identityState() == qt::ConnectionSession::IdentityState::Known;
 	}));
 	CHECK(readingWhenReady && session.ready() && announced >= 1);
-	CHECK(session.deviceId() == QStringLiteral("EMU-00A1") && session.deviceName() == QStringLiteral("Bench analyzer") &&
-	      session.deviceModel() == QStringLiteral("Demo") && session.deviceFirmware() == QStringLiteral("0.1.0") &&
+	CHECK(session.deviceId() == QStringLiteral("EMU-00A1") &&
+	      session.deviceName() == QStringLiteral("Bench analyzer") &&
+	      session.deviceModel() == QStringLiteral("Demo") &&
+	      session.deviceFirmware() == QStringLiteral("0.1.0") &&
 	      session.identityProblem().isEmpty());
 	session.disconnect();
-	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent && session.deviceId().isEmpty());
+	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent &&
+	      session.deviceId().isEmpty());
 
 	// Renamed on the device: the next connection reads the new name.
 	CHECK(identity.rename("Стенд 2"));
@@ -445,12 +457,14 @@ void sessionIdentity()
 	CHECK(await([&] {
 		return session.identityState() == qt::ConnectionSession::IdentityState::Known;
 	}));
-	CHECK(session.deviceName() == QStringLiteral("Стенд 2") && session.deviceId() == QStringLiteral("EMU-00A1"));
+	CHECK(session.deviceName() == QStringLiteral("Стенд 2") &&
+	      session.deviceId() == QStringLiteral("EMU-00A1"));
 	session.disconnect();
 
 	// Not served: Absent once ready, and nothing was read for it.
 	tcp::EncodedProfile plain(std::span<const std::byte>(packed), descriptor.fingerprint());
-	const auto without = resource::filesystem(plain.systemFiles(), resource::file("/logs/large.bin", largeFile));
+	const auto without =
+	    resource::filesystem(plain.systemFiles(), resource::file("/logs/large.bin", largeFile));
 	Peer bare(make(plain, without));
 	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), bare.listener.serverPort()));
 	CHECK(await([&] {
@@ -460,11 +474,12 @@ void sessionIdentity()
 	session.disconnect();
 
 	// Something else under its name: Unreadable, the reason, still ready.
-	const std::array<std::byte, 16> junk{std::byte{'J'}, std::byte{'U'}, std::byte{'N'}, std::byte{'K'}};
+	const std::array<std::byte, 16> junk{std::byte{'J'}, std::byte{'U'}, std::byte{'N'},
+	                                     std::byte{'K'}};
 	const resource::BytesFile junkFile{junk};
 	tcp::EncodedProfile third(std::span<const std::byte>(packed), descriptor.fingerprint());
-	const auto broken = resource::filesystem(third.systemFiles(),
-	                                         resource::file(telemetry::protocol::identity::path, junkFile));
+	const auto broken = resource::filesystem(
+	    third.systemFiles(), resource::file(telemetry::protocol::identity::path, junkFile));
 	Peer odd(make(third, broken));
 	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), odd.listener.serverPort()));
 	CHECK(await([&] {

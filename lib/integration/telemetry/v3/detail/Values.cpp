@@ -15,6 +15,10 @@
 #include <cstring>
 
 namespace resource::telemetry::v3::detail {
+// A values file carries the version of the descriptor it is read with.
+static_assert(valuesMajor == ::telemetry::descriptor::binaryMajor &&
+              valuesMinor == ::telemetry::descriptor::binaryMinor);
+
 namespace {
 
 template<class U>
@@ -74,12 +78,9 @@ ReadResult readValues(const ValuesView& file, const ValueToken* tokens, Cursor c
 	std::uint32_t used = 0;
 	if (cursor < valuesHeaderBytes) {
 		std::byte header[valuesHeaderBytes];
-		header[0] = std::byte{'T'};
-		header[1] = std::byte{'V'};
-		header[2] = std::byte{'L'};
-		header[3] = std::byte{'3'};
-		littleEndian(header + 4, ::telemetry::descriptor::binaryMajor);
-		littleEndian(header + 6, ::telemetry::descriptor::binaryMinor);
+		std::memcpy(header, valuesMagic.data(), valuesMagic.size());
+		littleEndian(header + 4, valuesMajor);
+		littleEndian(header + 6, valuesMinor);
 		littleEndian(header + 8, file.count);
 		littleEndian(header + 12, file.totalBytes);
 		littleEndian(header + 16, file.fingerprint);

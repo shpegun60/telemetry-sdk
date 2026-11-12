@@ -308,6 +308,7 @@ private:
 	// Queues one process() on the owner loop's next turn, coalesced: a reply
 	// or an accepted request moves without waiting for the timer's tick.
 	void pumpSoon() noexcept;
+
 	client::Submission pumpAfter(client::Submission submitted) noexcept
 	{
 		if (submitted)

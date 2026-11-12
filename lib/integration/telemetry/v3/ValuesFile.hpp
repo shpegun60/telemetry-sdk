@@ -13,7 +13,7 @@
 #pragma once
 
 #include <telemetry/descriptor/Descriptor.hpp>
-#include "ValuesFormat.hpp"
+#include <integration/telemetry/v3/ValuesFormat.hpp>
 #include "detail/Values.hpp"
 #include <array>
 #include <concepts>

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 MODULES = ('core', 'runtime', 'dynamic_client', 'read_many_client', 'read_many_static_client', 'batch_client', 'batch_static_client', 'inspector', 'workbench', 'read_many_workbench', 'resource', 'resource_protocol', 'client', 'resource_adapter',
            'encoded_server', 'batch_server', 'rpc_server', 'rpc_sessions', 'encoded_backend', 'rpc_client', 'rpc_backend', 'tcp_server',
-           'link', 'tcp_link', 'files_client', 'files_workbench')
+           'link', 'tcp_link', 'files_client', 'files_workbench', 'values_reader')
 FORBIDDEN = {
     'batch_static_client': ('telemetry/runtime/RuntimeSchema.hpp',
                             'integration/dynamic/DynamicClient.hpp', 'telemetry/Telemetry.hpp',
@@ -70,6 +70,10 @@ FORBIDDEN = {
     'rpc_backend': ('telemetry/model/Model.hpp', 'integration/telemetry/v3/RpcMailbox.hpp'),
     'rpc_server': ('client/DeviceClient.hpp',),
     'resource_adapter': ('client/DeviceClient.hpp',),
+    # A host reads values.bin with the schema alone: no Model, no Resource, no client.
+    'values_reader': ('telemetry/Telemetry.hpp', 'telemetry/type/Traits.hpp', 'resource/Resource.hpp',
+                      'client/DeviceClient.hpp', 'integration/telemetry/v3/ValuesFile.hpp',
+                      'wire/EncodedWire.hpp', 'wire/RpcWire.hpp'),
     'rpc_sessions': ('client/DeviceClient.hpp',),
     'tcp_server': ('client/DeviceClient.hpp', 'client/rpc/RpcClient.hpp',
                    'integration/encoded/Backend.hpp', 'integration/rpc/Backend.hpp',

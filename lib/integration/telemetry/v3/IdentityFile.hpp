@@ -52,7 +52,8 @@ public:
 	                   std::string_view firmware = {}) noexcept
 	{
 		std::array<std::byte, ::telemetry::protocol::identity::writtenBytes> next{};
-		const auto written = ::telemetry::protocol::identity::write(Identity{id, name, model, firmware}, next);
+		const auto written =
+		    ::telemetry::protocol::identity::write(Identity{id, name, model, firmware}, next);
 		if (written == 0) {
 			return false;
 		}
@@ -71,10 +72,25 @@ public:
 		return set(id(), name, model(), firmware());
 	}
 
-	std::string_view id() const noexcept { return parsed().id; }
-	std::string_view name() const noexcept { return parsed().name; }
-	std::string_view model() const noexcept { return parsed().model; }
-	std::string_view firmware() const noexcept { return parsed().firmware; }
+	std::string_view id() const noexcept
+	{
+		return parsed().id;
+	}
+
+	std::string_view name() const noexcept
+	{
+		return parsed().name;
+	}
+
+	std::string_view model() const noexcept
+	{
+		return parsed().model;
+	}
+
+	std::string_view firmware() const noexcept
+	{
+		return parsed().firmware;
+	}
 
 	[[nodiscard]] constexpr FileSize size() const noexcept
 	{
