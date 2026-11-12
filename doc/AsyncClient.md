@@ -47,24 +47,29 @@ every other request, so reading the device's files never bypasses it. The payloa
 is the complete Resource request built with `resource::protocol::client::makeList`,
 `makeStat` or `makeRead`; the endpoint is 0; the reply bound is at most
 `chunkReplyHeaderSize + maxPayloadSize`. The result's payload is the raw Resource
-reply, which the caller parses with `parseList`, `parseStat` or `parseRead` inside
-its callback, since the view is borrowed.
+reply, which the caller parses with `parseList`, `parseStat`, `parseRead` or
+`parseWrite` inside its callback, since the view is borrowed.
 
 - The value 7 is client-only. It never appears in an Encoded header, and the Encoded
   operation space keeps it reserved.
 - Only `EncodedBackend` constructed with `enableResource` admits it; any other
   backend, and the RPC backend, answers `Unsupported` at submission.
-- The packet carries `ReplyFrame::Resource` and the Resource operation byte, and it
-  is marked `mayExecute = false`: List, Stat and Read change nothing on the device,
-  so a cancelled one never counts as possibly executed. A Resource reply has no
-  identity of its own; the port matches it by position, as the one outstanding
-  exchange.
+- The packet carries `ReplyFrame::Resource` and the Resource operation byte. List,
+  Stat and Read are marked `mayExecute = false`: they change nothing on the device,
+  so a cancelled one never counts as possibly executed. A Write is marked
+  `mayExecute = true`: once sent, a cancelled or lost one may have changed the
+  file. A Resource reply has no identity of its own; the port matches it by
+  position, as the one outstanding exchange.
 - A port frames such replies only if its transport says so:
   `DeviceTransport::supportsResourceReplies()`. `LinkTransport` does; it switches
   its framer to the Resource reply when the packet is sent - not when it is staged,
   because a staged packet can still be discarded - and back to Encoded right after
   the reply.
-- Writing files is not part of this family; it comes as a separate request.
+- Write (operation 4) is admitted like the others since F-4: what may be written is
+  the device's providers' to decide (a file without `write()` answers
+  `NotWritable`), and a host that wants a lock - "allow changes" - applies it
+  before submitting. `files::FileWriter` writes a whole file in pieces; it never
+  resends a WRITE, since the protocol has no deduplication.
 
 ## Memory and results
 

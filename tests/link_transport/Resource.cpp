@@ -299,8 +299,19 @@ void refusals()
 	std::array<std::byte, 20> write{};
 	CHECK(rc::makeWrite(write, 0, 0, std::span<const std::byte>{}, true).status ==
 	      rc::BuildStatus::Ok);
-	CHECK(open.start({cl::Operation::Resource, 0, write, 14}, now(nullptr)) ==
-	      cl::Status::Unsupported);
+	// A Write goes too, and may have changed the device: a cancelled one counts
+	// as possibly executed.
+	CHECK(open.start({cl::Operation::Resource, 0, write, 14}, now(nullptr)) == cl::Status::Ok);
+	const auto written = open.nextPacket();
+	CHECK(written.reply == cl::ReplyFrame::Resource && written.resourceOperation == 4 && written.mayExecute &&
+	      written.bytes.size() == write.size());
+	open.cancel(cl::Status::Cancelled);
+	CHECK(open.completed() && open.result().status == cl::Status::Cancelled);
+	open.releaseResult();
+	// An operation the protocol does not have is still refused.
+	auto unknown = stat;
+	unknown[0] = std::byte{5};
+	CHECK(open.start({cl::Operation::Resource, 0, unknown, 6}, now(nullptr)) == cl::Status::Unsupported);
 	CHECK(open.start({cl::Operation::Resource, 0, stat, 6}, now(nullptr)) == cl::Status::Ok);
 	const auto packet = open.nextPacket();
 	// The raw request, no TEQ1 header; a read-only packet that never executes.

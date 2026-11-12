@@ -521,9 +521,9 @@ bool LinkTransport::stage(telemetry::client::Packet packet)
 	if (!canStage() || !packet)
 		return false;
 	const bool resource = packet.reply == telemetry::client::ReplyFrame::Resource;
-	// Only List, Stat and Read are framed after discovery, and a files-only
+	// List, Stat, Read and Write are framed after discovery, and a files-only
 	// device takes nothing else.
-	if ((resource && (packet.resourceOperation < 1 || packet.resourceOperation > 3)) ||
+	if ((resource && (packet.resourceOperation < 1 || packet.resourceOperation > 4)) ||
 	    (!resource && filesOnly()))
 		return false;
 	auto bytes = impl_->encode(packet.bytes);

@@ -53,9 +53,21 @@ the relocated installed package. No board; only ephemeral localhost sockets.
     written and read, a rename, every refusal of the reader (magic, version,
     flags, size, texts, id) and of the writer (an id unfit for a folder name, a
     control character, a text too long, broken UTF-8), a later version's extra
-    text skipped, a read in pieces;
+    text skipped, a read in pieces; a plain `IdentityFile` read-only by Stat and a
+    `RenamableIdentityFile` writable; a client's rename through its `write()`:
+    taken whole in one piece with only the name changed, refused for another id
+    or firmware, a piece, a later cursor or bytes that are not an identity, and
+    the hook's own refusal as the answer with the name kept (no hook:
+    NotWritable);
   - the session reads it: already Reading when `ready()` turns true, then Known
-    with the id, name, model and firmware; a rename reaches the next connection;
+    with the id, name, model and firmware; renamed from the session
+    (`rename()`): the file written whole, read back, `renameFinished` with the
+    new name, a second rename refused while one runs, the names an identity
+    cannot hold refused before anything is sent (`nameProblem()`), the device's
+    refusal said with the name kept, a host's own WRITE to the identity refused
+    with ReadOnly (the SDK's files under /telemetry/ are the protocol's), and a
+    disconnect that cuts a rename short ending it at once, once; a rename on the
+    device reaches the next connection;
     without the file Absent; with another file under its name Unreadable with
     the reason, the connection still ready; disconnecting forgets it.
 - **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose

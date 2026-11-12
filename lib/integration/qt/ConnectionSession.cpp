@@ -58,6 +58,42 @@ struct ConnectionSession::Impl {
 	ConnectionSession::IdentityState identityState = ConnectionSession::IdentityState::Absent;
 	QString identityId, identityName, identityModel, identityFirmware, identityProblem;
 
+	// While set, a WRITE to one of the SDK's own files is let through: only
+	// the session's own requests (the rename) set it.
+	bool protocolWriteAllowed = false;
+	struct ProtocolWrite {
+		Impl& state;
+
+		explicit ProtocolWrite(Impl& owner) noexcept : state(owner)
+		{
+			state.protocolWriteAllowed = true;
+		}
+		~ProtocolWrite()
+		{
+			state.protocolWriteAllowed = false;
+		}
+		ProtocolWrite(const ProtocolWrite&) = delete;
+		ProtocolWrite& operator=(const ProtocolWrite&) = delete;
+	};
+
+	// Renaming: one WRITE of the whole identity file, then the file read again.
+	struct IdentityRename {
+		enum class Step : std::uint8_t {
+			Idle,
+			Write,
+			ReadBack,
+			Ended
+		};
+		Step step = Step::Idle;
+		quint64 epoch = 0;
+		QByteArray bytes;
+		QString name, problem;
+		std::array<std::byte, ::resource::protocol::wire::writeRequestHeaderSize +
+		                          ::telemetry::protocol::identity::writtenBytes>
+		    scratch{};
+		bool due = false, inFlight = false, renamed = false;
+	} identityRename;
+
 	Impl(ConnectionSession& target, StorageFactory value)
 	    : owner(&target), factory(std::move(value))
 	{
@@ -133,10 +169,27 @@ struct ConnectionSession::Impl {
 		notify();
 		if (hadIdentity && owner)
 			Q_EMIT owner->identityChanged();
+		// A rename the disconnect cut short ends now, not on a later connection.
+		if (identityRename.step == IdentityRename::Step::Ended) {
+			identityRename.step = IdentityRename::Step::Idle;
+			const auto problem = identityRename.problem;
+			identityRename.bytes.clear();
+			if (owner)
+				Q_EMIT owner->renameFinished(false, problem);
+		}
 	}
 
 	void forgetIdentity()
 	{
+		// A rename of the identity forgotten ends with it.
+		if (identityRename.step == IdentityRename::Step::Write ||
+		    identityRename.step == IdentityRename::Step::ReadBack) {
+			identityRename.step = IdentityRename::Step::Ended;
+			identityRename.renamed = false;
+			identityRename.problem = QStringLiteral("the connection ended before the device answered");
+			identityRename.due = false;
+			identityRename.inFlight = false;
+		}
 		identityRead = {};
 		identityState = ConnectionSession::IdentityState::Absent;
 		identityId.clear();
@@ -175,6 +228,11 @@ struct ConnectionSession::Impl {
 		identityState = ConnectionSession::IdentityState::Unreadable;
 		identityProblem = std::move(reason);
 		identityRead.changed = true;
+		if (identityRename.step == IdentityRename::Step::ReadBack) {
+			identityRename.step = IdentityRename::Step::Ended;
+			identityRename.renamed = false;
+			identityRename.problem = QStringLiteral("its identity file could not be read again: %1").arg(identityProblem);
+		}
 	}
 
 	void identityStatted(quint64 epoch, const files::StatResult& result) noexcept
@@ -240,6 +298,49 @@ struct ConnectionSession::Impl {
 		identityState = ConnectionSession::IdentityState::Known;
 		identityRead.bytes.clear();
 		identityRead.changed = true;
+		// Read back after a rename: the name the device now serves decides.
+		if (identityRename.step == IdentityRename::Step::ReadBack) {
+			identityRename.step = IdentityRename::Step::Ended;
+			identityRename.renamed = identityName == identityRename.name;
+			if (!identityRename.renamed)
+				identityRename.problem = QStringLiteral("the device kept the name \"%1\"").arg(identityName);
+		}
+	}
+
+	// The WRITE of the renamed file answered.
+	void renameWritten(quint64 epoch, const files::WriteResult& result) noexcept
+	{
+		if (epoch != generation || identityRename.epoch != epoch ||
+		    identityRename.step != IdentityRename::Step::Write)
+			return;
+		identityRename.inFlight = false;
+		if (result.succeeded() && result.reply.complete &&
+		    result.reply.consumed == static_cast<std::uint32_t>(identityRename.bytes.size())) {
+			// Read it again: the device decides what it serves.
+			identityRename.step = IdentityRename::Step::ReadBack;
+			identityRead.step = IdentityRead::Step::Stat;
+			identityRead.cursor = 0;
+			identityRead.size = 0;
+			identityRead.idlePieces = 0;
+			identityRead.bytes.clear();
+			identityRead.due = true;
+			return;
+		}
+		identityRename.step = IdentityRename::Step::Ended;
+		identityRename.renamed = false;
+		if (result.operation.status != client::Status::Ok)
+			identityRename.problem = QStringLiteral("the device did not answer; whether it took the name is not known");
+		else if (!result.parsed)
+			identityRename.problem = QStringLiteral("the device's answer was not one");
+		else if (result.reply.status == ::resource::Status::Ok)
+			identityRename.problem = QStringLiteral("the device did not finish taking the name");
+		else if (result.reply.status == ::resource::Status::NotWritable)
+			identityRename.problem = QStringLiteral("the device does not let its name be changed");
+		else if (result.reply.status == ::resource::Status::InvalidData)
+			identityRename.problem = QStringLiteral("the device refused the name");
+		else
+			identityRename.problem = QStringLiteral("the device refused it (status %1)")
+			                             .arg(static_cast<int>(result.reply.status));
 	}
 
 	// Submits the identity's next request when one is due, and says when it
@@ -279,9 +380,47 @@ struct ConnectionSession::Impl {
 				identityFailed(QStringLiteral("the connection could not ask for it"));
 			}
 		}
+		// The rename's WRITE, never while the identity is being read.
+		auto& rename = identityRename;
+		if (rename.step == IdentityRename::Step::Write && rename.due && !rename.inFlight && !read.inFlight &&
+		    rename.epoch == generation) {
+			struct Written {
+				std::weak_ptr<Impl> state;
+				quint64 epoch;
+
+				void operator()(const files::WriteResult& result) noexcept
+				{
+					if (const auto value = state.lock())
+						value->renameWritten(epoch, result);
+				}
+			};
+
+			const ProtocolWrite allowed{*this};
+			const auto submitted = files::write(
+			    *owner, ::resource::Output{rename.scratch.data(), rename.scratch.size()}, read.index, 0,
+			    client::Input{reinterpret_cast<const std::byte*>(rename.bytes.constData()),
+			                  static_cast<std::size_t>(rename.bytes.size())},
+			    true, Written{owner->d, rename.epoch});
+			if (submitted) {
+				rename.due = false;
+				rename.inFlight = true;
+			} else if (submitted.status != client::Status::Busy &&
+			           submitted.status != client::Status::QueueFull) {
+				rename.step = IdentityRename::Step::Ended;
+				rename.renamed = false;
+				rename.problem = QStringLiteral("the connection could not send it");
+			}
+		}
 		if (read.changed && owner) {
 			read.changed = false;
 			Q_EMIT owner->identityChanged();
+		}
+		if (rename.step == IdentityRename::Step::Ended && owner) {
+			rename.step = IdentityRename::Step::Idle;
+			const bool renamed = rename.renamed;
+			const auto problem = rename.problem;
+			rename.bytes.clear();
+			Q_EMIT owner->renameFinished(renamed, problem);
 		}
 	}
 
@@ -914,6 +1053,69 @@ QString ConnectionSession::deviceFirmware() const
 QString ConnectionSession::identityProblem() const
 {
 	return d->identityProblem;
+}
+
+QString ConnectionSession::nameProblem(const QString& name) const
+{
+	const auto utf8 = name.toUtf8();
+	const std::string_view text(utf8.constData(), static_cast<std::size_t>(utf8.size()));
+	if (name.trimmed().isEmpty())
+		return QStringLiteral("a name cannot be empty");
+	if (static_cast<std::size_t>(utf8.size()) > ::telemetry::protocol::identity::maxText)
+		return QStringLiteral("a name holds at most %1 bytes of UTF-8").arg(::telemetry::protocol::identity::maxText);
+	if (!::telemetry::protocol::identity::validText(text))
+		return QStringLiteral("a name cannot hold control characters");
+	return {};
+}
+
+bool ConnectionSession::renaming() const noexcept
+{
+	return d->identityRename.step == Impl::IdentityRename::Step::Write ||
+	       d->identityRename.step == Impl::IdentityRename::Step::ReadBack;
+}
+
+bool ConnectionSession::writeRefused(client::Input request) const noexcept
+{
+	// Only a WRITE (operation 4: u8 op, u32 index, ...) names a file to change.
+	if (request.size() < 5 || request[0] != std::byte{4} || d->protocolWriteAllowed)
+		return false;
+	std::uint32_t index = 0;
+	for (int i = 0; i < 4; ++i)
+		index |= static_cast<std::uint32_t>(std::to_integer<unsigned>(request[1 + i])) << (8 * i);
+	const auto& paths = d->discoveredPaths;
+	if (index >= static_cast<std::uint32_t>(paths.size()))
+		return false;
+	// The SDK's own files - the descriptor, the session and batch files, the
+	// identity, the values - are the protocol's, never a host's to rewrite.
+	return paths[static_cast<qsizetype>(index)].startsWith(QStringLiteral("/telemetry/"));
+}
+
+bool ConnectionSession::rename(const QString& name)
+{
+	auto& state = *d;
+	if (!state.connected || !filesSupported() || state.identityState != IdentityState::Known || renaming() ||
+	    !nameProblem(name).isEmpty())
+		return false;
+	const auto text = [](const QString& value) { return value.toUtf8(); };
+	const auto id = text(state.identityId), utf8 = text(name), model = text(state.identityModel),
+	           firmware = text(state.identityFirmware);
+	const auto view = [](const QByteArray& bytes) {
+		return std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+	};
+	std::array<std::byte, ::telemetry::protocol::identity::writtenBytes> encoded{};
+	const auto written = ::telemetry::protocol::identity::write(
+	    {view(id), view(utf8), view(model), view(firmware)}, encoded);
+	if (written == 0)
+		return false;
+	auto& rename = state.identityRename;
+	rename = {};
+	rename.step = Impl::IdentityRename::Step::Write;
+	rename.epoch = state.generation;
+	rename.name = name;
+	rename.bytes = QByteArray(reinterpret_cast<const char*>(encoded.data()), static_cast<qsizetype>(written));
+	rename.due = true;
+	pumpSoon();
+	return true;
 }
 
 void ConnectionSession::process()

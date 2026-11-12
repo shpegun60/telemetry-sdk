@@ -204,8 +204,8 @@ public:
 			packet.reply = ::telemetry::client::ReplyFrame::Resource;
 			packet.resourceOperation = std::to_integer<std::uint8_t>(tx_[0]);
 			// List, Stat and Read change nothing on the device, so a cancelled
-			// one never counts as possibly executed.
-			packet.mayExecute = false;
+			// one never counts as possibly executed; a Write may have.
+			packet.mayExecute = packet.resourceOperation == 4; // resource::protocol::Op::Write
 		}
 		return packet;
 	}
@@ -308,8 +308,9 @@ private:
 		if (request.payload.empty() || request.endpointId != 0)
 			return ::telemetry::client::Status::InvalidArgument;
 		const auto operation = std::to_integer<unsigned>(request.payload[0]);
-		// List, Stat and Read only; writing files is a separate, later request.
-		if (operation < 1 || operation > 3)
+		// List, Stat, Read and Write: the device's providers decide what may be
+		// written (a file without write() answers NotWritable).
+		if (operation < 1 || operation > 4)
 			return ::telemetry::client::Status::Unsupported;
 		if (request.payload.size() > tx_.size())
 			return ::telemetry::client::Status::BufferTooSmall;

@@ -119,20 +119,37 @@ public:
 	QString deviceFirmware() const;
 	// Why the identity file is Unreadable, in English; empty otherwise.
 	QString identityProblem() const;
+	// Renames the device: writes its identity file whole with the new name
+	// (the id, model and firmware as read), then reads it again;
+	// renameFinished says how it ended, once the file was read back. False,
+	// with no signal, when it cannot start: not connected, the identity not
+	// Known, a rename already running, or the name not one an identity holds
+	// (nameProblem()). The device decides whether it takes it.
+	Q_INVOKABLE bool rename(const QString& name);
+	// Why a name cannot be a device's name, in English; empty when it can.
+	Q_INVOKABLE QString nameProblem(const QString& name) const;
+	// Whether a rename is running.
+	bool renaming() const noexcept;
 
 	// Cancels a request of this session's queue that has not been sent yet; its
 	// callback then reports Cancelled. False when there is nothing to cancel.
 	bool cancel(client::RequestHandle handle) noexcept;
 
-	// A raw Resource List, Stat or Read on this session's one queue. This makes
-	// the session a files client: files::list, stat, read and FileReader take
-	// it directly. The reply view ends at callback return.
+	// A raw Resource List, Stat, Read or Write on this session's one queue. This
+	// makes the session a files client: files::list, stat, read, write,
+	// FileReader and FileWriter take it directly. A WRITE to one of the SDK's
+	// own files (under /telemetry/: the descriptor, the session and batch
+	// files, the identity, the values) is refused with ReadOnly - those are the
+	// protocol's; the identity changes only through rename(). The reply view
+	// ends at callback return.
 	template<class F>
 	client::Submission submitResource(client::Input request, std::uint32_t replyBytes, F&& callback,
 	                                  std::uint32_t timeoutMs = 30000) noexcept
 	{
 		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&, const client::ResultView&>);
 		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
+		if (writeRefused(request))
+			return {client::Status::ReadOnly, {}};
 		client::Status status;
 		if (const auto files = filesOnlyStorage(status)) {
 			if (!filesSupported())
@@ -299,8 +316,13 @@ Q_SIGNALS:
 	void stateChanged();
 	void discoveryProgressed();
 	void identityChanged();
+	// A rename ended: renamed when the device's file reads back with the new
+	// name; otherwise why not, in English.
+	void renameFinished(bool renamed, const QString& problem);
 
 private:
+	// Whether request is a WRITE to one of the SDK's own files from outside the session.
+	bool writeRefused(client::Input request) const noexcept;
 	std::shared_ptr<ConnectionStorage> operationStorage(client::Status& status) const noexcept;
 	// The files-only storage when connected files only. Otherwise null, with
 	// status Ok when the caller should try the telemetry storage, or the reason.
