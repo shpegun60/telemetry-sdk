@@ -27,7 +27,9 @@ enum class ItemStatus : std::uint8_t {
 };
 
 // The application discovers this record and binds it to its admitted Model and
-// session. Resource file names/IDs are application-owned; no Resource tag is added.
+// session. No Resource tag is added. The TCP profiles serve it as
+// /telemetry/read-many.bin, where a ConnectionSession looks for it
+// (doc/DeviceFileConventions.md).
 struct Capability {
 	std::uint32_t session = 0;
 	std::uint64_t fingerprint = 0;

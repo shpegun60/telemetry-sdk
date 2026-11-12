@@ -40,6 +40,9 @@ class ConnectionSession final : public QObject {
 	Q_PROPERTY(QString deviceModel READ deviceModel NOTIFY identityChanged)
 	Q_PROPERTY(QString deviceFirmware READ deviceFirmware NOTIFY identityChanged)
 	Q_PROPERTY(QString identityProblem READ identityProblem NOTIFY identityChanged)
+	Q_PROPERTY(bool renamable READ renamable NOTIFY identityChanged)
+	Q_PROPERTY(bool keepsName READ keepsName NOTIFY identityChanged)
+	Q_PROPERTY(int maxNameBytes READ maxNameBytes CONSTANT)
 public:
 	// Why a connection carries the device's files only. The program words it;
 	// limitationText() holds an English description of the same. lastError()
@@ -63,7 +66,7 @@ public:
 	// The device's identity file, /telemetry/identity.bin (wire/IdentityWire.hpp):
 	// read once a connection is ready or files only, never needed for either.
 	enum class IdentityState {
-		// Not connected, or the device lists no identity file.
+		// Not connected, or the device lists no identity file or serves it empty.
 		Absent,
 		// Listed and being read; already so when ready() or filesOnly() turns true.
 		Reading,
@@ -73,6 +76,24 @@ public:
 		Unreadable
 	};
 	Q_ENUM(IdentityState)
+
+	// How a rename ended (renameFinished).
+	enum class RenameResult {
+		// Read back with the new name, and the device keeps it across a restart.
+		Renamed,
+		// Read back with the new name; the device keeps names only until it
+		// restarts (its identity has no save()).
+		RenamedUntilRestart,
+		// Read back with the new name, but the device did not keep it, or was
+		// not asked to: the problem says which.
+		RenamedNotKept,
+		// The device refused it, or still serves the old name.
+		NotRenamed,
+		// What the device did is not known: the connection ended after the
+		// request was queued, or the name could not be read back.
+		Unconfirmed
+	};
+	Q_ENUM(RenameResult)
 
 	using StorageFactory = std::function<std::shared_ptr<ConnectionStorage>(QByteArray)>;
 	explicit ConnectionSession(QObject* parent = nullptr);
@@ -119,20 +140,52 @@ public:
 	QString deviceFirmware() const;
 	// Why the identity file is Unreadable, in English; empty otherwise.
 	QString identityProblem() const;
+	// Whether the device can be renamed now: its identity is Known, its Stat
+	// says Writable, and no rename is running.
+	bool renamable() const noexcept;
+	// Whether the device keeps a new name across a restart: its identity's Stat
+	// says Savable. Known before a rename, for what a dialog says.
+	bool keepsName() const noexcept;
+	// The most bytes of UTF-8 a name holds.
+	int maxNameBytes() const noexcept;
+	// Renames the device: writes its identity file whole with the new name
+	// (the id, model and firmware as read), saves it when keepsName(), then
+	// reads it back; renameFinished says how it ended. Renamed means the file
+	// reads back with another name than before - the device decides what it
+	// serves. False, with no signal, when it cannot start: not renamable(),
+	// the name it already has, or one an identity cannot hold (nameProblem()).
+	Q_INVOKABLE bool rename(const QString& name);
+	// Why a name cannot be a device's name, in English, as a clause that fits
+	// after a colon; empty when it can.
+	Q_INVOKABLE QString nameProblem(const QString& name) const;
+
+	// Whether path names one of the SDK's own files (descriptor.bin, values.bin,
+	// identity.bin, session.bin, read-many.bin, batch.bin under /telemetry/):
+	// submitResource refuses a WRITE or SAVE to it, whatever its Stat says. A
+	// program uses it not to offer such a write.
+	Q_INVOKABLE bool protocolFile(const QString& path) const noexcept;
 
 	// Cancels a request of this session's queue that has not been sent yet; its
 	// callback then reports Cancelled. False when there is nothing to cancel.
 	bool cancel(client::RequestHandle handle) noexcept;
 
-	// A raw Resource List, Stat or Read on this session's one queue. This makes
-	// the session a files client: files::list, stat, read and FileReader take
-	// it directly. The reply view ends at callback return.
+	// A raw Resource List, Stat, Read, Write or Save on this session's one
+	// queue. This makes the session a files client: files::list, stat, read,
+	// write, save, FileReader and FileWriter take it directly. Here a WRITE or
+	// SAVE to one of the SDK's own files (descriptor.bin, values.bin,
+	// identity.bin, session.bin, read-many.bin, batch.bin under /telemetry/)
+	// is refused with ReadOnly - those are the protocol's; the identity changes
+	// only through rename(). An RPC mailbox such as /telemetry/rpc.bin is
+	// written through here by its client. doc/DeviceFileConventions.md lists
+	// every file. The reply view ends at callback return.
 	template<class F>
 	client::Submission submitResource(client::Input request, std::uint32_t replyBytes, F&& callback,
 	                                  std::uint32_t timeoutMs = 30000) noexcept
 	{
 		static_assert(std::is_nothrow_invocable_v<std::decay_t<F>&, const client::ResultView&>);
 		static_assert(std::is_nothrow_constructible_v<std::decay_t<F>, F&&>);
+		if (writeRefused(request))
+			return {client::Status::ReadOnly, {}};
 		client::Status status;
 		if (const auto files = filesOnlyStorage(status)) {
 			if (!filesSupported())
@@ -299,8 +352,14 @@ Q_SIGNALS:
 	void stateChanged();
 	void discoveryProgressed();
 	void identityChanged();
+	// A rename ended, after identityChanged showed the name read back. The
+	// problem is empty for Renamed and RenamedUntilRestart; otherwise one
+	// plain clause, in English, that fits after a colon.
+	void renameFinished(RenameResult result, const QString& problem);
 
 private:
+	// Whether request is a WRITE or SAVE to one of the SDK's own files from outside the session.
+	bool writeRefused(client::Input request) const noexcept;
 	std::shared_ptr<ConnectionStorage> operationStorage(client::Status& status) const noexcept;
 	// The files-only storage when connected files only. Otherwise null, with
 	// status Ok when the caller should try the telemetry storage, or the reason.

@@ -16,7 +16,9 @@ enum class Op : std::uint8_t {
 	List = 1,
 	Stat = 2,
 	Read = 3,
-	Write = 4
+	Write = 4,
+	// Persist what the file holds now (what WRITE applied), in steps.
+	Save = 5
 };
 
 namespace wire {
@@ -27,6 +29,8 @@ inline constexpr std::size_t writeRequestHeaderSize = 16;
 inline constexpr std::size_t chunkReplyHeaderSize = 12;
 inline constexpr std::size_t statReplySize = 6;
 inline constexpr std::size_t writeReplySize = 14;
+inline constexpr std::size_t saveRequestSize = 13;
+inline constexpr std::size_t saveReplySize = 10;
 inline constexpr std::size_t maxPayloadSize = 65535;
 inline constexpr std::size_t maxListPathSize = maxPayloadSize - sizeof(std::uint16_t);
 } // namespace wire

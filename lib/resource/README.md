@@ -132,11 +132,36 @@ inline constinit const auto settingsFiles = resource::filesystem(
     resource::file("/settings.bin", settings));
 ```
 
+`write()` receives the file in pieces; the piece marked `final` is the end of
+the file, and the provider decides what the end means - typically it applies
+the bytes it collected. A provider that keeps the file across a power cut adds
+`save()`: the client sends SAVE after the write, and the provider persists what
+the file holds now. It may do so at once, or in steps for slow storage -
+returning a moved cursor and `complete=false` until the bytes are really in
+non-volatile memory, so the task that serves requests never blocks:
+
+```cpp
+class CalibrationFile {
+public:
+    resource::FileSize size() const noexcept;
+    resource::ReadResult read(resource::Cursor, resource::Output) const noexcept;
+    resource::WriteResult write(resource::Cursor, resource::Input, bool final) noexcept;
+    resource::SaveResult save(resource::Cursor) noexcept;
+};
+```
+
+A provider that writes in place may be left part old, part new by an
+interrupted write; say so where it is documented.
+
 `size()` is required and returns an exact u32 size. At least one of `read()`
 or `write()` must exist. Omit `write()` for read-only files; omit `read()` for
 write-only files. There is no virtual base class or registration macro.
-`file()` creates one immutable operation table per provider type, and STAT
-computes Readable/Writable from the callbacks that actually exist.
+`save()` is optional. It does not require `write()` - a file may keep what
+changes in it by itself - but like every file it needs `read()` or `write()`.
+A `save()` of another shape is a compile-time error, never a file that
+silently does not keep its bytes. `file()` creates one immutable operation
+table per provider type, and STAT computes Readable/Writable/Savable from the
+callbacks that actually exist.
 
 A complete, compilable read/write provider and a three-file table are in
 [the resource example](../../examples/resources/README.md). The example is
@@ -151,9 +176,9 @@ DescriptorFile and ValuesFile providers themselves are read-only.
 application objects / immutable byte arrays
         | file(path, provider)
         v
-resource::FileSystem --> stat / read / write / path by u32 index
+resource::FileSystem --> stat / read / write / save / path by u32 index
         |
-        +-- resource::protocol::process --> LIST / STAT / READ / WRITE packets
+        +-- resource::protocol::process --> LIST / STAT / READ / WRITE / SAVE packets
         |                                  caller supplies UART/TCP/framing
         |
         +-- optional resource::telemetry::v3 providers

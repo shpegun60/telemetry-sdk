@@ -295,7 +295,7 @@ public:
 		return publish(record);
 	}
 
-	// A raw Resource List, Stat or Read for the device's files on this same
+	// A raw Resource List, Stat, Read, Write or Save for the device's files on this same
 	// queue (see Operation::Resource). The request bytes are copied; the reply
 	// is the result payload, borrowed during the callback only.
 	template<class F>

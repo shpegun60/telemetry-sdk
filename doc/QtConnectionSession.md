@@ -21,7 +21,8 @@ When the device lists `/telemetry/identity.bin` (`wire/IdentityWire.hpp`), the
 session reads it once the connection is ready or files only. It is never a
 condition of either.
 - `identityState()` is:
-  - `Absent`: not connected, or the device lists no such file;
+  - `Absent`: not connected, or the device lists no such file or serves it
+    empty (an `IdentityFile` never `set()`);
   - `Reading`: set before `ready()` or `filesOnly()` turns true, so a client that
     reacts to the connection already sees it being read;
   - `Known`: `deviceId()`, `deviceName()`, `deviceModel()` and `deviceFirmware()`
@@ -33,6 +34,37 @@ condition of either.
   piece is submitted from the owner loop, like a `FileReader`'s.
 - Disconnecting forgets the identity. A later connection reads it again, so a
   device renamed meanwhile shows its new name.
+- Renaming the device:
+  - `renamable()`: its identity is Known, its Stat says Writable, and no rename
+    is running. `keepsName()`: its Stat says Savable, so a new name outlives a
+    restart; without it the device keeps a name until it restarts. Both are
+    known before a dialog opens; `identityChanged()` announces their changes.
+  - `rename(name)` writes the whole identity file with the new name (the id,
+    model and firmware as read) in one WRITE. After a clean WRITE it saves it
+    with SAVE steps when `keepsName()`. Then it reads the file back - after
+    every ending of the WRITE but a clean refusal, so an unclear answer is
+    settled by the name the device serves.
+  - `renameFinished(result, problem)` comes after `identityChanged()` has shown
+    the name read back. `Renamed` means the file reads back with another name
+    than before - a device may trim or shorten the one sent - and the device
+    kept it; `RenamedUntilRestart` that it keeps names only until it restarts;
+    `RenamedNotKept` that saving it failed or was not asked for; `NotRenamed`
+    that it refused or serves the old name; `Unconfirmed` that the connection
+    ended after the request was queued, or the name could not be read back.
+    `problem` is empty for the first two, otherwise one plain clause.
+  - `nameProblem()` says why a name cannot be used, before anything is sent;
+    `maxNameBytes` is the UTF-8 limit, for a counter. `rename()` also refuses
+    the name the device already has.
+- The SDK's own files are the protocol's: `descriptor.bin`, `values.bin`,
+  `identity.bin`, `session.bin`, `read-many.bin` and `batch.bin` under
+  `/telemetry/`. A host's WRITE or SAVE to one through the session's file API
+  (`submitResource`, which the `files::` requests and `FileWriter` use) is
+  refused with `ReadOnly` before it leaves. The identity changes only through
+  `rename()`. An RPC mailbox such as `/telemetry/rpc.bin` is written through the
+  same API by its client. `protocolFile(path)` tells a program which files these
+  are, so it does not offer such a write. The advanced `workbench()` seam reaches
+  the same queue without this check. [Device file conventions](DeviceFileConventions.md)
+  lists every file.
 
 ### Files only
 
@@ -55,7 +87,8 @@ carries only Resource requests. `limitation()` says why:
 so a program can name a likely typo in the descriptor's name. A device whose
 replies do not follow the protocol is still a plain failure: no files, no
 limitation. A files-only connection never asks for same-peer recovery; it
-executed nothing, so a new connection is all a later one needs.
+holds no session to recover, so a new connection is all a later one needs. What
+a lost WRITE or SAVE did to a file is not known either way.
 
 ```cpp
 #include <integration/qt/ConnectionSession.hpp>

@@ -68,13 +68,19 @@ public:
 		return file_ && file_->ops->write != nullptr;
 	}
 
+	constexpr bool savable() const noexcept
+	{
+		return file_ && file_->ops->save != nullptr;
+	}
+
 	[[nodiscard]] FileStat stat() const noexcept
 	{
 		if (!file_) {
 			return {Status::InvalidFile};
 		}
 		const auto flags = (file_->ops->read ? FileFlag::Readable : FileFlag::None) |
-		                   (file_->ops->write ? FileFlag::Writable : FileFlag::None);
+		                   (file_->ops->write ? FileFlag::Writable : FileFlag::None) |
+		                   (file_->ops->save ? FileFlag::Savable : FileFlag::None);
 		return {Status::Ok, file_->ops->size(file_->object), flags};
 	}
 
@@ -100,6 +106,18 @@ public:
 			return {Status::NotWritable, cursor};
 		}
 		return file_->ops->write(file_->object, cursor, in, final);
+	}
+
+	// Persist what the file holds now, in steps from cursor 0; NotWritable without save().
+	[[nodiscard]] SaveResult save(Cursor cursor) const noexcept
+	{
+		if (!file_) {
+			return {Status::InvalidFile, cursor};
+		}
+		if (!file_->ops->save) {
+			return {Status::NotWritable, cursor};
+		}
+		return file_->ops->save(file_->object, cursor);
 	}
 
 private:

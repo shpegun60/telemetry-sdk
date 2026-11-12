@@ -14,6 +14,7 @@ using namespace resource;
 constexpr std::size_t chunkHeader = wire::chunkReplyHeaderSize;
 constexpr std::size_t statHeader = wire::statReplySize;
 constexpr std::size_t writeHeader = wire::writeReplySize;
+constexpr std::size_t saveHeader = wire::saveReplySize;
 constexpr std::size_t maxPayload = wire::maxPayloadSize;
 
 // These helpers are used only after checking the complete fixed header.
@@ -178,6 +179,28 @@ Reply process(resource::FileSystemView files, resource::Input request,
 		store(response, 9, result.consumed);
 		response[13] = std::byte(result.complete);
 		return {result.status, writeHeader};
+	}
+	if (op == Op::Save) {
+		if (request.size() != wire::saveRequestSize) {
+			return shortError(Status::InvalidData, response);
+		}
+		const auto index = load<FileIndex>(request, 1);
+		const auto cursor = load<Cursor>(request, 5);
+		if (response.size() < saveHeader) {
+			return {Status::BufferTooSmall, 0};
+		}
+		// As WRITE: an error makes no progress and is not complete; an Ok step
+		// that does not complete must move the cursor.
+		auto result = files.save(index, cursor);
+		if (!validStatus(result.status) ||
+		    (result.status != Status::Ok && (result.next != cursor || result.complete)) ||
+		    (result.status == Status::Ok && !result.complete && result.next == cursor)) {
+			result = {Status::InternalError, cursor};
+		}
+		response[0] = std::byte(result.status);
+		store(response, 1, result.next);
+		response[9] = std::byte(result.complete);
+		return {result.status, saveHeader};
 	}
 	return shortError(Status::InvalidData, response);
 }

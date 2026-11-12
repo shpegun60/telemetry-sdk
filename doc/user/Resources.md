@@ -139,6 +139,7 @@ Provider має exact return types і `noexcept`. `size()` required;
 | `resource::FileSize size() const noexcept` | Explicit STAT/size operation | Поточний file size, u32 |
 | `resource::ReadResult read(resource::Cursor, resource::Output) const noexcept` | READ | Записати bounded prefix, повернути `next`, `written`, `eof` |
 | `resource::WriteResult write(resource::Cursor, resource::Input, bool final) noexcept` | WRITE | Прийняти bounded prefix, повернути `next`, `consumed`, `complete` |
+| `resource::SaveResult save(resource::Cursor) noexcept` (optional) | SAVE | Persist what the file holds now, at once or in steps; return `next`, `complete` |
 
 `Cursor` — u64 opaque provider state; `Input` — `span<const byte>`,
 `Output` — `span<byte>`. Byte provider часто використовує offset;
@@ -156,13 +157,14 @@ Read-only provider може бути const. WRITE можливий лише як
 write, також потребує `size()`. Відсутня operation callback визначає
 capability; окремий runtime flags registry не додається.
 
-Для compile-time перевірки custom provider є чотири public predicates:
+Для compile-time перевірки custom provider є п'ять public predicates:
 
 | Predicate | Умова |
 | --- | --- |
 | `resource::SizedProvider<T>` | Exact const/noexcept `size()` із наведеної таблиці |
 | `resource::ReadableProvider<T>` | Exact const/noexcept `read(cursor, output)` |
 | `resource::WritableProvider<T>` | Exact noexcept `write(cursor, input, final)`, callable на `T&` |
+| `resource::SavableProvider<T>` | Exact noexcept `save(cursor)` returning `SaveResult`, callable on `T&` |
 | `resource::Provider<T>` | `T` не volatile, має size і хоча б одну read/write operation |
 
 Наприклад, `static_assert(resource::Provider<MyProvider>);` перевіряє
@@ -307,6 +309,33 @@ while (!remaining.empty()) {
 прикладу не переживає reset. [Device NoteFile](../../examples/device_integration/Api.cpp)
 демонструє той самий contract за application facade.
 
+## Save
+
+WRITE `final` ends the file; SAVE is a separate request that asks the provider
+to keep what the file holds now across a power cut. A provider that has
+`save(Cursor)` is Savable; there is nothing else to declare. `SaveResult`
+carries `status`, `next` and `complete`; constructor
+`{status, nextCursor, finished}`. A provider that persists at once returns
+`{Ok, cursor, true}`. Slow storage persists in steps: each unfinished Ok step
+returns a moved cursor and `complete=false`, and the client sends SAVE again
+from `next` until `complete=true` - so the task serving requests never waits
+for a flash erase. An error returns the cursor unchanged and is not complete.
+SAVE to a file without `save()` answers `NotWritable`. Cursor 0 starts a new
+save: a client whose save was cancelled or timed out starts again from 0, and
+the provider must not continue the old one - a WRITE may have changed the
+file in between.
+
+```cpp
+resource::SaveResult save(resource::Cursor cursor) noexcept
+{
+    if (cursor == 0)
+        flash.begin(bytes);                  // a new save, of what the file holds now
+    if (!flash.step())                       // one sector, then return
+        return {resource::Status::Ok, cursor + 1, false};
+    return {resource::Status::Ok, cursor, true};
+}
+```
+
 ## Status і declared capability
 
 | Status | Значення |
@@ -325,18 +354,18 @@ cursor unchanged, byte count 0. Declared writable не означає, що ко
 request буде прийнятий: provider може відмовити за своїми правилами.
 `resource::WriteResult` і `telemetry::WriteResult` — різні типи та domains.
 
-`FileFlags` — alias `FileFlag`: `None=0`, `Readable=1`, `Writable=2`.
+`FileFlags` — alias `FileFlag`: `None=0`, `Readable=1`, `Writable=2`, `Savable=4`.
 `operator|` об'єднує capabilities; `resource::has(flags, bit)` перевіряє,
 що всі bits аргументу `bit` встановлені. Наприклад,
 `resource::has(file.stat().flags, resource::FileFlag::Readable)` перевіряє
 declared read capability. Для enumeration без provider `size()` callback
-використайте `FileView::readable()`/`writable()`.
+використайте `FileView::readable()`/`writable()`/`savable()`.
 
 ## Шлях через packet protocol
 
 `resource::protocol::process(FileSystemView, Input request, Output response)`
 приймає **один повний packet** і повертає `Reply{status, written}`.
-Processor підтримує LIST/STAT/READ/WRITE; transport збирає frames,
+Processor підтримує LIST/STAT/READ/WRITE/SAVE; transport збирає frames,
 визначає delivery/retries й надсилає рівно written bytes.
 
 READ request містить file index і cursor без requested byte count. Capacity

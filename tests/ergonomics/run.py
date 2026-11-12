@@ -21,7 +21,9 @@ import time
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'tests/ergonomics'
-BASELINE = 'e263aa48a5afdb4158d6bb03543a6348de5a387c'
+# The resource server's code as last changed on purpose - SAVE, operation 5
+# (d24adef); any other change to it fails the ARM codegen comparison.
+BASELINE = 'd24adef'
 ABI = ROOT / 'lib/telemetry/abi/StructuredAbi.cpp'
 PROTOCOL = ROOT / 'lib/resource/protocol/Protocol.cpp'
 FIELD_NEGATIVES = {

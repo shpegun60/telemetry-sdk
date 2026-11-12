@@ -96,7 +96,7 @@ Local Native та direct catalog index calls не потребують цих `.
 | --- | --- |
 | Standalone DTO codec | `<telemetry/codec/Codec.hpp>`, header-only |
 | Generic filesystem і готові bytes | `<resource/Resource.hpp>`, core header-only |
-| LIST/STAT/READ/WRITE packets | `<resource/protocol/Protocol.hpp>`, `lib/resource/protocol/Protocol.cpp` |
+| LIST/STAT/READ/WRITE/SAVE packets | `<resource/protocol/Protocol.hpp>`, `lib/resource/protocol/Protocol.cpp` |
 | Telemetry Descriptor/Values files | Headers у `integration/telemetry/v3`, `lib/integration/telemetry/v3/detail/Values.cpp` |
 | Optional RPC mailbox | `<integration/telemetry/v3/RpcMailbox.hpp>`, `lib/integration/telemetry/v3/RpcMailbox.cpp`, разом із telemetry sources |
 | Optional Bind/Exchange example | `examples/structured_protocol/Bind.cpp` та `Exchange.cpp`, разом з telemetry sources |

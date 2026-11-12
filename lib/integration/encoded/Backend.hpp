@@ -24,8 +24,8 @@ namespace encoded_wire = ::telemetry::protocol::encoded;
 
 class EncodedBackend final : public ::telemetry::client::Backend {
 public:
-	// enableResource admits raw Resource List, Stat and Read requests on this
-	// queue. Only a port that can frame a Resource reply after discovery may set it.
+	// enableResource admits raw Resource List, Stat, Read, Write and Save
+	// requests on this queue. Only a port that can frame a Resource reply after discovery may set it.
 	explicit EncodedBackend(::telemetry::client::Output txStorage,
 	                        ::telemetry::client::Output resultStorage,
 	                        ::telemetry::client::Clock clock, std::uint32_t timeoutMs = 30000,
@@ -105,6 +105,7 @@ public:
 		prepared_ = false;
 		resource_ = false;
 		operation_ = request.operation;
+		mutates_ = !::telemetry::client::isReadOnly(request.operation);
 		completion_ = {};
 		completion_.operation = request.operation;
 		state_ = State::Offered;
@@ -204,8 +205,8 @@ public:
 			packet.reply = ::telemetry::client::ReplyFrame::Resource;
 			packet.resourceOperation = std::to_integer<std::uint8_t>(tx_[0]);
 			// List, Stat and Read change nothing on the device, so a cancelled
-			// one never counts as possibly executed.
-			packet.mayExecute = false;
+			// one never counts as possibly executed; a Write or a Save may have.
+			packet.mayExecute = mutates_;
 		}
 		return packet;
 	}
@@ -308,8 +309,10 @@ private:
 		if (request.payload.empty() || request.endpointId != 0)
 			return ::telemetry::client::Status::InvalidArgument;
 		const auto operation = std::to_integer<unsigned>(request.payload[0]);
-		// List, Stat and Read only; writing files is a separate, later request.
-		if (operation < 1 || operation > 3)
+		// List, Stat, Read, Write and Save: the device's providers decide what
+		// may be written or saved (a file without write() or save() answers
+		// NotWritable).
+		if (operation < 1 || operation > 5)
 			return ::telemetry::client::Status::Unsupported;
 		if (request.payload.size() > tx_.size())
 			return ::telemetry::client::Status::BufferTooSmall;
@@ -324,6 +327,9 @@ private:
 		prepared_ = false;
 		resource_ = true;
 		operation_ = request.operation;
+		// A Write or a Save may change or keep the file once it has left
+		// (resource::protocol::Op::Write = 4, Save = 5); List, Stat and Read never.
+		mutates_ = operation == 4 || operation == 5;
 		completion_ = {};
 		completion_.operation = request.operation;
 		state_ = State::Offered;
@@ -347,9 +353,10 @@ private:
 
 	void finish(::telemetry::client::Status reason) noexcept
 	{
-		completion_.status = prepared_ && !::telemetry::client::isReadOnly(operation_)
-		                         ? ::telemetry::client::Status::OutcomeUnknown
-		                         : reason;
+		// Handed off and lost: what a request that changes the device did is
+		// not known.
+		completion_.status =
+		    prepared_ && mutates_ ? ::telemetry::client::Status::OutcomeUnknown : reason;
 		completion_.payload = {};
 		completion_.dispatch = completion_.endpointStatus = completion_.codec = 0;
 		if (prepared_) {
@@ -378,6 +385,7 @@ private:
 	bool prepared_ = false;
 	bool recovery_ = false;
 	bool resource_ = false;
+	bool mutates_ = false;
 	bool readManyEnabled_ = false;
 	bool batchEnabled_ = false;
 	bool resourceEnabled_ = false;

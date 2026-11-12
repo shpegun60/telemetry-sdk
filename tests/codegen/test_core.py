@@ -198,7 +198,7 @@ class CoreTests(unittest.TestCase):
                     patch("sys.stdout", io.StringIO()):
                 self.assertEqual(cli.main(args), 0)
             udp.assert_called_once_with("127.0.0.1", 9999, 2.0)
-            download.assert_called_once_with(adapter.__enter__.return_value, "/telemetry/descriptor")
+            download.assert_called_once_with(adapter.__enter__.return_value, "/telemetry/descriptor.bin")
             self.assertEqual(output.read_bytes(), data)
             with patch.object(resource, "UdpExchange", return_value=adapter), \
                     patch.object(resource, "fetch", side_effect=resource.ResourceError("failed")), \

@@ -1,4 +1,4 @@
-# The device's files over the client's one queue: list, stat, read in pieces. MIT.
+# The device's files over the client's one queue: list, stat, read and write in pieces, save. MIT.
 isEmpty(TELEMETRY_FILES_CLIENT_PRI_INCLUDED) {
     TELEMETRY_FILES_CLIENT_PRI_INCLUDED = 1
     include($$PWD/../../client/client.pri)

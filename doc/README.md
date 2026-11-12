@@ -87,7 +87,7 @@
 | Всі callback/binding forms, exact/As доступ, enums, iteration і slots | [Native API](user/NativeApi.md) |
 | Custom files, providers і cursors | [Resource files](user/Resources.md) |
 | Model descriptor, Values, fingerprint і whole-token READ | [Descriptor and Values](user/DescriptorAndValues.md) |
-| LIST/STAT/READ/WRITE, framing та transport integration | [Transport and resources](user/TransportAndResources.md) |
+| LIST/STAT/READ/WRITE/SAVE, framing та transport integration | [Transport and resources](user/TransportAndResources.md) |
 | Typed remote виклики, retry та caller-owned result decode | [RpcClient v1](RpcClientV1.md) |
 | N mailbox, session handles, ACK gate і спільний Workspace | [RpcSessionPool v1](RpcSessionsV1.md) |
 | З'єднати telemetry resources і реальний COBS endpoint | [COBS integration](user/COBSIntegration.md) |
@@ -124,6 +124,7 @@ Fenced fragments пояснюють окремий крок; повну прог
 | Late binding | [Slots](../lib/telemetry/slot/README.md) |
 | Незалежний filesystem/providers | [Resource](../lib/resource/README.md) |
 | Packet processor | [Resource protocol](../lib/resource/protocol/README.md) |
+| Device files: every `/telemetry/` path, its order, what a host may write, names for a device's own files | [Device file conventions](DeviceFileConventions.md) |
 | Optional RPC provider: wire v1.0, повтори, стани й сеанс | [RpcMailbox contract](RpcMailboxV1.md), [host example](../examples/rpc_mailbox/README.md) |
 | Optional typed caller і server session manager | [RpcClient](RpcClientV1.md), [RpcSessionPool](RpcSessionsV1.md) |
 | Descriptor/Values provider lifetime і storage | [V3 providers](../lib/integration/telemetry/v3/README.md) |

@@ -3,10 +3,13 @@
  * @brief The device's files over the Workbench's existing FIFO.
  * @author Ruslan Kovtun (shpegun60). SPDX-License-Identifier: MIT.
  *
- * Lets files::list, stat, read and FileReader take a WorkbenchModel. File
- * requests then share the Workbench's one queue and its gate: they are
- * refused as Busy while the Workbench writes, refreshes or executes, and while
- * one of its publications or completions runs.
+ * Lets files::list, stat, read, write, save, FileReader and FileWriter take a
+ * WorkbenchModel. File requests then share the Workbench's one queue and its
+ * gate: they are refused as Busy while the Workbench writes, refreshes or
+ * executes, and while one of its publications or completions runs. A file
+ * WRITE or SAVE passes the same gate as a read and does not move the Workbench
+ * into its Writing phase; Field values a file changes are seen at its next
+ * refresh.
  */
 #ifndef TELEMETRY_INTEGRATION_FILES_WORKBENCH_HPP
 #define TELEMETRY_INTEGRATION_FILES_WORKBENCH_HPP

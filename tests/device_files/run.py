@@ -79,7 +79,7 @@ def main():
         prefix.rename(relocated)
         consumer = out / 'consumer'
         consumer.mkdir()
-        for name in ('Reader.cpp', 'Values.cpp', 'Session.cpp', 'FilesOnly.cpp', 'CMakeLists.txt'):
+        for name in ('Reader.cpp', 'Writer.cpp', 'Values.cpp', 'Session.cpp', 'FilesOnly.cpp', 'CMakeLists.txt'):
             shutil.copy2(HERE / name, consumer / name)
         search = str(relocated) + (';' + args.qt_prefix if args.qt_prefix else '')
         run('consumer-configure', [cmake, '-S', consumer, '-B', out / 'consumer-build', *common,
@@ -89,6 +89,7 @@ def main():
         if str(ROOT / 'lib').replace('\\', '/') in commands:
             raise RuntimeError('Installed consumer leaked SDK source include paths')
         for target, pattern, floor in (('reader', r'Device files reader: (\d+) checks, 0 failures', 80),
+                                       ('writer', r'Device files writer: (\d+) checks, 0 failures', 60),
                                        ('values', r'Values reader: (\d+) checks, 0 failures', 50),
                                        ('session', r'Device files session: (\d+) checks, 0 failures', 15),
                                        ('files_only', r'Files-only connection: (\d+) checks, 0 failures', 30)):

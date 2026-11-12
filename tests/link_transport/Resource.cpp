@@ -299,7 +299,29 @@ void refusals()
 	std::array<std::byte, 20> write{};
 	CHECK(rc::makeWrite(write, 0, 0, std::span<const std::byte>{}, true).status ==
 	      rc::BuildStatus::Ok);
-	CHECK(open.start({cl::Operation::Resource, 0, write, 14}, now(nullptr)) ==
+	// A Write goes too, and may have changed the device: a cancelled one counts
+	// as possibly executed.
+	CHECK(open.start({cl::Operation::Resource, 0, write, 14}, now(nullptr)) == cl::Status::Ok);
+	const auto written = open.nextPacket();
+	CHECK(written.reply == cl::ReplyFrame::Resource && written.resourceOperation == 4 &&
+	      written.mayExecute && written.bytes.size() == write.size());
+	open.cancel(cl::Status::Cancelled);
+	CHECK(open.completed() && open.result().status == cl::Status::Cancelled);
+	open.releaseResult();
+	// So does a Save, which may have kept the file.
+	std::array<std::byte, 13> save{};
+	CHECK(rc::makeSave(save, 0, 0).status == rc::BuildStatus::Ok);
+	CHECK(open.start({cl::Operation::Resource, 0, save, 10}, now(nullptr)) == cl::Status::Ok);
+	const auto kept = open.nextPacket();
+	CHECK(kept.reply == cl::ReplyFrame::Resource && kept.resourceOperation == 5 &&
+	      kept.mayExecute && kept.bytes.size() == save.size());
+	open.cancel(cl::Status::Cancelled);
+	CHECK(open.completed() && open.result().status == cl::Status::Cancelled);
+	open.releaseResult();
+	// An operation the protocol does not have is still refused.
+	auto unknown = stat;
+	unknown[0] = std::byte{6};
+	CHECK(open.start({cl::Operation::Resource, 0, unknown, 6}, now(nullptr)) ==
 	      cl::Status::Unsupported);
 	CHECK(open.start({cl::Operation::Resource, 0, stat, 6}, now(nullptr)) == cl::Status::Ok);
 	const auto packet = open.nextPacket();
@@ -316,6 +338,26 @@ void refusals()
 	const auto encoded = open.nextPacket();
 	CHECK(encoded.reply == cl::ReplyFrame::Encoded && encoded.resourceOperation == 0 &&
 	      encoded.mayExecute);
+
+	// Handed off and lost: a Write or a Save may have changed or kept the file,
+	// so its outcome is not known; a Stat lost the same way is a timeout.
+	const auto lost = [&](std::span<const std::byte> request, std::uint32_t replyBytes) {
+		std::array<std::byte, 64> tx3{}, rx3{};
+		telemetry::integration::encoded::EncodedBackend backend{
+		    tx3, rx3, {nullptr, &now}, 1000, false, false, true};
+		CHECK(backend.openSession(1));
+		CHECK(backend.start({cl::Operation::Resource, 0, request, replyBytes}, now(nullptr)) ==
+		      cl::Status::Ok);
+		const auto sent = backend.nextPacket();
+		CHECK(backend.prepareHandoff(sent.session, sent.requestId) &&
+		      backend.onSendAccepted(sent.session, sent.requestId));
+		backend.process(now(nullptr) + 2000);
+		CHECK(backend.completed());
+		return backend.result().status;
+	};
+	CHECK(lost(write, 14) == cl::Status::OutcomeUnknown);
+	CHECK(lost(save, 10) == cl::Status::OutcomeUnknown);
+	CHECK(lost(stat, 6) == cl::Status::Timeout);
 }
 
 void exchange()

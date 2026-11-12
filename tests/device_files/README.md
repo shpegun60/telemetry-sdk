@@ -1,7 +1,7 @@
 # Installed device files
 
-Reading the device's files through the client's one queue, against the relocated
-installed package. No board; only ephemeral localhost sockets.
+Reading and writing the device's files through the client's one queue, against
+the relocated installed package. No board; only ephemeral localhost sockets.
 
 - **Reader** (`Reader.cpp`, no Qt, no network). `files::FileReader` and the
   `files::list` / `files::stat` requests run against the real Resource protocol
@@ -12,6 +12,31 @@ installed package. No board; only ephemeral localhost sockets.
     not a reply, a piece without progress from a misbehaving device;
   - the sink stopping, a timeout, a cancel while a piece is in flight and between
     pieces, the queue cancelling, a busy queue that is retried and a refusal.
+- **Writer** (`Writer.cpp`, no Qt, no network). `files::FileWriter`,
+  `files::write` and `files::save` against the real protocol handler over
+  writable providers, some of them savable. Every ending of a write is reached on
+  purpose:
+  - complete, in pieces of the chunk size with `final` on the last only and no
+    SAVE sent, a smaller chunk, and an empty file (one empty final piece);
+  - a device that takes part of each piece: the rest sent from the cursor it
+    returned, still final when it was;
+  - not writable, another size, the content refused, a reply that is not one, a
+    device that says complete before every byte, one that never completes (empty
+    final pieces, a bounded number), one that moves its cursor without ever taking
+    a byte (4096 replies, then Stalled), a timeout that ends it with nothing sent
+    again;
+  - a cancel between pieces (the provider's staged pieces leave the file as it
+    was, a write from the start replaces them) and while a piece waits in the
+    queue;
+  - a busy queue retried, a refusal, a second start while running, a piece built in
+    a scratch too small;
+  - saving as a run of its own after the write, Stat first: a provider that
+    persists at once (one SAVE) and one that persists in three steps (SAVE
+    repeated from the returned cursor until complete), a save the provider
+    refuses, a file that cannot save (NotWritable by its Stat, no SAVE sent), a
+    save that never completes (4096 steps, then Stalled), a reply that is not
+    one, the one-byte InvalidData, a timeout and a cancel in the middle of a
+    save, and one `files::save` alone.
 - **Values** (`Values.cpp`, no Qt, no network). `/telemetry/values.bin` as the
   device serves it (`ValuesFile`, read in pieces) is read back on the host with
   `readValues` against a `RuntimeSchema` parsed from the descriptor's bytes, and
@@ -36,11 +61,31 @@ installed package. No board; only ephemeral localhost sockets.
     written and read, a rename, every refusal of the reader (magic, version,
     flags, size, texts, id) and of the writer (an id unfit for a folder name, a
     control character, a text too long, broken UTF-8), a later version's extra
-    text skipped, a read in pieces;
+    text skipped, a read in pieces; `check()` - bytes that only rename the
+    device taken, another id, model or firmware or bytes that are not an
+    identity refused, nothing set refused; a plain `IdentityFile` read-only by
+    Stat, a device's own class with `write()` Writable and with `save()` also
+    Savable; its `write()` taking the whole file in one piece and refusing a
+    piece or a later cursor;
   - the session reads it: already Reading when `ready()` turns true, then Known
-    with the id, name, model and firmware; a rename reaches the next connection;
+    with the id, name, model and firmware; renamed from the session
+    (`rename()`, `renamable()`, `keepsName()`): the file written whole, saved in
+    two SAVE steps, read back, `Renamed`; `renamable()` false while it runs and
+    a second rename refused; the name it has, and the names an identity cannot
+    hold, refused before anything is sent (`nameProblem()`); the device's
+    refusal `NotRenamed` with the name kept; a name taken but its save refused
+    `RenamedNotKept`; a device that shortens the name `Renamed` with what it
+    serves; one that answers Ok but keeps the old name `NotRenamed`; a host's
+    own WRITE or SAVE to the identity, and a WRITE to the session file, refused
+    with ReadOnly (the SDK's six files are the protocol's), while a WRITE to a
+    mailbox at `/telemetry/rpc.bin` reaches the device; a disconnect before the request
+    leaves `NotRenamed`, and one in the middle of a save `Unconfirmed`, each
+    ending at once, once; a device without `save()` `RenamedUntilRestart`; a
+    plain `IdentityFile` not renamable; a rename on the device reaches the next
+    connection;
     without the file Absent; with another file under its name Unreadable with
-    the reason, the connection still ready; disconnecting forgets it.
+    the reason, the connection still ready; an `IdentityFile` never `set()`
+    (an empty file) Absent, not Unreadable; disconnecting forgets it.
 - **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose
   descriptor is mistyped in its name, too small, or read whole and rejected by the
   parser connect files only: `ready()` false, telemetry refused, the limitation

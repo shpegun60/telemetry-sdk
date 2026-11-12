@@ -173,10 +173,13 @@ static void replies()
 	      has(parsedStat.response.flags, FileFlag::Readable) &&
 	      has(parsedStat.response.flags, FileFlag::Writable));
 	truncatedAndTrailing(stat, client::parseStat);
+	// Savable (4), and bits this client does not know, are kept: a flag a later
+	// server adds never makes a STAT malformed.
 	for (auto value : {4u, 0xffu}) {
-		auto bad = stat;
-		bad[5] = std::byte(value);
-		CHECK(!client::parseStat(bad));
+		auto other = stat;
+		other[5] = std::byte(value);
+		const auto parsedOther = client::parseStat(other);
+		CHECK(parsedOther && static_cast<unsigned>(parsedOther.response.flags) == value);
 	}
 	auto badStat = stat;
 	badStat[0] = std::byte{9};

@@ -14,7 +14,7 @@ integration; [API Overview](APIOverview.md) допомагає вибрати т
 | Що передає клієнт | Куди застосунок передає повний запит |
 | --- | --- |
 | Операцію над Field, Command або Service, packed ID та canonical payload | `telemetry::readFieldEncoded`, `writeFieldEncoded`, `executeCommandEncoded`, `callServiceEncoded` |
-| LIST, STAT, READ або WRITE для файла | `resource::protocol::process` |
+| LIST, STAT, READ, WRITE або SAVE для файла | `resource::protocol::process` |
 
 Перший маршрут достатній для читання налаштування, його зміни чи виклику
 методу. Другий додає іменовані файли: готові байти, власне сховище,
@@ -59,7 +59,7 @@ u16 LE bodyBytes | body[bodyBytes]
 | Route | Request body після route byte | Reply body після route byte |
 | --- | --- | --- |
 | Direct=1 | `u8 operation, u32 LE packedId, canonical payload` | `u8 dispatch, u8 endpointStatus, response payload` |
-| Resource=2 | Один generic LIST/STAT/READ/WRITE packet | Один generic resource reply packet |
+| Resource=2 | Один generic LIST/STAT/READ/WRITE/SAVE packet | Один generic resource reply packet |
 
 Невідома route або неповний direct header у **вже повному** body одержує
 application error `[route=0, InvalidPacket=1]`: frame `02 00 00 01`.
@@ -147,7 +147,7 @@ Read=1         Write=2           Command=3        Service=4
 
 Цей header належить **прикладу**. Telemetry визначає canonical payload та
 encoded API, а header, status envelope і framing вибирає застосунок.
-Не змішуйте ці коди з resource LIST/STAT/READ/WRITE.
+Не змішуйте ці коди з resource LIST/STAT/READ/WRITE/SAVE.
 
 | Код Direct | Операція | Що вона робить | Payload запиту | Успішна відповідь |
 | --- | --- | --- | --- | --- |
@@ -447,9 +447,10 @@ frame, наведений вище, не входить до жодного ря
 | Код resource | Операція | Що вона означає |
 | --- | --- | --- |
 | 1 | LIST | Повернути сторінку шляхів, починаючи з file index у cursor; байти самих файлів не читаються |
-| 2 | STAT | Отримати поточний byte size та Readable/Writable capabilities вибраного файла |
+| 2 | STAT | Отримати поточний byte size та Readable/Writable/Savable capabilities вибраного файла |
 | 3 | READ | Попросити provider видати наступну порцію bytes із його cursor |
 | 4 | WRITE | Передати provider порцію bytes; він підтверджує спожиту кількість і наступний cursor |
+| 5 | SAVE | Ask the provider to persist what the file holds now, at once or in steps from its cursor |
 
 | Op | Request body | Response body |
 | --- | --- | --- |
@@ -457,11 +458,12 @@ frame, наведений вище, не входить до жодного ря
 | STAT=2 | `u8 op, u32 index` | `u8 status, u32 size, u8 flags` |
 | READ=3 | `u8 op, u32 index, u64 cursor` | `u8 status, u64 next, u8 eof, u16 dataSize, data[]` |
 | WRITE=4 | `u8 op, u32 index, u64 cursor, u8 final, u16 dataSize, data[]` | `u8 status, u64 next, u32 consumed, u8 complete` |
+| SAVE=5 | `u8 op, u32 index, u64 cursor` | `u8 status, u64 next, u8 complete` |
 
 Числа little-endian; bool bytes мають бути 0/1. Paths/data не мають кінцевого
 NUL, а packet не може мати зайвого хвоста. LIST request займає 9 bytes,
-STAT — 5, READ — 13, WRITE — `16 + dataSize`. LIST/READ response header
-займає 12 bytes, STAT — 6, WRITE — 14.
+STAT — 5, READ — 13, WRITE — `16 + dataSize`, SAVE — 13. LIST/READ response
+header займає 12 bytes, STAT — 6, WRITE — 14, SAVE — 10.
 
 | Поле | Значення |
 | --- | --- |
@@ -472,9 +474,9 @@ STAT — 5, READ — 13, WRITE — `16 + dataSize`. LIST/READ response header
 | eof | READ/LIST завершено, якщо byte дорівнює 1 |
 | final | Цей WRITE input містить кінець submitted stream; це ще не підтвердження завершення |
 | consumed | Скільки bytes із початку WRITE input прийняв provider |
-| complete | Provider підтвердив завершення WRITE transfer |
+| complete | Provider підтвердив завершення WRITE transfer або SAVE |
 | size | Поточний byte size файла, отриманий через STAT |
-| flags | Bitmask capabilities: Readable=1, Writable=2; read/write файл має 3 |
+| flags | Bitmask capabilities: Readable=1, Writable=2, Savable=4; read/write файл має 3 |
 
 | Resource status | Назва | Значення |
 | --- | --- | --- |

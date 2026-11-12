@@ -399,7 +399,7 @@ def main(argv=None):
     fetch.add_argument("--host", required=True)
     fetch.add_argument("--port", required=True, type=int)
     fetch.add_argument("--timeout", type=float, default=2.0)
-    fetch.add_argument("--path", default="/telemetry/descriptor")
+    fetch.add_argument("--path", default="/telemetry/descriptor.bin")
     fetch.add_argument("--output", required=True, help="binary descriptor destination")
     args = parser.parse_args(argv)
     try:

@@ -42,9 +42,11 @@ ordinary FieldRead for the established read-only timeout classification.
 ## Capability and budgets
 
 The owner explicitly admits an immutable **TBM1** record for its Model fingerprint
-and nonzero session. TRM1 does not enable Mixed Batch. Discovery uses an
-application-selected Resource file or another existing trusted discovery path;
-the library adds no Resource tag, connection or discovery queue.
+and nonzero session. TRM1 does not enable Mixed Batch. `EncodedProfile` serves
+the record as `/telemetry/batch.bin`, the path a `ConnectionSession` looks for
+([device file conventions](DeviceFileConventions.md)); other hosts may use an
+application-selected Resource file or another existing trusted discovery path.
+The library adds no Resource tag, connection or discovery queue.
 
 All integers below are little endian. The capability is exactly 24 bytes:
 

@@ -16,7 +16,7 @@ telemetry/resource повідомлень. Повна програма та ко
 | --- | --- | --- |
 | Telemetry codec | C++ value ↔ canonical bytes, без padding | Поточний wire v3: фіксовані scalar widths, LE, bool 0/1, структурний порядок members |
 | Application protocol | Вибирає Read/Write/Command/Service або files, задає IDs і statuses | Ваш застосунок; тут використано готовий Direct/Resource приклад |
-| Resource protocol | LIST/STAT/READ/WRITE для u32 file index | [Resource packet contract](../../lib/resource/protocol/README.md) |
+| Resource protocol | LIST/STAT/READ/WRITE/SAVE для u32 file index | [Resource packet contract](../../lib/resource/protocol/README.md) |
 | COBS endpoint | Збирає bytes у packets, додає length/CRC/encoding/delimiter та керує blocks | Погоджений `cobs::Format` обох peers |
 | Byte transport | Передає/приймає chunks, повідомляє фізичну втрату bytes та TX completion | UART/TCP/інший driver вашого застосунку |
 
@@ -120,7 +120,7 @@ const bool bound = link.bind(
 | Route | Body після route |
 | --- | --- |
 | 1 Direct | `u8 operation, u32 LE packedId, canonical payload` |
-| 2 Resource | Complete generic LIST/STAT/READ/WRITE packet |
+| 2 Resource | Complete generic LIST/STAT/READ/WRITE/SAVE packet |
 
 Для Field read у нашому Device Period має ID 0:
 

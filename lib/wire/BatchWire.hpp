@@ -19,7 +19,9 @@ inline constexpr std::size_t capabilityBytes = 24;
 inline constexpr std::uint32_t capabilityMagic = 0x314d4254u; // TBM1.
 
 // Independently admitted from read-only TRM1. The application binds this record
-// to the immutable schema and session and chooses its Resource discovery path.
+// to the immutable schema and session. EncodedProfile serves it as
+// /telemetry/batch.bin, where a ConnectionSession looks for it
+// (doc/DeviceFileConventions.md).
 struct Capability {
 	std::uint32_t session = 0;
 	std::uint64_t fingerprint = 0;

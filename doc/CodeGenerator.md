@@ -95,14 +95,14 @@ serialization and peer/session ownership for its transport.
 
 ```python
 from tools.telemetry_codegen.resource import fetch
-descriptor = fetch(my_complete_packet_exchange, "/telemetry/descriptor")
+descriptor = fetch(my_complete_packet_exchange, "/telemetry/descriptor.bin")
 ```
 
 For peers that explicitly place complete Resource packets directly in UDP
 datagrams, a standard-library adapter is available:
 
 ```sh
-python3 -m tools.telemetry_codegen fetch --host 192.0.2.10 --port 9000 --timeout 2 --path /telemetry/descriptor --output descriptor.bin
+python3 -m tools.telemetry_codegen fetch --host 192.0.2.10 --port 9000 --timeout 2 --path /telemetry/descriptor.bin --output descriptor.bin
 ```
 
 This UDP adapter adds no retries or authentication. It cannot be used for an

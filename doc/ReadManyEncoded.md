@@ -122,10 +122,13 @@ The standalone [wire helper](../lib/wire/ReadManyWire.hpp) reads/writes exactly
 | 16 | 8 | Descriptor fingerprint |
 
 Limits apply independently: the advertised item count need not fit every
-possible collection into the byte budget. The application owns any Resource
-file name/ID and binds this record to its Model. Descriptor and Resource wire
-formats gain no tags or reserved paths. The server trusts that application
-binding; it does not reserialize/hash a Descriptor on every read.
+possible collection into the byte budget. The application binds this record to
+its Model. The record carries no path, and the Descriptor and Resource wire
+formats gain no tags. The TCP profiles serve it as `/telemetry/read-many.bin`, the path a
+`ConnectionSession` looks for ([device file conventions](DeviceFileConventions.md));
+an application that discovers it some other way may name its file as it likes.
+The server trusts that application binding; it does not reserialize/hash a
+Descriptor on every read.
 
 ## Encoded request and response
 

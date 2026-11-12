@@ -44,7 +44,7 @@ class FakeResource:
             if cursor == 0:
                 result = chunk(1, False, paths("/first"))
             elif cursor == 1:
-                result = chunk(3, True, paths("/telemetry/descriptor", "/last"))
+                result = chunk(3, True, paths("/telemetry/descriptor.bin", "/last"))
             else:
                 raise AssertionError("unexpected LIST cursor")
         elif operation == 2:
@@ -87,7 +87,7 @@ class ResourceTests(unittest.TestCase):
             fetch(FakeResource(self.data), "/missing")
         resource = FakeResource(self.data)
         resource.transform = lambda packet, response: (
-            chunk(3, True, paths("/telemetry/descriptor", "/telemetry/descriptor"))
+            chunk(3, True, paths("/telemetry/descriptor.bin", "/telemetry/descriptor.bin"))
             if packet[0] == 1 and packet[-8:] == struct.pack("<Q", 1) else response)
         with self.assertRaisesRegex(ResourceError, "ambiguous"):
             fetch(resource)
@@ -125,7 +125,7 @@ class ResourceTests(unittest.TestCase):
             with self.assertRaises(ResourceError):
                 fetch(lambda packet: chunk(1, True, payload))
         with self.assertRaisesRegex(ResourceError, "cursor/count"):
-            fetch(lambda packet: chunk(7, True, paths("/telemetry/descriptor")))
+            fetch(lambda packet: chunk(7, True, paths("/telemetry/descriptor.bin")))
         with self.assertRaisesRegex(ResourceError, "no progress"):
             fetch(lambda packet: chunk(0, False))
 
