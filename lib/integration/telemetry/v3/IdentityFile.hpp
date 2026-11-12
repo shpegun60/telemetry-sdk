@@ -19,18 +19,39 @@
  * rename() need not outlive the call. No heap.
  *
  * IdentityFile is read-only: Stat says so. A device that lets a client rename
- * it serves a RenamableIdentityFile instead, with the hook that keeps the new
- * name - in non-volatile memory, typically:
+ * it serves its own class with write(), and with save() when it keeps the name
+ * across a restart; Stat then says Writable, and Savable. check() tells it
+ * whether the bytes only rename it:
  *
- *   RenamableIdentityFile identity{[](void*, std::string_view name) noexcept {
- *       return settings.storeName(name) ? resource::Status::Ok
- *                                       : resource::Status::InternalError;
- *   }};
+ *   struct DeviceIdentity : resource::telemetry::v3::IdentityFile {
+ *       resource::WriteResult write(resource::Cursor cursor, resource::Input bytes,
+ *                                   bool final) noexcept
+ *       {
+ *           std::string_view name;
+ *           if (cursor != 0 || !final || check(bytes, name) != resource::Status::Ok ||
+ *               !rename(name))
+ *               return {resource::Status::InvalidData, cursor};
+ *           const auto taken = static_cast<std::uint32_t>(bytes.size());
+ *           return {resource::Status::Ok, taken, taken, true};
+ *       }
+ *       resource::SaveResult save(resource::Cursor cursor) noexcept
+ *       {
+ *           if (!settings.storeName(name()))
+ *               return {resource::Status::InternalError, cursor};
+ *           return {resource::Status::Ok, cursor, true};
+ *       }
+ *   };
  *
- * The client writes the whole file in one WRITE (cursor 0, final, at most
- * writtenBytes). Only the name may change: a file whose id, model or firmware
- * differ, that is not an identity, or that comes in pieces is refused with
- * InvalidData and nothing changes; the hook's refusal is the WRITE's answer.
+ * save() runs inside the request: on slow storage it keeps the name in
+ * bounded steps - {Ok, cursor + 1, false} until done - rather than waiting on
+ * an erase. Savable is what tells a client the name outlives a restart: a
+ * device that keeps the name already inside write() still adds a save() that
+ * answers {Ok, cursor, true}, and one without save() keeps it only until it
+ * restarts.
+ *
+ * A client renames the device by writing the whole file in one WRITE (cursor 0,
+ * final, at most writtenBytes), then SAVE when Stat says Savable, then reading
+ * it back.
  */
 #ifndef RESOURCE_TELEMETRY_V3_IDENTITY_FILE_HPP
 #define RESOURCE_TELEMETRY_V3_IDENTITY_FILE_HPP
@@ -48,7 +69,8 @@ namespace resource::telemetry::v3 {
 // - set(): Replace every text; false, and nothing changed, when one is invalid.
 // - rename(): Replace the name only; false when it is invalid or nothing was set.
 // - id(), name(), model(), firmware(): The texts as served.
-// - size(), read(): The Resource provider (read-only; RenamableIdentityFile adds write()).
+// - check(): Whether bytes written as this file only rename the device.
+// - size(), read(): The Resource provider (read-only; a device's own class adds write()).
 // - bytes(): The file as served.
 //
 // Call set() and rename() from the context that serves the file (or with it
@@ -106,6 +128,26 @@ public:
 		return parsed().firmware;
 	}
 
+	// Whether bytes, written whole as this file, only rename the device: an
+	// identity with this id, model and firmware and a name it can hold. Ok, with
+	// name viewing bytes; InvalidData otherwise, and when nothing was set.
+	[[nodiscard]] Status check(Input bytes, std::string_view& name) const noexcept
+	{
+		Identity incoming;
+		if (size_ == 0 || bytes.size() > ::telemetry::protocol::identity::writtenBytes ||
+		    ::telemetry::protocol::identity::parse(bytes, incoming) !=
+		        ::telemetry::protocol::identity::Problem::None) {
+			return Status::InvalidData;
+		}
+		const auto current = parsed();
+		if (incoming.id != current.id || incoming.model != current.model ||
+		    incoming.firmware != current.firmware) {
+			return Status::InvalidData;
+		}
+		name = incoming.name;
+		return Status::Ok;
+	}
+
 	[[nodiscard]] constexpr FileSize size() const noexcept
 	{
 		return static_cast<FileSize>(size_);
@@ -152,59 +194,6 @@ private:
 	// The bytes of the read in progress, taken at its cursor 0.
 	mutable std::array<std::byte, ::telemetry::protocol::identity::writtenBytes> served_{};
 	mutable std::size_t servedSize_ = 0;
-};
-
-
-// The identity a client may rename: IdentityFile with write(), and Stat then
-// says writable. Only the name may change; the hook keeps it first.
-// Public methods:
-// - RenamableIdentityFile(): The hook that keeps a new name, and its context.
-// - write(): The whole file in one piece; only the name may differ.
-class RenamableIdentityFile : public IdentityFile {
-	using Identity = ::telemetry::protocol::identity::Identity;
-
-public:
-	// Keeps a new name before it is served: Ok lets it in; any other status
-	// refuses the rename and is the WRITE's answer. Called from write(), in
-	// the context that serves the file; it must not call back into it.
-	using RenameHook = Status (*)(void* context, std::string_view name) noexcept;
-
-	constexpr explicit RenamableIdentityFile(RenameHook hook, void* context = nullptr) noexcept
-	    : renameHook_(hook), renameContext_(context)
-	{}
-
-	[[nodiscard]] WriteResult write(Cursor cursor, Input input, bool final) noexcept
-	{
-		namespace identity = ::telemetry::protocol::identity;
-		if (!renameHook_) {
-			return {Status::NotWritable, cursor};
-		}
-		if (cursor != 0 || !final || input.size() > identity::writtenBytes || size() == 0) {
-			return {Status::InvalidData, cursor};
-		}
-		Identity incoming;
-		if (identity::parse(input, incoming) != identity::Problem::None) {
-			return {Status::InvalidData, cursor};
-		}
-		if (incoming.id != id() || incoming.model != model() || incoming.firmware != firmware()) {
-			return {Status::InvalidData, cursor};
-		}
-		// The texts view input, valid for this call: the hook keeps the name,
-		// then rename() copies it.
-		const auto verdict = renameHook_(renameContext_, incoming.name);
-		if (verdict != Status::Ok) {
-			return {verdict, cursor};
-		}
-		if (!rename(incoming.name)) {
-			return {Status::InternalError, cursor};
-		}
-		const auto taken = static_cast<std::uint32_t>(input.size());
-		return {Status::Ok, taken, taken, true};
-	}
-
-private:
-	RenameHook renameHook_ = nullptr;
-	void* renameContext_ = nullptr;
 };
 
 } // namespace resource::telemetry::v3

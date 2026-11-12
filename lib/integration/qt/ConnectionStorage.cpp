@@ -73,10 +73,12 @@ client::Packet ConnectionStorage::progressTransport(DeviceTransport* transport)
 	const auto packet = inspector.nextPacket();
 	if (transport && packet && transport->canStage() && transport->stage(packet)) {
 		if (inspector.prepareHandoff(packet.session, packet.requestId)) {
+			// A Resource Write or Save is raw Resource bytes, not an Encoded packet.
 			const auto parsed = protocol::encoded::parse(packet.bytes);
-			if (packet.mayExecute && parsed &&
-			    parsed.header.operation != protocol::encoded::Operation::FieldRead &&
-			    parsed.header.operation != protocol::encoded::Operation::ReadMany)
+			if (packet.mayExecute &&
+			    (packet.reply == client::ReplyFrame::Resource ||
+			     (parsed && parsed.header.operation != protocol::encoded::Operation::FieldRead &&
+			      parsed.header.operation != protocol::encoded::Operation::ReadMany)))
 				mutationAuthorized = true;
 			remoteRequestId = packet.requestId;
 			if (!transport->sendStaged())
@@ -155,7 +157,7 @@ bool FilesOnlyStorage::admit() noexcept
 }
 
 // A twin of ConnectionStorage::progressTransport and settleReplies, kept apart
-// until file writes (F-4) need their own mutation path. Two deliberate
+// for the files-only queue. Two deliberate
 // differences: replies settle at once here, since nothing is due-ordered on a
 // files-only queue, and a refused send revokes the client's admission
 // (invalidateAdmission) where the Workbench's own invalidate() is used there.

@@ -50,6 +50,7 @@ struct ConnectionSession::Impl {
 		::resource::FileIndex index = 0;
 		::resource::Cursor cursor = 0;
 		::resource::FileSize size = 0;
+		::resource::FileFlags flags = ::resource::FileFlag::None; // from its Stat
 		unsigned idlePieces = 0;
 		QByteArray bytes;
 		bool due = false, inFlight = false, changed = false;
@@ -58,9 +59,10 @@ struct ConnectionSession::Impl {
 	ConnectionSession::IdentityState identityState = ConnectionSession::IdentityState::Absent;
 	QString identityId, identityName, identityModel, identityFirmware, identityProblem;
 
-	// While set, a WRITE to one of the SDK's own files is let through: only
-	// the session's own requests (the rename) set it.
+	// While set, a WRITE or SAVE to one of the SDK's own files is let through:
+	// only the session's own requests (the rename) set it.
 	bool protocolWriteAllowed = false;
+
 	struct ProtocolWrite {
 		Impl& state;
 
@@ -68,30 +70,46 @@ struct ConnectionSession::Impl {
 		{
 			state.protocolWriteAllowed = true;
 		}
+
 		~ProtocolWrite()
 		{
 			state.protocolWriteAllowed = false;
 		}
+
 		ProtocolWrite(const ProtocolWrite&) = delete;
 		ProtocolWrite& operator=(const ProtocolWrite&) = delete;
 	};
 
-	// Renaming: one WRITE of the whole identity file, then the file read again.
+	// Renaming: one WRITE of the whole identity file, SAVE step by step after
+	// a clean WRITE when its Stat says Savable, then the file read back - after
+	// every ending of the WRITE but a clean refusal.
 	struct IdentityRename {
 		enum class Step : std::uint8_t {
 			Idle,
 			Write,
+			Save,
 			ReadBack,
 			Ended
 		};
 		Step step = Step::Idle;
 		quint64 epoch = 0;
 		QByteArray bytes;
-		QString name, problem;
+		// The name before; why the WRITE's answer is unclear; why a name
+		// taken is not kept; the ending's problem.
+		QString oldName, unclear, unsaved, problem;
 		std::array<std::byte, ::resource::protocol::wire::writeRequestHeaderSize +
 		                          ::telemetry::protocol::identity::writtenBytes>
 		    scratch{};
-		bool due = false, inFlight = false, renamed = false;
+		::resource::Cursor saveCursor = 0;
+		unsigned saveSteps = 0;
+		ConnectionSession::RenameResult result = ConnectionSession::RenameResult::NotRenamed;
+		// queued: the WRITE was handed to the queue; clean: it was taken whole.
+		bool due = false, inFlight = false, queued = false, clean = false, saved = false;
+
+		bool running() const noexcept
+		{
+			return step == Step::Write || step == Step::Save || step == Step::ReadBack;
+		}
 	} identityRename;
 
 	Impl(ConnectionSession& target, StorageFactory value)
@@ -151,8 +169,9 @@ struct ConnectionSession::Impl {
 			}
 			current.reset();
 		}
-		// A files-only connection never needs same-peer recovery: it executed
-		// nothing, so a new connection is all a later one needs.
+		// A files-only connection never needs same-peer recovery: it holds no
+		// session to recover, so a new connection is all a later one needs.
+		// What a lost WRITE or SAVE did to a file is not known either way.
 		filesOnly.reset();
 		// The limitation describes the live connection; the paths stay until the
 		// next connection, for naming a typo after this one has gone.
@@ -170,25 +189,45 @@ struct ConnectionSession::Impl {
 		if (hadIdentity && owner)
 			Q_EMIT owner->identityChanged();
 		// A rename the disconnect cut short ends now, not on a later connection.
-		if (identityRename.step == IdentityRename::Step::Ended) {
-			identityRename.step = IdentityRename::Step::Idle;
-			const auto problem = identityRename.problem;
-			identityRename.bytes.clear();
-			if (owner)
-				Q_EMIT owner->renameFinished(false, problem);
+		if (identityRename.step == IdentityRename::Step::Ended)
+			endRename();
+	}
+
+	// Says how the rename ended, once: renamable() is true again first.
+	void endRename()
+	{
+		auto& rename = identityRename;
+		rename.step = IdentityRename::Step::Idle;
+		const auto result = rename.result;
+		const auto problem = rename.problem;
+		rename.bytes.clear();
+		if (owner) {
+			Q_EMIT owner->identityChanged();
+			Q_EMIT owner->renameFinished(result, problem);
 		}
+	}
+
+	void endRename(ConnectionSession::RenameResult result, QString problem = {})
+	{
+		identityRename.step = IdentityRename::Step::Ended;
+		identityRename.result = result;
+		identityRename.problem = std::move(problem);
+		identityRename.due = false;
+		identityRename.inFlight = false;
 	}
 
 	void forgetIdentity()
 	{
-		// A rename of the identity forgotten ends with it.
-		if (identityRename.step == IdentityRename::Step::Write ||
-		    identityRename.step == IdentityRename::Step::ReadBack) {
-			identityRename.step = IdentityRename::Step::Ended;
-			identityRename.renamed = false;
-			identityRename.problem = QStringLiteral("the connection ended before the device answered");
-			identityRename.due = false;
-			identityRename.inFlight = false;
+		// A rename of the identity forgotten ends with it: nothing was sent, or
+		// what the device did is not known (queued and sent cannot be told
+		// apart once the connection has gone).
+		if (identityRename.running()) {
+			if (identityRename.step == IdentityRename::Step::Write && !identityRename.queued)
+				endRename(ConnectionSession::RenameResult::NotRenamed,
+				          QStringLiteral("the connection ended before the request was sent"));
+			else
+				endRename(ConnectionSession::RenameResult::Unconfirmed,
+				          QStringLiteral("the connection ended before the name could be checked"));
 		}
 		identityRead = {};
 		identityState = ConnectionSession::IdentityState::Absent;
@@ -228,11 +267,9 @@ struct ConnectionSession::Impl {
 		identityState = ConnectionSession::IdentityState::Unreadable;
 		identityProblem = std::move(reason);
 		identityRead.changed = true;
-		if (identityRename.step == IdentityRename::Step::ReadBack) {
-			identityRename.step = IdentityRename::Step::Ended;
-			identityRename.renamed = false;
-			identityRename.problem = QStringLiteral("its identity file could not be read again: %1").arg(identityProblem);
-		}
+		if (identityRename.step == IdentityRename::Step::ReadBack)
+			endRename(ConnectionSession::RenameResult::Unconfirmed,
+			          QStringLiteral("the new name could not be read back"));
 	}
 
 	void identityStatted(quint64 epoch, const files::StatResult& result) noexcept
@@ -249,6 +286,7 @@ struct ConnectionSession::Impl {
 			return identityFailed(
 			    QStringLiteral("it is %1 bytes, more than an identity has").arg(result.reply.size));
 		identityRead.size = result.reply.size;
+		identityRead.flags = result.reply.flags;
 		identityRead.cursor = 0;
 		identityRead.step = IdentityRead::Step::Read;
 		identityRead.due = true;
@@ -298,13 +336,32 @@ struct ConnectionSession::Impl {
 		identityState = ConnectionSession::IdentityState::Known;
 		identityRead.bytes.clear();
 		identityRead.changed = true;
-		// Read back after a rename: the name the device now serves decides.
-		if (identityRename.step == IdentityRename::Step::ReadBack) {
-			identityRename.step = IdentityRename::Step::Ended;
-			identityRename.renamed = identityName == identityRename.name;
-			if (!identityRename.renamed)
-				identityRename.problem = QStringLiteral("the device kept the name \"%1\"").arg(identityName);
-		}
+		// Read back after a rename: the name the device now serves decides. It
+		// may have trimmed or shortened the one sent; another name than before
+		// is a rename.
+		if (identityRename.step == IdentityRename::Step::ReadBack)
+			readBackEnded();
+	}
+
+	void readBackEnded()
+	{
+		using Result = ConnectionSession::RenameResult;
+		auto& rename = identityRename;
+		const bool keeps = ::resource::has(identityRead.flags, ::resource::FileFlag::Savable);
+		if (identityName == rename.oldName)
+			endRename(Result::NotRenamed,
+			          !rename.unclear.isEmpty()
+			              ? rename.unclear
+			              : QStringLiteral("the device kept the name \"%1\"").arg(identityName));
+		else if (!keeps)
+			endRename(Result::RenamedUntilRestart);
+		else if (rename.saved)
+			endRename(Result::Renamed);
+		else if (!rename.clean)
+			endRename(Result::RenamedNotKept,
+			          QStringLiteral("the device was not asked to keep it"));
+		else
+			endRename(Result::RenamedNotKept, rename.unsaved);
 	}
 
 	// The WRITE of the renamed file answered.
@@ -313,34 +370,95 @@ struct ConnectionSession::Impl {
 		if (epoch != generation || identityRename.epoch != epoch ||
 		    identityRename.step != IdentityRename::Step::Write)
 			return;
-		identityRename.inFlight = false;
+		auto& rename = identityRename;
+		rename.inFlight = false;
+		using Result = ConnectionSession::RenameResult;
 		if (result.succeeded() && result.reply.complete &&
-		    result.reply.consumed == static_cast<std::uint32_t>(identityRename.bytes.size())) {
-			// Read it again: the device decides what it serves.
-			identityRename.step = IdentityRename::Step::ReadBack;
-			identityRead.step = IdentityRead::Step::Stat;
-			identityRead.cursor = 0;
-			identityRead.size = 0;
-			identityRead.idlePieces = 0;
-			identityRead.bytes.clear();
-			identityRead.due = true;
+		    result.reply.consumed == static_cast<std::uint32_t>(rename.bytes.size())) {
+			rename.clean = true;
+			if (::resource::has(identityRead.flags, ::resource::FileFlag::Savable)) {
+				rename.step = IdentityRename::Step::Save;
+				rename.saveCursor = 0;
+				rename.saveSteps = 0;
+				rename.due = true;
+				return;
+			}
+			readBack();
 			return;
 		}
-		identityRename.step = IdentityRename::Step::Ended;
-		identityRename.renamed = false;
-		if (result.operation.status != client::Status::Ok)
-			identityRename.problem = QStringLiteral("the device did not answer; whether it took the name is not known");
-		else if (!result.parsed)
-			identityRename.problem = QStringLiteral("the device's answer was not one");
-		else if (result.reply.status == ::resource::Status::Ok)
-			identityRename.problem = QStringLiteral("the device did not finish taking the name");
-		else if (result.reply.status == ::resource::Status::NotWritable)
-			identityRename.problem = QStringLiteral("the device does not let its name be changed");
-		else if (result.reply.status == ::resource::Status::InvalidData)
-			identityRename.problem = QStringLiteral("the device refused the name");
-		else
-			identityRename.problem = QStringLiteral("the device refused it (status %1)")
-			                             .arg(static_cast<int>(result.reply.status));
+		// A clean refusal changed nothing: no read-back.
+		if (result.operation.status == client::Status::Ok && result.parsed &&
+		    result.reply.status != ::resource::Status::Ok) {
+			const auto status = result.reply.status;
+			endRename(Result::NotRenamed,
+			          status == ::resource::Status::NotWritable
+			              ? QStringLiteral("the device does not let its name be changed")
+			          : status == ::resource::Status::InvalidData
+			              ? QStringLiteral("the device refused the name")
+			              : QStringLiteral("the device refused it (code %1)")
+			                    .arg(static_cast<int>(status)));
+			return;
+		}
+		// Unclear: the name it serves now says what happened.
+		rename.unclear = result.operation.status != client::Status::Ok
+		                     ? QStringLiteral("the device did not reply")
+		                 : !result.parsed ? QStringLiteral("the device's reply could not be read")
+		                                  : QStringLiteral("the device stopped partway through");
+		readBack();
+	}
+
+	// Read it again: the device decides what it serves.
+	void readBack() noexcept
+	{
+		identityRename.step = IdentityRename::Step::ReadBack;
+		identityRead.step = IdentityRead::Step::Stat;
+		identityRead.cursor = 0;
+		identityRead.size = 0;
+		identityRead.idlePieces = 0;
+		identityRead.bytes.clear();
+		identityRead.due = true;
+	}
+
+	// A SAVE step of the renamed file answered: complete, or the next step. A
+	// save that fails leaves the name taken but not kept; it is read back
+	// either way.
+	void renameSaved(quint64 epoch, const files::SaveResult& result) noexcept
+	{
+		auto& rename = identityRename;
+		if (epoch != generation || rename.epoch != epoch ||
+		    rename.step != IdentityRename::Step::Save)
+			return;
+		rename.inFlight = false;
+		if (result.succeeded() && result.reply.complete) {
+			rename.saved = true;
+			readBack();
+			return;
+		}
+		if (result.succeeded() && result.reply.next != rename.saveCursor &&
+		    ++rename.saveSteps <= 4096) {
+			rename.saveCursor = result.reply.next;
+			rename.due = true;
+			return;
+		}
+		rename.unsaved =
+		    result.operation.status != client::Status::Ok
+		        ? QStringLiteral("the device did not confirm it keeps the name after a restart")
+		    : !result.parsed ? QStringLiteral("its reply about keeping the name could not be read")
+		    : result.reply.status == ::resource::Status::Ok
+		        ? QStringLiteral("the device did not finish saving the name")
+		        : QStringLiteral(
+		              "the device could not save it (code %1), so keeps it only until it "
+		              "restarts")
+		              .arg(static_cast<int>(result.reply.status));
+		readBack();
+	}
+
+	// A submission refused for now: the queue or its shared payload pool is
+	// full; asked again on the next pass.
+	static bool retryable(client::Status status) noexcept
+	{
+		return status == client::Status::Busy || status == client::Status::QueueFull ||
+		       status == client::Status::PayloadFull;
 	}
 
 	// Submits the identity's next request when one is due, and says when it
@@ -380,10 +498,34 @@ struct ConnectionSession::Impl {
 				identityFailed(QStringLiteral("the connection could not ask for it"));
 			}
 		}
-		// The rename's WRITE, never while the identity is being read.
+		// The rename's WRITE or SAVE, never while the identity is being read.
 		auto& rename = identityRename;
-		if (rename.step == IdentityRename::Step::Write && rename.due && !rename.inFlight && !read.inFlight &&
-		    rename.epoch == generation) {
+		if (rename.step == IdentityRename::Step::Save && rename.due && !rename.inFlight &&
+		    !read.inFlight && rename.epoch == generation) {
+			struct Saved {
+				std::weak_ptr<Impl> state;
+				quint64 epoch;
+
+				void operator()(const files::SaveResult& result) noexcept
+				{
+					if (const auto value = state.lock())
+						value->renameSaved(epoch, result);
+				}
+			};
+
+			const ProtocolWrite allowed{*this};
+			const auto submitted =
+			    files::save(*owner, read.index, rename.saveCursor, Saved{owner->d, rename.epoch});
+			if (submitted) {
+				rename.due = false;
+				rename.inFlight = true;
+			} else if (!retryable(submitted.status)) {
+				rename.unsaved = QStringLiteral("the save request could not be sent");
+				readBack();
+			}
+		}
+		if (rename.step == IdentityRename::Step::Write && rename.due && !rename.inFlight &&
+		    !read.inFlight && rename.epoch == generation) {
 			struct Written {
 				std::weak_ptr<Impl> state;
 				quint64 epoch;
@@ -397,31 +539,26 @@ struct ConnectionSession::Impl {
 
 			const ProtocolWrite allowed{*this};
 			const auto submitted = files::write(
-			    *owner, ::resource::Output{rename.scratch.data(), rename.scratch.size()}, read.index, 0,
+			    *owner, ::resource::Output{rename.scratch.data(), rename.scratch.size()},
+			    read.index, 0,
 			    client::Input{reinterpret_cast<const std::byte*>(rename.bytes.constData()),
 			                  static_cast<std::size_t>(rename.bytes.size())},
 			    true, Written{owner->d, rename.epoch});
 			if (submitted) {
 				rename.due = false;
 				rename.inFlight = true;
-			} else if (submitted.status != client::Status::Busy &&
-			           submitted.status != client::Status::QueueFull) {
-				rename.step = IdentityRename::Step::Ended;
-				rename.renamed = false;
-				rename.problem = QStringLiteral("the connection could not send it");
+				rename.queued = true;
+			} else if (!retryable(submitted.status)) {
+				endRename(ConnectionSession::RenameResult::NotRenamed,
+				          QStringLiteral("the request could not be sent"));
 			}
 		}
 		if (read.changed && owner) {
 			read.changed = false;
 			Q_EMIT owner->identityChanged();
 		}
-		if (rename.step == IdentityRename::Step::Ended && owner) {
-			rename.step = IdentityRename::Step::Idle;
-			const bool renamed = rename.renamed;
-			const auto problem = rename.problem;
-			rename.bytes.clear();
-			Q_EMIT owner->renameFinished(renamed, problem);
-		}
+		if (rename.step == IdentityRename::Step::Ended && owner)
+			endRename();
 	}
 
 	void fail(QString reason)
@@ -1061,23 +1198,42 @@ QString ConnectionSession::nameProblem(const QString& name) const
 	const std::string_view text(utf8.constData(), static_cast<std::size_t>(utf8.size()));
 	if (name.trimmed().isEmpty())
 		return QStringLiteral("a name cannot be empty");
+	if (name.trimmed() != name)
+		return QStringLiteral("it starts or ends with a space");
 	if (static_cast<std::size_t>(utf8.size()) > ::telemetry::protocol::identity::maxText)
-		return QStringLiteral("a name holds at most %1 bytes of UTF-8").arg(::telemetry::protocol::identity::maxText);
+		return QStringLiteral("too long: %1 of at most %2 bytes")
+		    .arg(utf8.size())
+		    .arg(::telemetry::protocol::identity::maxText);
 	if (!::telemetry::protocol::identity::validText(text))
-		return QStringLiteral("a name cannot hold control characters");
+		return QStringLiteral("it holds a tab or other control character");
 	return {};
 }
 
-bool ConnectionSession::renaming() const noexcept
+bool ConnectionSession::renamable() const noexcept
 {
-	return d->identityRename.step == Impl::IdentityRename::Step::Write ||
-	       d->identityRename.step == Impl::IdentityRename::Step::ReadBack;
+	return d->connected && filesSupported() && d->identityState == IdentityState::Known &&
+	       ::resource::has(d->identityRead.flags, ::resource::FileFlag::Writable) &&
+	       !d->identityRename.running() &&
+	       d->identityRename.step != Impl::IdentityRename::Step::Ended;
+}
+
+bool ConnectionSession::keepsName() const noexcept
+{
+	return d->identityState == IdentityState::Known &&
+	       ::resource::has(d->identityRead.flags, ::resource::FileFlag::Savable);
+}
+
+int ConnectionSession::maxNameBytes() const noexcept
+{
+	return static_cast<int>(::telemetry::protocol::identity::maxText);
 }
 
 bool ConnectionSession::writeRefused(client::Input request) const noexcept
 {
-	// Only a WRITE (operation 4: u8 op, u32 index, ...) names a file to change.
-	if (request.size() < 5 || request[0] != std::byte{4} || d->protocolWriteAllowed)
+	// Only a WRITE or a SAVE (operations 4 and 5: u8 op, u32 index, ...) names
+	// a file to change or keep.
+	if (request.size() < 5 || (request[0] != std::byte{4} && request[0] != std::byte{5}) ||
+	    d->protocolWriteAllowed)
 		return false;
 	std::uint32_t index = 0;
 	for (int i = 0; i < 4; ++i)
@@ -1093,10 +1249,11 @@ bool ConnectionSession::writeRefused(client::Input request) const noexcept
 bool ConnectionSession::rename(const QString& name)
 {
 	auto& state = *d;
-	if (!state.connected || !filesSupported() || state.identityState != IdentityState::Known || renaming() ||
-	    !nameProblem(name).isEmpty())
+	if (!renamable() || name == state.identityName || !nameProblem(name).isEmpty())
 		return false;
-	const auto text = [](const QString& value) { return value.toUtf8(); };
+	const auto text = [](const QString& value) {
+		return value.toUtf8();
+	};
 	const auto id = text(state.identityId), utf8 = text(name), model = text(state.identityModel),
 	           firmware = text(state.identityFirmware);
 	const auto view = [](const QByteArray& bytes) {
@@ -1111,9 +1268,12 @@ bool ConnectionSession::rename(const QString& name)
 	rename = {};
 	rename.step = Impl::IdentityRename::Step::Write;
 	rename.epoch = state.generation;
-	rename.name = name;
-	rename.bytes = QByteArray(reinterpret_cast<const char*>(encoded.data()), static_cast<qsizetype>(written));
+	rename.oldName = state.identityName;
+	rename.bytes =
+	    QByteArray(reinterpret_cast<const char*>(encoded.data()), static_cast<qsizetype>(written));
 	rename.due = true;
+	// renamable() is false until it ends.
+	Q_EMIT identityChanged();
 	pumpSoon();
 	return true;
 }

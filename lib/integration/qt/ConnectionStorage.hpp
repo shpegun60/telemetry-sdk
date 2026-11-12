@@ -96,8 +96,11 @@ struct FilesAdmission {
 	}
 };
 
-using FilesClient =
-    client::DeviceClient<FilesCodec, 4, 64, 512, 1, 1, client::NoLock, FilesAdmission>;
+// Requests up to filesRequestBytes: a WRITE of FileWriter's default
+// 1024-byte piece (16 + 1024), and the identity file whole.
+inline constexpr std::size_t filesRequestBytes = 2048;
+using FilesClient = client::DeviceClient<FilesCodec, 4, filesRequestBytes, 512, 1, 1,
+                                         client::NoLock, FilesAdmission>;
 
 class FilesOnlyStorage {
 public:
@@ -117,7 +120,7 @@ public:
 	void closeAndDrain();
 
 	QElapsedTimer elapsed;
-	std::array<std::byte, 64> tx{};
+	std::array<std::byte, filesRequestBytes> tx{};
 	std::array<std::byte, 65568> rx{};
 	client::Clock clock{this, +[](void* owner) noexcept {
 		                    return static_cast<FilesOnlyStorage*>(owner)->now();

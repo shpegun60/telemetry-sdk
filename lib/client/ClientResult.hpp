@@ -17,8 +17,10 @@ enum class Operation : std::uint8_t {
 	FieldRead = 4,
 	ReadMany = 5,
 	Batch = 6,
-	// A raw Resource List, Stat or Read on the same queue, for the device's
-	// files. Its payload is the complete Resource request; it has no endpoint.
+	// A raw Resource List, Stat, Read, Write or Save on the same queue, for the
+	// device's files. Its payload is the complete Resource request; it has no
+	// endpoint. Read-only as an operation: a backend that admits Write and Save
+	// tells them apart by the request's first byte.
 	// Client-only: it never appears in an Encoded header, and 7 stays reserved
 	// in the Encoded operation space so no future operation collides with it.
 	Resource = 7

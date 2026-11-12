@@ -490,7 +490,7 @@ public:
 		core_.close();
 	}
 
-	// A raw Resource List, Stat or Read for the device's files on this client's
+	// A raw Resource List, Stat, Read, Write or Save for the device's files on this client's
 	// queue, under the same admission as every other request. No endpoint and
 	// no schema are involved; the caller parses the reply inside its callback.
 	template<class F>

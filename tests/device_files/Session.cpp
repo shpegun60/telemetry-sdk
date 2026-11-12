@@ -307,6 +307,58 @@ void profileWithApplicationFiles()
 	CHECK(refused.closed());
 }
 
+// A device's identity a client may rename, as firmware writes it: write()
+// through check() and rename(), and save() that keeps the name in two steps -
+// or refuses either, when told to.
+// It may also shorten a name to its first bytes, answer Ok and keep the old
+// one, or keep saving without ever completing.
+struct KeptIdentity : resource::telemetry::v3::IdentityFile {
+	unsigned taken = 0, steps = 0;
+	std::size_t shortenTo = 0;
+	bool refuseName = false, refuseSave = false, ignore = false, endless = false;
+
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input bytes,
+	                                          bool final) noexcept
+	{
+		std::string_view name;
+		if (cursor != 0 || !final || check(bytes, name) != resource::Status::Ok)
+			return {resource::Status::InvalidData, cursor};
+		if (refuseName)
+			return {resource::Status::InternalError, cursor};
+		if (shortenTo != 0 && name.size() > shortenTo)
+			name = name.substr(0, shortenTo);
+		if (!ignore && !rename(name))
+			return {resource::Status::InvalidData, cursor};
+		++taken;
+		const auto size = static_cast<std::uint32_t>(bytes.size());
+		return {resource::Status::Ok, size, size, true};
+	}
+
+	[[nodiscard]] resource::SaveResult save(resource::Cursor cursor) noexcept
+	{
+		if (refuseSave)
+			return {resource::Status::InternalError, cursor};
+		++steps;
+		if (endless)
+			return {resource::Status::Ok, cursor + 1, false};
+		return cursor == 0 ? resource::SaveResult{resource::Status::Ok, 1, false}
+		                   : resource::SaveResult{resource::Status::Ok, cursor, true};
+	}
+};
+
+// Renamed until it restarts: write() and no save().
+struct TakenIdentity : resource::telemetry::v3::IdentityFile {
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input bytes,
+	                                          bool final) noexcept
+	{
+		std::string_view name;
+		if (cursor != 0 || !final || check(bytes, name) != resource::Status::Ok || !rename(name))
+			return {resource::Status::InvalidData, cursor};
+		const auto size = static_cast<std::uint32_t>(bytes.size());
+		return {resource::Status::Ok, size, size, true};
+	}
+};
+
 // The identity file's bytes, as the device writes them and every client reads
 // them: what is refused on either side, and that a later version's extra texts
 // are skipped.
@@ -399,46 +451,51 @@ void identityBytes()
 	longer[8] = std::byte(longer.size());
 	CHECK(view(longer).first == id::Problem::None && view(longer).second.name == "Стенд 2");
 
-	// A client renames a RenamableIdentityFile through write(): the whole file
-	// in one piece, only the name changed; the hook's refusal is the answer. A
-	// plain IdentityFile is read-only, and Stat says which is which.
+	// check() tells a device's write() whether bytes only rename it: the same
+	// id, model and firmware, a name an identity holds. A plain IdentityFile is
+	// read-only; the device's own class is Writable, and Savable with save().
 	{
-		static unsigned kept = 0;
-		static bool refuse = false;
-		resource::telemetry::v3::RenamableIdentityFile renamable{[](void*, std::string_view name) noexcept {
-			++kept;
-			return refuse || name.empty() ? resource::Status::InternalError : resource::Status::Ok;
-		}};
-		CHECK(renamable.set("EMU-1", "Old", "Demo", "0.1.0"));
-		const auto table = resource::filesystem(resource::file(id::path, file), resource::file("/other", renamable));
-		CHECK(table.stat(0).flags == resource::FileFlag::Readable &&
-		      table.stat(1).flags == (resource::FileFlag::Readable | resource::FileFlag::Writable) &&
-		      table.write(0, 0, {}, true).status == resource::Status::NotWritable);
-		resource::telemetry::v3::RenamableIdentityFile noHook{nullptr};
-		CHECK(noHook.set("EMU-1", "Old") && noHook.write(0, file.bytes(), true).status == resource::Status::NotWritable);
-		const auto encoded = [](std::string_view id, std::string_view name, std::string_view firmware) {
+		const auto encoded = [](std::string_view id, std::string_view name,
+		                        std::string_view firmware) {
 			std::vector<std::byte> out(id::writtenBytes);
 			out.resize(id::write({id, name, "Demo", firmware}, out));
 			return out;
 		};
+		resource::telemetry::v3::IdentityFile unset;
+		std::string_view name;
+		CHECK(unset.check(encoded("EMU-1", "New", "0.1.0"), name) == resource::Status::InvalidData);
+		KeptIdentity kept;
+		TakenIdentity taken;
+		CHECK(kept.set("EMU-1", "Old", "Demo", "0.1.0") &&
+		      taken.set("EMU-1", "Old", "Demo", "0.1.0"));
 		const auto renamed = encoded("EMU-1", "New name", "0.1.0");
-		const auto result = renamable.write(0, renamed, true);
-		CHECK(result.status == resource::Status::Ok && result.complete && result.consumed == renamed.size() &&
-		      renamable.name() == "New name" && renamable.id() == "EMU-1" && kept == 1);
-		// Another id or firmware, a piece, a later cursor, not an identity: refused.
-		CHECK(renamable.write(0, encoded("EMU-2", "X", "0.1.0"), true).status == resource::Status::InvalidData);
-		CHECK(renamable.write(0, encoded("EMU-1", "X", "9.9"), true).status == resource::Status::InvalidData);
-		CHECK(renamable.write(0, std::span(renamed).first(10), false).status == resource::Status::InvalidData);
-		CHECK(renamable.write(4, renamed, true).status == resource::Status::InvalidData);
+		CHECK(kept.check(renamed, name) == resource::Status::Ok && name == "New name" &&
+		      kept.name() == "Old");
+		CHECK(kept.check(encoded("EMU-2", "X", "0.1.0"), name) == resource::Status::InvalidData);
+		CHECK(kept.check(encoded("EMU-1", "X", "9.9"), name) == resource::Status::InvalidData);
+		std::vector<std::byte> otherModel(id::writtenBytes);
+		otherModel.resize(id::write({"EMU-1", "X", "Other", "0.1.0"}, otherModel));
+		CHECK(kept.check(otherModel, name) == resource::Status::InvalidData);
 		const std::array<std::byte, 4> junk{std::byte{'J'}};
-		CHECK(renamable.write(0, junk, true).status == resource::Status::InvalidData);
-		CHECK(renamable.name() == "New name" && kept == 1);
-		// The hook refuses: its status is the answer, the name stays.
-		refuse = true;
-		CHECK(renamable.write(0, encoded("EMU-1", "Third", "0.1.0"), true).status ==
-		          resource::Status::InternalError &&
-		      renamable.name() == "New name" && kept == 2);
-		refuse = false;
+		CHECK(kept.check(junk, name) == resource::Status::InvalidData);
+		const auto table =
+		    resource::filesystem(resource::file(id::path, file), resource::file("/kept", kept),
+		                         resource::file("/taken", taken));
+		CHECK(table.stat(0).flags == resource::FileFlag::Readable &&
+		      table.stat(1).flags == (resource::FileFlag::Readable | resource::FileFlag::Writable |
+		                              resource::FileFlag::Savable) &&
+		      table.stat(2).flags ==
+		          (resource::FileFlag::Readable | resource::FileFlag::Writable) &&
+		      table.write(0, 0, {}, true).status == resource::Status::NotWritable &&
+		      table.save(2, 0).status == resource::Status::NotWritable);
+		const auto result = table.write(1, 0, renamed, true);
+		CHECK(result.status == resource::Status::Ok && result.complete &&
+		      result.consumed == renamed.size() && kept.name() == "New name" &&
+		      kept.id() == "EMU-1" && kept.taken == 1);
+		CHECK(table.write(1, 0, std::span(renamed).first(10), false).status ==
+		          resource::Status::InvalidData &&
+		      table.write(1, 4, renamed, true).status == resource::Status::InvalidData &&
+		      kept.taken == 1);
 	}
 
 	std::array<char, 24> hex{};
@@ -453,12 +510,7 @@ void identityBytes()
 // connection is as good as without it. Disconnecting forgets it.
 void sessionIdentity()
 {
-	static unsigned stored = 0;
-	static bool refuseRename = false;
-	resource::telemetry::v3::RenamableIdentityFile identity{[](void*, std::string_view) noexcept {
-		++stored;
-		return refuseRename ? resource::Status::InternalError : resource::Status::Ok;
-	}};
+	KeptIdentity identity;
 	CHECK(identity.set("EMU-00A1", "Bench analyzer", "Demo", "0.1.0"));
 	const auto make = [](tcp::EncodedProfile& profile, const auto& files) {
 		return [&profile, &files](Peer& at) {
@@ -495,55 +547,150 @@ void sessionIdentity()
 	      session.deviceFirmware() == QStringLiteral("0.1.0") &&
 	      session.identityProblem().isEmpty());
 
-	// Renamed from the session: the file written whole, read back, announced.
+	// Renamed from the session: the file written whole, saved in its two steps,
+	// read back, announced. While it runs it is not renamable.
+	using Result = qt::ConnectionSession::RenameResult;
+	CHECK(session.renamable() && session.keepsName() && session.maxNameBytes() == 64);
 	CHECK(!session.rename(QString()) && !session.nameProblem(QString()).isEmpty() &&
 	      !session.nameProblem(QString(65, QLatin1Char('x'))).isEmpty() &&
 	      !session.nameProblem(QStringLiteral("tab\there")).isEmpty() &&
-	      session.nameProblem(QStringLiteral("Bench B")).isEmpty());
-	bool finished = false, renamed = false;
+	      !session.nameProblem(QStringLiteral(" Bench B")).isEmpty() &&
+	      !session.nameProblem(QStringLiteral("Bench B ")).isEmpty() &&
+	      session.nameProblem(QStringLiteral("Bench B")).isEmpty() &&
+	      !session.rename(QStringLiteral("Bench analyzer")));
+	bool finished = false;
+	auto result = Result::NotRenamed;
 	QString why;
-	const auto watching = QObject::connect(&session, &qt::ConnectionSession::renameFinished, &session,
-	                                       [&](bool ok, const QString& problem) {
+	const auto watching = QObject::connect(&session, &qt::ConnectionSession::renameFinished,
+	                                       &session, [&](Result ended, const QString& problem) {
 		                                       finished = true;
-		                                       renamed = ok;
+		                                       result = ended;
 		                                       why = problem;
 	                                       });
-	CHECK(session.rename(QStringLiteral("Bench B")) && session.renaming() &&
-	      !session.rename(QStringLiteral("Other")));
-	CHECK(await([&] { return finished; }));
-	CHECK(renamed && why.isEmpty() && session.deviceName() == QStringLiteral("Bench B") &&
-	      session.deviceId() == QStringLiteral("EMU-00A1") && identity.name() == "Bench B" && stored == 1 &&
-	      !session.renaming());
-	// The device refuses: the name stays, and the session says so.
-	refuseRename = true;
-	finished = false;
-	CHECK(session.rename(QStringLiteral("Refused")));
-	CHECK(await([&] { return finished; }));
-	CHECK(!renamed && !why.isEmpty() && session.deviceName() == QStringLiteral("Bench B") &&
-	      identity.name() == "Bench B" && stored == 2);
-	refuseRename = false;
-	// The identity is the protocol's: a host's own WRITE to it is refused
-	// before it leaves; only rename() writes it.
-	const auto identityIndex = session.discoveredPaths().indexOf(QStringLiteral("/telemetry/identity.bin"));
+	const auto renameTo = [&](const QString& name) {
+		finished = false;
+		const bool started = session.rename(name);
+		CHECK(started && !session.renamable() && !session.rename(QStringLiteral("Other")));
+		CHECK(await([&] {
+			return finished;
+		}));
+		return started;
+	};
+	CHECK(renameTo(QStringLiteral("Bench B")));
+	CHECK(result == Result::Renamed && why.isEmpty() && session.renamable() &&
+	      session.deviceName() == QStringLiteral("Bench B") &&
+	      session.deviceId() == QStringLiteral("EMU-00A1") && identity.name() == "Bench B" &&
+	      identity.taken == 1 && identity.steps == 2);
+	// The device refuses the name: it stays, and the session says so.
+	identity.refuseName = true;
+	CHECK(renameTo(QStringLiteral("Refused")));
+	CHECK(result == Result::NotRenamed && !why.isEmpty() &&
+	      session.deviceName() == QStringLiteral("Bench B") && identity.name() == "Bench B" &&
+	      identity.taken == 1 && identity.steps == 2);
+	identity.refuseName = false;
+	// It takes the name but cannot keep it.
+	identity.refuseSave = true;
+	CHECK(renameTo(QStringLiteral("Not kept")));
+	CHECK(result == Result::RenamedNotKept &&
+	      why.contains(QStringLiteral("only until it restarts")) &&
+	      session.deviceName() == QStringLiteral("Not kept") && identity.taken == 2 &&
+	      identity.steps == 2);
+	identity.refuseSave = false;
+	// It shortens the name: renamed, to what it serves.
+	identity.shortenTo = 5;
+	CHECK(renameTo(QStringLiteral("Shortened name")));
+	CHECK(result == Result::Renamed && why.isEmpty() &&
+	      session.deviceName() == QStringLiteral("Short") && identity.name() == "Short");
+	identity.shortenTo = 0;
+	// It answers Ok but keeps the old name: not renamed, and the name it serves.
+	identity.ignore = true;
+	CHECK(renameTo(QStringLiteral("Ignored")));
+	CHECK(result == Result::NotRenamed && why.contains(QStringLiteral("Short")) &&
+	      session.deviceName() == QStringLiteral("Short"));
+	identity.ignore = false;
+	// The identity is the protocol's: a host's own WRITE or SAVE to it is
+	// refused before it leaves; only rename() writes it.
+	const auto identityIndex =
+	    session.discoveredPaths().indexOf(QStringLiteral("/telemetry/identity.bin"));
 	CHECK(identityIndex >= 0);
 	std::array<std::byte, 16 + 4> scratch{};
 	const std::array<std::byte, 4> four{};
-	CHECK(files::write(session, scratch, static_cast<resource::FileIndex>(identityIndex), 0, four, true,
-	                   [](const files::WriteResult&) noexcept {})
+	CHECK(files::write(session, scratch, static_cast<resource::FileIndex>(identityIndex), 0, four,
+	                   true,
+	                   [](const files::WriteResult&) noexcept {
+	                   })
 	          .status == cl::Status::ReadOnly);
-	// A disconnect cuts a rename short: it ends at once, and once.
+	CHECK(files::save(session, static_cast<resource::FileIndex>(identityIndex), 0,
+	                  [](const files::SaveResult&) noexcept {
+	                  })
+	          .status == cl::Status::ReadOnly);
+	// A disconnect cuts a rename short, at once and once: before the request
+	// leaves, not renamed; in the middle of its save, not known.
 	unsigned endings = 0;
+	const auto counting = QObject::connect(&session, &qt::ConnectionSession::renameFinished,
+	                                       &session, [&](Result, const QString&) {
+		                                       ++endings;
+	                                       });
 	finished = false;
-	const auto counting = QObject::connect(&session, &qt::ConnectionSession::renameFinished, &session,
-	                                       [&](bool, const QString&) { ++endings; });
 	CHECK(session.rename(QStringLiteral("Never sent")));
 	session.disconnect();
-	CHECK(finished && !renamed && !why.isEmpty() && endings == 1 && !session.renaming());
+	CHECK(finished && result == Result::NotRenamed && !why.isEmpty() && endings == 1 &&
+	      !session.renamable() && !session.rename(QStringLiteral("Not connected")));
+	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
+	CHECK(await([&] {
+		return session.identityState() == qt::ConnectionSession::IdentityState::Known;
+	}));
+	identity.endless = true;
+	const auto stepsBefore = identity.steps;
+	finished = false;
+	CHECK(session.rename(QStringLiteral("Mid save")));
+	CHECK(await([&] {
+		return identity.steps > stepsBefore + 3;
+	}));
+	session.disconnect();
+	CHECK(finished && result == Result::Unconfirmed && !why.isEmpty() && endings == 2);
+	identity.endless = false;
 	QObject::disconnect(counting);
-	QObject::disconnect(watching);
 	session.disconnect();
 	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent &&
 	      session.deviceId().isEmpty());
+
+	// A device that takes a name but has no save(): renamed until it restarts,
+	// and the session says so; one with a plain IdentityFile is not renamable.
+	{
+		TakenIdentity taken;
+		CHECK(taken.set("EMU-00B2", "Bench C", "Demo", "0.1.0"));
+		tcp::EncodedProfile second(std::span<const std::byte>(packed), descriptor.fingerprint());
+		const auto takenFiles = resource::filesystem(
+		    second.systemFiles(), resource::file(telemetry::protocol::identity::path, taken));
+		Peer temporary(make(second, takenFiles));
+		CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"),
+		                                  temporary.listener.serverPort()));
+		CHECK(await([&] {
+			return session.identityState() == qt::ConnectionSession::IdentityState::Known;
+		}));
+		CHECK(session.renamable() && !session.keepsName());
+		CHECK(renameTo(QStringLiteral("Bench D")));
+		CHECK(result == Result::RenamedUntilRestart && why.isEmpty() &&
+		      session.deviceName() == QStringLiteral("Bench D") && taken.name() == "Bench D");
+		session.disconnect();
+
+		resource::telemetry::v3::IdentityFile fixed;
+		CHECK(fixed.set("EMU-00C3", "Fixed", "Demo", "0.1.0"));
+		tcp::EncodedProfile third(std::span<const std::byte>(packed), descriptor.fingerprint());
+		const auto fixedFiles = resource::filesystem(
+		    third.systemFiles(), resource::file(telemetry::protocol::identity::path, fixed));
+		Peer readOnly(make(third, fixedFiles));
+		CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"),
+		                                  readOnly.listener.serverPort()));
+		CHECK(await([&] {
+			return session.identityState() == qt::ConnectionSession::IdentityState::Known;
+		}));
+		CHECK(!session.renamable() && !session.keepsName() &&
+		      !session.rename(QStringLiteral("Never")));
+		session.disconnect();
+	}
+	QObject::disconnect(watching);
 
 	// Renamed on the device: the next connection reads the new name.
 	CHECK(identity.rename("Стенд 2"));

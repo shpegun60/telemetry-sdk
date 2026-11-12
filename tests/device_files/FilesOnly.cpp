@@ -3,6 +3,7 @@
 // the listed paths are kept for naming a typo, and the files are still read.
 // A device that does not speak the protocol is a plain failure. MIT.
 #include <integration/qt/ConnectionSession.hpp>
+#include <integration/telemetry/v3/IdentityFile.hpp>
 #include <integration/tcp/Server.hpp>
 #include <resource/BytesFile.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
@@ -118,6 +119,28 @@ const auto failing = resource::filesystem(resource::file("/telemetry/descriptor.
                                           resource::file("/logs/events.csv", logFile));
 const auto broken = resource::filesystem(resource::file("/telemetry/descriptor.bin", brokenFile),
                                          resource::file("/logs/events.csv", logFile));
+
+// A device's identity a client may rename and that keeps it: write() through
+// check(), save() at once.
+struct RenamableIdentity : resource::telemetry::v3::IdentityFile {
+	unsigned saves = 0;
+
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input bytes,
+	                                          bool final) noexcept
+	{
+		std::string_view name;
+		if (cursor != 0 || !final || check(bytes, name) != resource::Status::Ok || !rename(name))
+			return {resource::Status::InvalidData, cursor};
+		const auto size = static_cast<std::uint32_t>(bytes.size());
+		return {resource::Status::Ok, size, size, true};
+	}
+
+	[[nodiscard]] resource::SaveResult save(resource::Cursor cursor) noexcept
+	{
+		++saves;
+		return {resource::Status::Ok, cursor, true};
+	}
+};
 
 class Peer {
 public:
@@ -301,6 +324,40 @@ void notTheProtocol()
 }
 } // namespace
 
+// A files-only device is renamed as any other: its identity's WRITE - with a
+// 24-character MCU id, longer than a files-only queue once held - goes on the
+// files-only queue, then SAVE, then the read-back.
+void renamedFilesOnly()
+{
+	RenamableIdentity identity;
+	CHECK(identity.set("0123456789ABCDEF01234567", "Bench analyzer", "PA-3", "1.4.2"));
+	const auto table =
+	    resource::filesystem(resource::file("/telemetry/descripter.bin", brokenFile),
+	                         resource::file(telemetry::protocol::identity::path, identity));
+	Peer peer{table.view()};
+	qt::ConnectionSession session;
+	CHECK(connected(session, peer));
+	CHECK(session.filesOnly() && await([&] {
+		      return session.identityState() == qt::ConnectionSession::IdentityState::Known;
+	      }));
+	CHECK(session.renamable() && session.keepsName());
+	bool finished = false;
+	auto result = qt::ConnectionSession::RenameResult::NotRenamed;
+	QObject::connect(&session, &qt::ConnectionSession::renameFinished, &session,
+	                 [&](qt::ConnectionSession::RenameResult ended, const QString&) {
+		                 finished = true;
+		                 result = ended;
+	                 });
+	CHECK(session.rename(QStringLiteral("Bench B")));
+	CHECK(await([&] {
+		return finished;
+	}));
+	CHECK(result == qt::ConnectionSession::RenameResult::Renamed &&
+	      session.deviceName() == QStringLiteral("Bench B") && identity.name() == "Bench B" &&
+	      identity.saves == 1);
+	session.disconnect();
+}
+
 int main(int argc, char** argv)
 {
 	QCoreApplication app(argc, argv);
@@ -312,6 +369,7 @@ int main(int argc, char** argv)
 	descriptorShort();
 	descriptorUnreadable();
 	notTheProtocol();
+	renamedFilesOnly();
 	std::printf("Files-only connection: %u checks, 0 failures\n", checks);
 	return 0;
 }

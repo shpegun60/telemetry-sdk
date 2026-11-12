@@ -61,21 +61,27 @@ the relocated installed package. No board; only ephemeral localhost sockets.
     written and read, a rename, every refusal of the reader (magic, version,
     flags, size, texts, id) and of the writer (an id unfit for a folder name, a
     control character, a text too long, broken UTF-8), a later version's extra
-    text skipped, a read in pieces; a plain `IdentityFile` read-only by Stat and a
-    `RenamableIdentityFile` writable; a client's rename through its `write()`:
-    taken whole in one piece with only the name changed, refused for another id
-    or firmware, a piece, a later cursor or bytes that are not an identity, and
-    the hook's own refusal as the answer with the name kept (no hook:
-    NotWritable);
+    text skipped, a read in pieces; `check()` - bytes that only rename the
+    device taken, another id, model or firmware or bytes that are not an
+    identity refused, nothing set refused; a plain `IdentityFile` read-only by
+    Stat, a device's own class with `write()` Writable and with `save()` also
+    Savable; its `write()` taking the whole file in one piece and refusing a
+    piece or a later cursor;
   - the session reads it: already Reading when `ready()` turns true, then Known
     with the id, name, model and firmware; renamed from the session
-    (`rename()`): the file written whole, read back, `renameFinished` with the
-    new name, a second rename refused while one runs, the names an identity
-    cannot hold refused before anything is sent (`nameProblem()`), the device's
-    refusal said with the name kept, a host's own WRITE to the identity refused
-    with ReadOnly (the SDK's files under /telemetry/ are the protocol's), and a
-    disconnect that cuts a rename short ending it at once, once; a rename on the
-    device reaches the next connection;
+    (`rename()`, `renamable()`, `keepsName()`): the file written whole, saved in
+    two SAVE steps, read back, `Renamed`; `renamable()` false while it runs and
+    a second rename refused; the name it has, and the names an identity cannot
+    hold, refused before anything is sent (`nameProblem()`); the device's
+    refusal `NotRenamed` with the name kept; a name taken but its save refused
+    `RenamedNotKept`; a device that shortens the name `Renamed` with what it
+    serves; one that answers Ok but keeps the old name `NotRenamed`; a host's
+    own WRITE or SAVE to the identity refused with ReadOnly (the SDK's files
+    under /telemetry/ are the protocol's); a disconnect before the request
+    leaves `NotRenamed`, and one in the middle of a save `Unconfirmed`, each
+    ending at once, once; a device without `save()` `RenamedUntilRestart`; a
+    plain `IdentityFile` not renamable; a rename on the device reaches the next
+    connection;
     without the file Absent; with another file under its name Unreadable with
     the reason, the connection still ready; disconnecting forgets it.
 - **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose
