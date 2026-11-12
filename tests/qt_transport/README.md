@@ -21,7 +21,7 @@ python3 -B tests/qt_transport/run.py --build-dir /external/qt-transport \
 ```
 
 Supply CMake, Ninja and a compiler matching the Qt kit. Use `--qt-prefix` for a
-non-system kit and pass explicit `--cmake`/`--ninja` paths where needed. Qt 6.4+
+non-system kit and pass explicit `--cmake`/`--ninja` paths where needed. Qt 6.12+
 Core and SerialPort are required for this full gate, but portable SDK selection
 remains independent of Qt. Logs, source hashes and receipts stay in the fresh
 external output directory. The runner deletes nothing and publishes no package.

@@ -18,4 +18,11 @@ foreach(target channel resource trace)
 endforeach()
 foreach(target framer channel resource trace)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
+    # GCC 15 reports maybe-uninitialized inside libstdc++'s shared_ptr once a
+    # readMany completion is inlined through std::optional into a delegate's
+    # inline storage: a false positive located in a system header, which no
+    # pragma at our call site reaches.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target} PRIVATE -Wno-maybe-uninitialized)
+    endif()
 endforeach()

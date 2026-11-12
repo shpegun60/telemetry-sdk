@@ -53,7 +53,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--cobs-root", type=Path, required=True)
-    parser.add_argument("--qt-prefix", type=Path, default=Path("/usr"))
+    parser.add_argument("--qt-prefix", type=Path, required=True)
     parser.add_argument("--serial-prefix", type=Path)
     parser.add_argument("--cxx", default="g++")
     parser.add_argument("--cmake", default="cmake")

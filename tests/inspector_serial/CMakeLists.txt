@@ -1,8 +1,8 @@
 # Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 project(telemetry_inspector_serial_checks LANGUAGES CXX)
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network SerialPort Test)
-qt_standard_project_setup(REQUIRES 6.4)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network SerialPort Test)
+qt_standard_project_setup(REQUIRES 6.12)
 get_filename_component(TELEMETRY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(TELEMETRY_UX_ROOT "" CACHE PATH "External telemetry-ux checkout containing examples/inspector")
 if(NOT EXISTS "${TELEMETRY_UX_ROOT}/examples/inspector/CMakeLists.txt")

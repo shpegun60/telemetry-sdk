@@ -11,7 +11,7 @@ python3 -B tests/inspector_serial/run.py --build-dir /external/inspector-serial 
   --qt-prefix /usr --cobs-root /path/to/COBS --cxx /usr/bin/g++
 ```
 
-Qt 6.4 or newer requires SerialPort, Network, Quick Controls and Test. COBS remains
+It needs Qt 6.12 LTS or newer with SerialPort, Network, Quick Controls and Test. COBS remains
 an explicitly selected external checkout for the test peer. The GUI comes from
 Telemetry UX and consumes the installed SDK; the peer uses the actual SDK NUCLEO
 Protocol and private serial profile. UX sources, SDK fixtures, installed SDK

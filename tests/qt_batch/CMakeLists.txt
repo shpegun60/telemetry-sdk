@@ -20,6 +20,14 @@ endif()
 foreach(target IN ITEMS profile workbench noheap)
     target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
 endforeach()
+# GCC 15 reports maybe-uninitialized inside libstdc++'s shared_ptr once a
+# completion is inlined through std::optional into a delegate's inline storage:
+# a false positive located in a system header, which no pragma here reaches.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    foreach(target IN ITEMS session profile workbench noheap)
+        target_compile_options(${target} PRIVATE -Wno-maybe-uninitialized)
+    endforeach()
+endif()
 
 add_executable(legacy Legacy.cpp)
 target_link_libraries(legacy PRIVATE Telemetry::tcp_server)
