@@ -18,7 +18,7 @@ def digest(path):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--build-dir', required=True, type=Path)
-    parser.add_argument('--qmake', default='qmake6')
+    parser.add_argument('--qmake', default='qmake')
     args = parser.parse_args()
     out = args.build_dir.resolve()
     if out == ROOT or ROOT in out.parents or out in ROOT.parents:

@@ -2,7 +2,7 @@
 
 ```sh
 python3 -B tests/read_many_serial/run.py --build-dir /tmp/read-many-serial \
-  --cobs-root /path/to/cobs --qt-prefix /usr --cxx clang++-18 --sanitize
+  --cobs-root /path/to/cobs --qt-prefix /path/to/Qt/6.12.0/gcc_64 --cxx clang++-18 --sanitize
 ```
 
 The build directory must be fresh and outside the source tree. The runner keeps

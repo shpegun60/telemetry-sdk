@@ -841,10 +841,12 @@ jobs:
       - name: Install selected host compiler and example tools
         shell: bash
         run: |
-          packages=(ninja-build qt6-base-dev)
+          packages=(ninja-build)
           if [[ '${{ matrix.compiler }}' == 'clang++-18' ]]; then packages+=(clang-18); fi
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends "${packages[@]}"
+      - name: Install the project's Qt
+        uses: ./.github/actions/setup-qt
       - name: Install offline ARM and browser tools
         if: matrix.mode == 'release'
         run: |
@@ -877,7 +879,7 @@ jobs:
           ctest --test-dir "$RUNNER_TEMP/codegen-cmake" --output-on-failure
           mkdir -p "$RUNNER_TEMP/codegen-qmake"
           cd "$RUNNER_TEMP/codegen-qmake"
-          qmake6 "$GITHUB_WORKSPACE/examples/codegen_cpp/codegen_cpp.pro" CODEGEN_SDK="$RUNNER_TEMP/codegen-cmake/generated"
+          qmake "$GITHUB_WORKSPACE/examples/codegen_cpp/codegen_cpp.pro" CODEGEN_SDK="$RUNNER_TEMP/codegen-cmake/generated"
           make -j2
           ./codegen_cpp
       - name: Optional structural metadata through standalone consumers
@@ -900,7 +902,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: shpegun60/telemetry-ux
-          ref: 1f6856b8a7cb8a7e67d4807d29a26fa326bacf2b
+          ref: 4bf3ac7da19f555e305e9b2d69bc08be56feb8e7
           path: .ci/telemetry-ux
       - name: Relocated CMake, packed ESM and installed Python consumers
         if: matrix.mode == 'release'
@@ -1218,7 +1220,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: shpegun60/telemetry-ux
-          ref: 238a96efbf3f29e6f0546d1231a19ba03a240c2e
+          ref: 4bf3ac7da19f555e305e9b2d69bc08be56feb8e7
           path: .ci/telemetry-ux
       - name: Install current core and pinned UX generator wheels outside checkouts
         run: |
@@ -1233,12 +1235,14 @@ jobs:
           version="$(tr -d '\r\n' < VERSION)"
           "$RUNNER_TEMP/ux-generator-tools/bin/pip" install --no-index --find-links "$RUNNER_TEMP/ux-generator-wheels" \
             "telemetry-codegen-core==$version" "telemetry-ux-codegen==$version"
-      - name: Install Qt host development and QML runtime
+      - name: Install the host compiler and build tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-18 cmake ninja-build qt6-base-dev qt6-declarative-dev libqt6serialport6-dev \
-            qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtquick-controls \
-            qml6-module-qtquick-layouts qml6-module-qtquick-templates qml6-module-qtqml-workerscript
+          sudo apt-get install -y clang-18 cmake ninja-build
+      - name: Install the project's Qt with SerialPort
+        uses: ./.github/actions/setup-qt
+        with:
+          modules: qtserialport
       - name: Check out the qualified COBS transport
         uses: actions/checkout@v4
         with:
@@ -1248,24 +1252,24 @@ jobs:
       - name: Relocated optional Qt transport consumers
         run: |
           python3 -B tests/qt_transport/run.py --build-dir "$RUNNER_TEMP/qt-transport-packages" \
-            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix /usr \
+            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix "$QT_ROOT_DIR" \
             --cxx /usr/bin/g++ --cmake cmake --ninja ninja
       - name: Sanitized installed TCP and Qt ReadMany session
         run: |
           python3 -B tests/qt_read_many/run.py --build-dir "$RUNNER_TEMP/qt-read-many" \
-            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
+            --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Sanitized installed TCP and Qt Mixed Batch session
         run: |
           python3 -B tests/qt_batch/run.py --build-dir "$RUNNER_TEMP/qt-batch" \
-            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
+            --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Sanitized installed device files over the session queue
         run: |
           python3 -B tests/device_files/run.py --build-dir "$RUNNER_TEMP/device-files" \
-            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
+            --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Sanitized installed link transport against its golden trace
         run: |
           python3 -B tests/link_transport/run.py --build-dir "$RUNNER_TEMP/link-transport" \
-            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
+            --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Install the current SDK for cross-repository Qt consumers
         run: |
           cmake -S . -B "$RUNNER_TEMP/ux-sdk-build" -G Ninja \
@@ -1281,12 +1285,12 @@ jobs:
           python3 -B .ci/telemetry-ux/tests/codegen_qml/run.py --build-dir "$RUNNER_TEMP/codegen-qml" \
             --sdk-prefix "$RUNNER_TEMP/ux-sdk-prefix" \
             --codegen-python "$RUNNER_TEMP/ux-generator-tools/bin/python" \
-            --qt-prefix /usr --cxx /usr/bin/clang++-18 --sanitize --cmake /usr/bin/cmake --ninja /usr/bin/ninja
+            --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake /usr/bin/cmake --ninja /usr/bin/ninja
       - name: Sanitized serial discovery and fault injection through real PTYs
         run: |
           python3 -B tests/inspector_serial/run.py --build-dir "$RUNNER_TEMP/inspector-serial" \
             --ux-root "$GITHUB_WORKSPACE/.ci/telemetry-ux" --sdk-prefix "$RUNNER_TEMP/ux-sdk-prefix" \
-            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix /usr \
+            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix "$QT_ROOT_DIR" \
             --cxx /usr/bin/clang++-18 --sanitize --cmake /usr/bin/cmake --ninja /usr/bin/ninja
       - name: Sanitized Nucleo dispatch and physical TX ownership gate
         run: |
@@ -1296,7 +1300,7 @@ jobs:
       - name: Sanitized ReadMany UART discovery and real CLI through PTYs
         run: |
           python3 -B tests/read_many_serial/run.py --build-dir "$RUNNER_TEMP/read-many-serial" \
-            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix /usr \
+            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix "$QT_ROOT_DIR" \
             --cxx clang++-18 --sanitize --cmake cmake --ninja ninja
       - name: Compare installed read paths and actual framed traffic
         run: |
@@ -1345,14 +1349,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install Qt
-        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev
+      - name: Install the project's Qt
+        uses: ./.github/actions/setup-qt
       - name: Independent resource qmake configurations
-        run: python3 tests/structured/resources/run_qmake.py --qmake qmake6 --build-dir build/resource-qmake
+        run: python3 tests/structured/resources/run_qmake.py --qmake qmake --build-dir build/resource-qmake
       - name: Optional ReadMany qmake selections and include ordering
-        run: python3 -B tests/read_many/qmake.py --qmake qmake6 --build-dir "$RUNNER_TEMP/read-many-qmake"
+        run: python3 -B tests/read_many/qmake.py --qmake qmake --build-dir "$RUNNER_TEMP/read-many-qmake"
       - name: Optional Mixed Batch qmake selections and include ordering
-        run: python3 -B tests/batch/qmake.py --qmake qmake6 --build-dir "$RUNNER_TEMP/mixed-batch-qmake"
+        run: python3 -B tests/batch/qmake.py --qmake qmake --build-dir "$RUNNER_TEMP/mixed-batch-qmake"
       - name: Retain independent qmake selection manifests
         if: always()
         uses: actions/upload-artifact@v4
@@ -1367,21 +1371,21 @@ jobs:
         run: |
           mkdir -p build/example-qmake
           cd build/example-qmake
-          qmake6 ../../tests/structured/exchange/qmake.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror QMAKE_CXXFLAGS+=-UNDEBUG
+          qmake ../../tests/structured/exchange/qmake.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror QMAKE_CXXFLAGS+=-UNDEBUG
           make -j2
           ./structured_protocol_example
       - name: Structured client Qt C++20 smoke
         run: |
           mkdir -p build/client-qt
           cd build/client-qt
-          qmake6 ../../examples/structured_client/qt.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror
+          qmake ../../examples/structured_client/qt.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror
           make -j2
           ./structured_client_qt
       - name: Structured-only multi-TU qmake consumer
         run: |
           mkdir -p build/qualification-qt
           cd build/qualification-qt
-          qmake6 ../../tests/structured/qualification/qmake.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror
+          qmake ../../tests/structured/qualification/qmake.pro CONFIG+=release QMAKE_CXXFLAGS+=-Werror
           make -j2
           ./structured_qualification
           if grep -E 'TelemetryJson.cpp|resource/telemetry/(Schema|Commands|Values)File.cpp|structured_protocol/(Bind|Exchange).cpp' Makefile; then exit 1; fi

@@ -1,8 +1,8 @@
 # Optional serial ReadMany example; Qt Core/SerialPort only. MIT.
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 project(TelemetryReadManyUart LANGUAGES CXX)
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core SerialPort)
-qt_standard_project_setup(REQUIRES 6.4)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core SerialPort)
+qt_standard_project_setup(REQUIRES 6.12)
 get_filename_component(TELEMETRY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 if(NOT TARGET Telemetry::read_many_client)
     find_package(Telemetry QUIET COMPONENTS read_many_client encoded_backend qt_serial_transport)

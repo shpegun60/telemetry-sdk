@@ -1,8 +1,8 @@
 # Real serial CLI, board Protocol, COBS and PTYs; no QML runtime. MIT.
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 project(TelemetryReadManySerialChecks LANGUAGES CXX)
-find_package(Qt6 6.4 REQUIRED COMPONENTS Core SerialPort)
-qt_standard_project_setup(REQUIRES 6.4)
+find_package(Qt6 6.12 REQUIRED COMPONENTS Core SerialPort)
+qt_standard_project_setup(REQUIRES 6.12)
 get_filename_component(TELEMETRY_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 set(BUILD_TESTING OFF CACHE BOOL "Only maintained serial checks" FORCE)
 set(TELEMETRY_COMPONENTS "read_many_client;encoded_backend;encoded_server;core;resource_adapter;resource_protocol;qt_serial_transport")

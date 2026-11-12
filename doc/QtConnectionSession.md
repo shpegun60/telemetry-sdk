@@ -1,6 +1,6 @@
 # Owned Qt connection
 
-`Telemetry::qt_connection` is an optional host component. It requires Qt 6.4
+`Telemetry::qt_connection` is an optional host component. It requires Qt 6.12 LTS
 Core/Network and uses one existing `WorkbenchModel`/`DynamicClient` FIFO. Portable
 core/default SDK builds do not discover or link Qt. `qt_tcp_transport` separately
 exports the carrier; `tcp_wire` exports stream framing without server/Model code.
