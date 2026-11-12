@@ -145,13 +145,14 @@ struct Seen {
 	telemetry::TypeId type;
 };
 
-v3::ValuesProblem read(std::span<const std::byte> bytes, const rt::RuntimeSchema& schema, std::vector<Seen>& seen)
+v3::ValuesProblem read(std::span<const std::byte> bytes, const rt::RuntimeSchema& schema,
+                       std::vector<Seen>& seen)
 {
 	seen.clear();
 	return v3::readValues(bytes, schema, [&](const v3::ValuesEntry& entry) {
 		seen.push_back({std::string(entry.endpoint->name), entry.status,
-		                std::vector<std::byte>(entry.payload.begin(), entry.payload.end()), entry.offset,
-		                entry.endpoint->typeId});
+		                std::vector<std::byte>(entry.payload.begin(), entry.payload.end()),
+		                entry.offset, entry.endpoint->typeId});
 	});
 }
 
@@ -163,7 +164,8 @@ rt::DynamicValueView view(const rt::RuntimeSchema& schema, const Seen& value)
 }
 
 template<class T>
-T at(const rt::DynamicValueView& root, std::initializer_list<std::string_view> path, std::uint32_t index = ~0u)
+T at(const rt::DynamicValueView& root, std::initializer_list<std::string_view> path,
+     std::uint32_t index = ~0u)
 {
 	auto current = root;
 	for (const auto name : path) {
@@ -204,26 +206,29 @@ int main()
 	// The header alone names the descriptor it needs.
 	v3::ValuesHeader header;
 	CHECK(v3::readValuesHeader(bytes, header) == v3::ValuesProblem::None);
-	CHECK(header.major == 3 && header.minor == 0 && header.fieldCount == 4 && header.totalBytes == bytes.size() &&
-	      header.fingerprint == descriptor.fingerprint());
+	CHECK(header.major == 3 && header.minor == 0 && header.fieldCount == 4 &&
+	      header.totalBytes == bytes.size() && header.fingerprint == descriptor.fingerprint());
 
 	// Every Field in descriptor order, with its status and its wire bytes.
 	std::vector<Seen> seen;
 	CHECK(read(bytes, schema, seen) == v3::ValuesProblem::None);
 	CHECK(seen.size() == 4);
-	CHECK(seen[0].name == "Count" && seen[1].name == "Status" && seen[2].name == "Gain" && seen[3].name == "Spare");
-	CHECK(seen[0].offset == 24 && seen[1].offset == 29 && seen[2].offset == 50 && seen[3].offset == 55);
+	CHECK(seen[0].name == "Count" && seen[1].name == "Status" && seen[2].name == "Gain" &&
+	      seen[3].name == "Spare");
+	CHECK(seen[0].offset == 24 && seen[1].offset == 29 && seen[2].offset == 50 &&
+	      seen[3].offset == 55);
 	CHECK(seen[0].status == v3::ValueStatus::Ok && seen[1].status == v3::ValueStatus::Ok &&
 	      seen[2].status == v3::ValueStatus::Ok && seen[3].status == v3::ValueStatus::Unavailable);
-	CHECK(seen[0].payload.size() == 4 && seen[1].payload.size() == 20 && seen[2].payload.size() == 4 &&
-	      seen[3].payload.size() == 4);
+	CHECK(seen[0].payload.size() == 4 && seen[1].payload.size() == 20 &&
+	      seen[2].payload.size() == 4 && seen[3].payload.size() == 4);
 
 	// The values themselves, through the schema alone.
 	CHECK(view(schema, seen[0]).get<std::uint32_t>().value == 7);
 	const auto status = view(schema, seen[1]);
 	CHECK(at<float>(status, {"phase", "voltage"}) == 230.5f);
 	CHECK(at<std::int16_t>(status, {"phase", "temperature"}) == -12);
-	CHECK(at<float>(status, {"currents"}, 0) == 1.0f && at<float>(status, {"currents"}, 2) == -3.25f);
+	CHECK(at<float>(status, {"currents"}, 0) == 1.0f &&
+	      at<float>(status, {"currents"}, 2) == -3.25f);
 	CHECK(at<bool>(status, {"ok"}));
 	const auto mode = status.member("mode");
 	CHECK(mode);
@@ -249,7 +254,8 @@ int main()
 		const auto problem = read(wrong, against, seen);
 		CHECK(problem == expected);
 		CHECK(seen.empty());
-		CHECK(!v3::describe(problem).empty() && v3::describe(problem) != v3::describe(v3::ValuesProblem::None));
+		CHECK(!v3::describe(problem).empty() &&
+		      v3::describe(problem) != v3::describe(v3::ValuesProblem::None));
 	};
 	refused(std::span(bytes).first(23), schema, v3::ValuesProblem::Short);
 	auto wrong = bytes;
@@ -292,7 +298,8 @@ int main()
 	refused(wrong, schema, v3::ValuesProblem::Padding);
 	// The same, with its bytes cleared, is a valid file with Count unavailable.
 	std::memset(wrong.data() + 25, 0, 4);
-	CHECK(read(wrong, schema, seen) == v3::ValuesProblem::None && seen[0].status == v3::ValueStatus::Unavailable);
+	CHECK(read(wrong, schema, seen) == v3::ValuesProblem::None &&
+	      seen[0].status == v3::ValueStatus::Unavailable);
 
 	std::printf("Values reader: %u checks, 0 failures\n", checks);
 	return 0;

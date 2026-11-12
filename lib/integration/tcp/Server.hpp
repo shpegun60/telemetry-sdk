@@ -61,7 +61,8 @@ public:
 	// profile and every provider in it stay alive at stable addresses for the
 	// Server's lifetime, as with the plain file table.
 	template<class Profile>
-	    requires(std::is_same_v<Profile, EncodedProfile> || std::is_same_v<Profile, ReadManyProfile>)
+	    requires(std::is_same_v<Profile, EncodedProfile> ||
+	             std::is_same_v<Profile, ReadManyProfile>)
 	Server(ModelView model, Workspace& workspace, Profile& profile, resource::FileSystemView files,
 	       Output rx, Output tx) noexcept
 	    : Server(model, workspace, files, rx, tx)

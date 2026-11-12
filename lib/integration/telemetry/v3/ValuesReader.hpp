@@ -58,7 +58,8 @@ struct ValuesEntry {
 };
 
 namespace values_detail {
-inline std::uint64_t little(std::span<const std::byte> bytes, std::size_t at, std::size_t width) noexcept
+inline std::uint64_t little(std::span<const std::byte> bytes, std::size_t at,
+                            std::size_t width) noexcept
 {
 	std::uint64_t value = 0;
 	for (std::size_t i = 0; i < width; ++i)
@@ -92,8 +93,8 @@ inline ValuesProblem readValuesHeader(std::span<const std::byte> bytes, ValuesHe
 // ValuesEntry&) for every Field in descriptor order. Nothing is visited unless
 // the whole file is right.
 template<class Visit>
-ValuesProblem readValues(std::span<const std::byte> bytes, const ::telemetry::runtime::RuntimeSchema& schema,
-                         Visit&& visit) noexcept
+ValuesProblem readValues(std::span<const std::byte> bytes,
+                         const ::telemetry::runtime::RuntimeSchema& schema, Visit&& visit) noexcept
 {
 	ValuesHeader header;
 	if (const auto problem = readValuesHeader(bytes, header); problem != ValuesProblem::None)
@@ -135,16 +136,26 @@ ValuesProblem readValues(std::span<const std::byte> bytes, const ::telemetry::ru
 constexpr std::string_view describe(ValuesProblem problem) noexcept
 {
 	switch (problem) {
-		case ValuesProblem::None: return "a values snapshot";
-		case ValuesProblem::Short: return "the file ends early";
-		case ValuesProblem::Magic: return "not a values file";
-		case ValuesProblem::Version: return "a values version this program does not read";
-		case ValuesProblem::Size: return "its size does not match its header";
-		case ValuesProblem::Fingerprint: return "it was written with another descriptor";
-		case ValuesProblem::Count: return "it holds another number of Fields than its descriptor";
-		case ValuesProblem::Layout: return "its values do not add up to its size";
-		case ValuesProblem::Status: return "a value has a status this program does not know";
-		case ValuesProblem::Padding: return "an unavailable value is not blank";
+		case ValuesProblem::None:
+			return "a values snapshot";
+		case ValuesProblem::Short:
+			return "the file ends early";
+		case ValuesProblem::Magic:
+			return "not a values file";
+		case ValuesProblem::Version:
+			return "a values version this program does not read";
+		case ValuesProblem::Size:
+			return "its size does not match its header";
+		case ValuesProblem::Fingerprint:
+			return "it was written with another descriptor";
+		case ValuesProblem::Count:
+			return "it holds another number of Fields than its descriptor";
+		case ValuesProblem::Layout:
+			return "its values do not add up to its size";
+		case ValuesProblem::Status:
+			return "a value has a status this program does not know";
+		case ValuesProblem::Padding:
+			return "an unavailable value is not blank";
 	}
 	return "unknown";
 }

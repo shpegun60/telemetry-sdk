@@ -45,7 +45,8 @@
 
 namespace telemetry::protocol::identity {
 inline constexpr std::string_view path = "/telemetry/identity.bin";
-inline constexpr std::array<std::byte, 4> magic{std::byte{'T'}, std::byte{'I'}, std::byte{'D'}, std::byte{'1'}};
+inline constexpr std::array<std::byte, 4> magic{std::byte{'T'}, std::byte{'I'}, std::byte{'D'},
+                                                std::byte{'1'}};
 inline constexpr std::uint16_t version = 1;
 inline constexpr std::size_t headerBytes = 12;
 inline constexpr std::size_t texts = 4;
@@ -137,7 +138,8 @@ constexpr bool validText(std::string_view text) noexcept
 		}
 		// Overlong forms, surrogates, beyond U+10FFFF, and C1 controls.
 		if ((length == 3 && point < 0x800) || (length == 4 && point < 0x10000) ||
-		    (point >= 0xd800 && point <= 0xdfff) || point > 0x10ffff || (point >= 0x80 && point < 0xa0)) {
+		    (point >= 0xd800 && point <= 0xdfff) || point > 0x10ffff ||
+		    (point >= 0x80 && point < 0xa0)) {
 			return false;
 		}
 		i += length;
@@ -248,16 +250,26 @@ inline Problem parse(std::span<const std::byte> bytes, Identity& out) noexcept
 constexpr std::string_view describe(Problem problem) noexcept
 {
 	switch (problem) {
-		case Problem::None: return "an identity";
-		case Problem::Empty: return "the file is empty";
-		case Problem::Truncated: return "the file ends early";
-		case Problem::Magic: return "not an identity file";
-		case Problem::Version: return "an identity version this program does not read";
-		case Problem::Flags: return "identity flags this program does not read";
-		case Problem::Size: return "its size does not match its header";
-		case Problem::Texts: return "fewer texts than an identity has";
-		case Problem::Id: return "its id is empty or has characters other than letters, digits, '.', '_' and '-'";
-		case Problem::Text: return "its name, model or firmware is too long or not readable text";
+		case Problem::None:
+			return "an identity";
+		case Problem::Empty:
+			return "the file is empty";
+		case Problem::Truncated:
+			return "the file ends early";
+		case Problem::Magic:
+			return "not an identity file";
+		case Problem::Version:
+			return "an identity version this program does not read";
+		case Problem::Flags:
+			return "identity flags this program does not read";
+		case Problem::Size:
+			return "its size does not match its header";
+		case Problem::Texts:
+			return "fewer texts than an identity has";
+		case Problem::Id:
+			return "its id is empty or has characters other than letters, digits, '.', '_' and '-'";
+		case Problem::Text:
+			return "its name, model or firmware is too long or not readable text";
 	}
 	return "unknown";
 }

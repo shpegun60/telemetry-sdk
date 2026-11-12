@@ -136,10 +136,16 @@ int main()
 	number(12, values.size(), 4);
 	number(16, parsed.schema.fingerprint(), 8);
 	unsigned visits = 0;
-	const auto read = v3::readValues(values, parsed.schema, [&](const v3::ValuesEntry&) { ++visits; });
+	const auto read = v3::readValues(values, parsed.schema, [&](const v3::ValuesEntry&) {
+		++visits;
+	});
 	values[16] ^= std::byte{1};
-	const auto other = v3::readValues(values, parsed.schema, [&](const v3::ValuesEntry&) { ++visits; });
-	return read == v3::ValuesProblem::None && other == v3::ValuesProblem::Fingerprint && visits == 0 ? 0 : 2;
+	const auto other = v3::readValues(values, parsed.schema, [&](const v3::ValuesEntry&) {
+		++visits;
+	});
+	return read == v3::ValuesProblem::None && other == v3::ValuesProblem::Fingerprint && visits == 0
+	           ? 0
+	           : 2;
 }
 #elif defined(MODULE_DYNAMIC_CLIENT)
 #include <integration/dynamic/DynamicClient.hpp>
@@ -376,18 +382,21 @@ int main()
 	std::array<std::byte, 64> out{};
 	const auto result = file.read(0, out);
 	// The device's identity, as firmware serves it: an MCU UID as its id.
-	const std::array<std::byte, 12> uid{std::byte{0x00}, std::byte{0x28}, std::byte{0x00}, std::byte{0x3a}};
+	const std::array<std::byte, 12> uid{std::byte{0x00}, std::byte{0x28}, std::byte{0x00},
+	                                    std::byte{0x3a}};
 	std::array<char, 24> text{};
 	resource::telemetry::v3::IdentityFile identity;
-	const bool named = identity.set(telemetry::protocol::identity::hexId(uid, text), "Probe", "M7", "1.0") &&
-	                   identity.rename("Probe 2");
+	const bool named =
+	    identity.set(telemetry::protocol::identity::hexId(uid, text), "Probe", "M7", "1.0") &&
+	    identity.rename("Probe 2");
 	std::array<std::byte, telemetry::protocol::identity::writtenBytes> whole{};
 	const auto served = identity.read(0, whole);
 	telemetry::protocol::identity::Identity parsed;
-	const bool read = served.eof &&
-	                  telemetry::protocol::identity::parse(std::span(whole).first(served.written), parsed) ==
-	                      telemetry::protocol::identity::Problem::None &&
-	                  parsed.name == "Probe 2";
+	const bool read =
+	    served.eof &&
+	    telemetry::protocol::identity::parse(std::span(whole).first(served.written), parsed) ==
+	        telemetry::protocol::identity::Problem::None &&
+	    parsed.name == "Probe 2";
 	return result.status == resource::Status::Ok && result.written == 64 && named && read ? 0 : 1;
 }
 #elif defined(MODULE_ENCODED_SERVER)

@@ -39,7 +39,12 @@ struct ConnectionSession::Impl {
 	// at a time. Completions only record; progress() submits the next step,
 	// since a queue refuses submissions from inside its own completions.
 	struct IdentityRead {
-		enum class Step : std::uint8_t { Idle, Stat, Read, Done };
+		enum class Step : std::uint8_t {
+			Idle,
+			Stat,
+			Read,
+			Done
+		};
 		Step step = Step::Idle;
 		quint64 epoch = 0; // the connection it belongs to
 		::resource::FileIndex index = 0;
@@ -49,6 +54,7 @@ struct ConnectionSession::Impl {
 		QByteArray bytes;
 		bool due = false, inFlight = false, changed = false;
 	} identityRead;
+
 	ConnectionSession::IdentityState identityState = ConnectionSession::IdentityState::Absent;
 	QString identityId, identityName, identityModel, identityFirmware, identityProblem;
 
@@ -147,9 +153,9 @@ struct ConnectionSession::Impl {
 		forgetIdentity();
 		identityRead.epoch = generation;
 		identityRead.step = IdentityRead::Step::Done;
-		const auto at = discoveredPaths.indexOf(
-		    QString::fromLatin1(::telemetry::protocol::identity::path.data(),
-		                        static_cast<qsizetype>(::telemetry::protocol::identity::path.size())));
+		const auto at = discoveredPaths.indexOf(QString::fromLatin1(
+		    ::telemetry::protocol::identity::path.data(),
+		    static_cast<qsizetype>(::telemetry::protocol::identity::path.size())));
 		// discoveredPaths holds the device's list in its order, so a position
 		// is the file's index.
 		if (at < 0)
@@ -182,8 +188,8 @@ struct ConnectionSession::Impl {
 		if (!::resource::has(result.reply.flags, ::resource::FileFlag::Readable))
 			return identityFailed(QStringLiteral("the device does not let it be read"));
 		if (result.reply.size > ::telemetry::protocol::identity::maxBytes)
-			return identityFailed(QStringLiteral("it is %1 bytes, more than an identity has")
-			                          .arg(result.reply.size));
+			return identityFailed(
+			    QStringLiteral("it is %1 bytes, more than an identity has").arg(result.reply.size));
 		identityRead.size = result.reply.size;
 		identityRead.cursor = 0;
 		identityRead.step = IdentityRead::Step::Read;
@@ -206,7 +212,8 @@ struct ConnectionSession::Impl {
 			identityRead.bytes.append(reinterpret_cast<const char*>(piece.data()),
 			                          static_cast<qsizetype>(piece.size()));
 		if (!result.reply.eof) {
-			if (piece.empty() && (result.reply.next == identityRead.cursor || ++identityRead.idlePieces > 64))
+			if (piece.empty() &&
+			    (result.reply.next == identityRead.cursor || ++identityRead.idlePieces > 64))
 				return identityFailed(QStringLiteral("the device stopped sending it"));
 			identityRead.cursor = result.reply.next;
 			identityRead.due = true;
@@ -246,17 +253,20 @@ struct ConnectionSession::Impl {
 			struct Step {
 				std::weak_ptr<Impl> state;
 				quint64 epoch;
+
 				void operator()(const files::StatResult& result) noexcept
 				{
 					if (const auto value = state.lock())
 						value->identityStatted(epoch, result);
 				}
+
 				void operator()(const files::ReadResult& result) noexcept
 				{
 					if (const auto value = state.lock())
 						value->identityPiece(epoch, result);
 				}
 			};
+
 			const Step step{owner->d, read.epoch};
 			const auto submitted = read.step == IdentityRead::Step::Stat
 			                           ? files::stat(*owner, read.index, step)

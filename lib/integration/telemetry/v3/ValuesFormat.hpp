@@ -21,8 +21,8 @@ namespace resource::telemetry::v3 {
 // Values carry a cached descriptor fingerprint, never a hash of live data.
 inline constexpr std::uint16_t valuesHeaderBytes = 24;
 // The header's first four bytes, then its version: the descriptor's own, 3.0.
-inline constexpr std::array<std::byte, 4> valuesMagic{std::byte{'T'}, std::byte{'V'}, std::byte{'L'},
-                                                      std::byte{'3'}};
+inline constexpr std::array<std::byte, 4> valuesMagic{std::byte{'T'}, std::byte{'V'},
+                                                      std::byte{'L'}, std::byte{'3'}};
 inline constexpr std::uint16_t valuesMajor = 3;
 inline constexpr std::uint16_t valuesMinor = 0;
 enum class ValueStatus : std::uint8_t {
