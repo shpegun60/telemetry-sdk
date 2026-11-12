@@ -23,7 +23,7 @@ endforeach()
 # GCC 15 reports maybe-uninitialized inside libstdc++'s shared_ptr once a
 # completion is inlined through std::optional into a delegate's inline storage:
 # a false positive located in a system header, which no pragma here reaches.
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
     foreach(target IN ITEMS session profile workbench noheap)
         target_compile_options(${target} PRIVATE -Wno-maybe-uninitialized)
     endforeach()

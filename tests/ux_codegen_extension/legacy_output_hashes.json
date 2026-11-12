@@ -18,7 +18,7 @@
         "qml/QmlInput.hpp": "0420e0887f797811274dfdc62e021cc1884ddb38e2a839db115dee1af021bb0f",
         "qml/QmlRpcAdapter.hpp": "a48905b862702858dc43e613c2136919ef6040b9bc6909982cbd3199f099ba1c",
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "manifest.json": "81fafbc72b0d59867392b8c23a22a23075c05e92c9af48fcca95853ab8509728"
       }
     },
@@ -41,7 +41,7 @@
         "qml/QmlInput.hpp": "0420e0887f797811274dfdc62e021cc1884ddb38e2a839db115dee1af021bb0f",
         "qml/QmlRpcAdapter.hpp": "a48905b862702858dc43e613c2136919ef6040b9bc6909982cbd3199f099ba1c",
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
         "manifest.json": "6f48778538739365192d5902bd363044c8defd7026f53c0f589efdf2094534ec"
       }
@@ -67,7 +67,7 @@
         "qml/QmlInput.hpp": "0420e0887f797811274dfdc62e021cc1884ddb38e2a839db115dee1af021bb0f",
         "qml/QmlRpcAdapter.hpp": "a48905b862702858dc43e613c2136919ef6040b9bc6909982cbd3199f099ba1c",
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "19e6c032fc636ff8bc92a3f8fdc81d681d6644a8f1c823c718228bf153df93f7",
@@ -137,7 +137,7 @@
         "qml/QmlInput.hpp": "9e40cac1dc7c5c249247071da2e99a8bb4adb21e739bc089214365225c14cb95",
         "qml/QmlRpcAdapter.hpp": "fb099c8c193ada3efc3d179225014803ec71c80288a508e0ed3f183a656d638e",
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "manifest.json": "9d7e903f45a5c00e8a6e14dcbfec4372eef99a2d313977973c7711d54b8e0579"
       }
     },
@@ -160,7 +160,7 @@
         "qml/QmlInput.hpp": "9e40cac1dc7c5c249247071da2e99a8bb4adb21e739bc089214365225c14cb95",
         "qml/QmlRpcAdapter.hpp": "fb099c8c193ada3efc3d179225014803ec71c80288a508e0ed3f183a656d638e",
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
         "manifest.json": "1aea9373a5e192412f803d6f77146a9b8e0926e7ffb1388f17dd172a34edd903"
       }
@@ -186,7 +186,7 @@
         "qml/QmlInput.hpp": "9e40cac1dc7c5c249247071da2e99a8bb4adb21e739bc089214365225c14cb95",
         "qml/QmlRpcAdapter.hpp": "fb099c8c193ada3efc3d179225014803ec71c80288a508e0ed3f183a656d638e",
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "473b9593997147a142f8b6fc58cd7eb759a65794b7bf1e8a8c70645742dfa5e7",
@@ -256,7 +256,7 @@
         "qml/QmlInput.hpp": "46a889fe193d0211d56bf2b5089fd2e7875efc48c77797c401fe349b86da9ae3",
         "qml/QmlRpcAdapter.hpp": "a4510be031b6777d951daa45527f74c815d82e1d488bdfdcf7582942be716c04",
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "manifest.json": "3d55623993c1cb5e5c1f7f4a6c4ff9297e5bd16d4a5425ff4f72904ebe338fce"
       }
     },
@@ -279,7 +279,7 @@
         "qml/QmlInput.hpp": "46a889fe193d0211d56bf2b5089fd2e7875efc48c77797c401fe349b86da9ae3",
         "qml/QmlRpcAdapter.hpp": "a4510be031b6777d951daa45527f74c815d82e1d488bdfdcf7582942be716c04",
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
         "manifest.json": "be555c4701a3c293c6f31546fca07765938468b252ba92e947d9166db0052e9f"
       }
@@ -305,7 +305,7 @@
         "qml/QmlInput.hpp": "46a889fe193d0211d56bf2b5089fd2e7875efc48c77797c401fe349b86da9ae3",
         "qml/QmlRpcAdapter.hpp": "a4510be031b6777d951daa45527f74c815d82e1d488bdfdcf7582942be716c04",
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
-        "qml/CMakeLists.txt": "b9e79528d6de6847ca0ebc775a4d72ec095b967af39bb0e6d8e19ed4896ff529",
+        "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
         "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "ba145e4873976df659e34ace0dae4e02a6f3c8646a11a53bada18a731484edfb",

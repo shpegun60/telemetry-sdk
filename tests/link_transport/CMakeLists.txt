@@ -22,7 +22,7 @@ foreach(target framer channel resource trace)
     # readMany completion is inlined through std::optional into a delegate's
     # inline storage: a false positive located in a system header, which no
     # pragma at our call site reaches.
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
         target_compile_options(${target} PRIVATE -Wno-maybe-uninitialized)
     endif()
 endforeach()

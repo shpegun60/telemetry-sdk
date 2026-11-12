@@ -902,7 +902,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: shpegun60/telemetry-ux
-          ref: 1f6856b8a7cb8a7e67d4807d29a26fa326bacf2b
+          ref: 4bf3ac7da19f555e305e9b2d69bc08be56feb8e7
           path: .ci/telemetry-ux
       - name: Relocated CMake, packed ESM and installed Python consumers
         if: matrix.mode == 'release'
@@ -1220,7 +1220,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: shpegun60/telemetry-ux
-          ref: 238a96efbf3f29e6f0546d1231a19ba03a240c2e
+          ref: 4bf3ac7da19f555e305e9b2d69bc08be56feb8e7
           path: .ci/telemetry-ux
       - name: Install current core and pinned UX generator wheels outside checkouts
         run: |
