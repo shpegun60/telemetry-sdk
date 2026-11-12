@@ -316,6 +316,17 @@ struct ConnectionSession::Impl {
 			return;
 		}
 		identityRead.step = IdentityRead::Step::Done;
+		// Read whole and empty: a device whose IdentityFile was never set() has
+		// none yet. That is no identity, not a broken one - except as the answer
+		// to a rename. Decided from the bytes, not from Stat's size.
+		if (identityRead.bytes.isEmpty()) {
+			if (identityRename.step == IdentityRename::Step::ReadBack)
+				return identityFailed(QStringLiteral("it is empty"));
+			identityState = ConnectionSession::IdentityState::Absent;
+			identityProblem.clear();
+			identityRead.changed = true;
+			return;
+		}
 		telemetry::protocol::identity::Identity parsed;
 		const auto problem = ::telemetry::protocol::identity::parse(
 		    {reinterpret_cast<const std::byte*>(identityRead.bytes.constData()),
@@ -1241,9 +1252,20 @@ bool ConnectionSession::writeRefused(client::Input request) const noexcept
 	const auto& paths = d->discoveredPaths;
 	if (index >= static_cast<std::uint32_t>(paths.size()))
 		return false;
-	// The SDK's own files - the descriptor, the session and batch files, the
-	// identity, the values - are the protocol's, never a host's to rewrite.
-	return paths[static_cast<qsizetype>(index)].startsWith(QStringLiteral("/telemetry/"));
+	return protocolFile(paths[static_cast<qsizetype>(index)]);
+}
+
+bool ConnectionSession::protocolFile(const QString& path) const noexcept
+{
+	// The SDK's own files are the protocol's, never a host's to rewrite. Named
+	// one by one, not by their folder: an RPC mailbox under /telemetry/ is
+	// written by its client (doc/DeviceFileConventions.md).
+	static const QString protocolFiles[] = {
+	    QStringLiteral("/telemetry/descriptor.bin"), QStringLiteral("/telemetry/values.bin"),
+	    QStringLiteral("/telemetry/identity.bin"),   QStringLiteral("/telemetry/session.bin"),
+	    QStringLiteral("/telemetry/read-many.bin"),  QStringLiteral("/telemetry/batch.bin")};
+	return std::find(std::begin(protocolFiles), std::end(protocolFiles), path) !=
+	       std::end(protocolFiles);
 }
 
 bool ConnectionSession::rename(const QString& name)

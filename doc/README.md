@@ -124,6 +124,7 @@ Fenced fragments пояснюють окремий крок; повну прог
 | Late binding | [Slots](../lib/telemetry/slot/README.md) |
 | Незалежний filesystem/providers | [Resource](../lib/resource/README.md) |
 | Packet processor | [Resource protocol](../lib/resource/protocol/README.md) |
+| Device files: every `/telemetry/` path, its order, what a host may write, names for a device's own files | [Device file conventions](DeviceFileConventions.md) |
 | Optional RPC provider: wire v1.0, повтори, стани й сеанс | [RpcMailbox contract](RpcMailboxV1.md), [host example](../examples/rpc_mailbox/README.md) |
 | Optional typed caller і server session manager | [RpcClient](RpcClientV1.md), [RpcSessionPool](RpcSessionsV1.md) |
 | Descriptor/Values provider lifetime і storage | [V3 providers](../lib/integration/telemetry/v3/README.md) |

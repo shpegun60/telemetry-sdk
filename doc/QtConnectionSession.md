@@ -21,7 +21,8 @@ When the device lists `/telemetry/identity.bin` (`wire/IdentityWire.hpp`), the
 session reads it once the connection is ready or files only. It is never a
 condition of either.
 - `identityState()` is:
-  - `Absent`: not connected, or the device lists no such file;
+  - `Absent`: not connected, or the device lists no such file or serves it
+    empty (an `IdentityFile` never `set()`);
   - `Reading`: set before `ready()` or `filesOnly()` turns true, so a client that
     reacts to the connection already sees it being read;
   - `Known`: `deviceId()`, `deviceName()`, `deviceModel()` and `deviceFirmware()`
@@ -54,11 +55,16 @@ condition of either.
   - `nameProblem()` says why a name cannot be used, before anything is sent;
     `maxNameBytes` is the UTF-8 limit, for a counter. `rename()` also refuses
     the name the device already has.
-- The SDK's own files under `/telemetry/` are the protocol's: a host's WRITE or
-  SAVE to one through the session's file API (`submitResource`, which the
-  `files::` requests and `FileWriter` use) is refused with `ReadOnly` before it
-  leaves. The identity changes only through `rename()`. The advanced
-  `workbench()` seam reaches the same queue without this check.
+- The SDK's own files are the protocol's: `descriptor.bin`, `values.bin`,
+  `identity.bin`, `session.bin`, `read-many.bin` and `batch.bin` under
+  `/telemetry/`. A host's WRITE or SAVE to one through the session's file API
+  (`submitResource`, which the `files::` requests and `FileWriter` use) is
+  refused with `ReadOnly` before it leaves. The identity changes only through
+  `rename()`. An RPC mailbox such as `/telemetry/rpc.bin` is written through the
+  same API by its client. `protocolFile(path)` tells a program which files these
+  are, so it does not offer such a write. The advanced `workbench()` seam reaches
+  the same queue without this check. [Device file conventions](DeviceFileConventions.md)
+  lists every file.
 
 ### Files only
 

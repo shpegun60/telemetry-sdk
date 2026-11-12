@@ -311,11 +311,25 @@ void profileWithApplicationFiles()
 // through check() and rename(), and save() that keeps the name in two steps -
 // or refuses either, when told to.
 // It may also shorten a name to its first bytes, answer Ok and keep the old
-// one, or keep saving without ever completing.
+// one, keep saving without ever completing, or serve itself empty after a write.
 struct KeptIdentity : resource::telemetry::v3::IdentityFile {
 	unsigned taken = 0, steps = 0;
 	std::size_t shortenTo = 0;
 	bool refuseName = false, refuseSave = false, ignore = false, endless = false;
+	bool emptyAfterWrite = false, empty = false;
+
+	[[nodiscard]] resource::FileSize size() const noexcept
+	{
+		return empty ? 0 : IdentityFile::size();
+	}
+
+	[[nodiscard]] resource::ReadResult read(resource::Cursor cursor,
+	                                        resource::Output output) const noexcept
+	{
+		if (empty)
+			return {resource::Status::Ok, cursor, 0, true};
+		return IdentityFile::read(cursor, output);
+	}
 
 	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input bytes,
 	                                          bool final) noexcept
@@ -329,6 +343,7 @@ struct KeptIdentity : resource::telemetry::v3::IdentityFile {
 			name = name.substr(0, shortenTo);
 		if (!ignore && !rename(name))
 			return {resource::Status::InvalidData, cursor};
+		empty = emptyAfterWrite;
 		++taken;
 		const auto size = static_cast<std::uint32_t>(bytes.size());
 		return {resource::Status::Ok, size, size, true};
@@ -356,6 +371,24 @@ struct TakenIdentity : resource::telemetry::v3::IdentityFile {
 			return {resource::Status::InvalidData, cursor};
 		const auto size = static_cast<std::uint32_t>(bytes.size());
 		return {resource::Status::Ok, size, size, true};
+	}
+};
+
+// Stands for an RPC mailbox: under /telemetry/, but a host's to write.
+struct Mailbox {
+	unsigned writes = 0;
+
+	[[nodiscard]] resource::FileSize size() const noexcept
+	{
+		return 4;
+	}
+
+	[[nodiscard]] resource::WriteResult write(resource::Cursor cursor, resource::Input bytes,
+	                                          bool) noexcept
+	{
+		++writes;
+		const auto size = static_cast<std::uint32_t>(bytes.size());
+		return {resource::Status::Ok, cursor + size, size, true};
 	}
 };
 
@@ -519,9 +552,14 @@ void sessionIdentity()
 		};
 	};
 
+	Mailbox mailbox;
+	const std::array<std::byte, 4> valuesBytes{};
+	const resource::BytesFile values{valuesBytes};
 	tcp::EncodedProfile profile(std::span<const std::byte>(packed), descriptor.fingerprint());
 	const auto served = resource::filesystem(
 	    profile.systemFiles(), resource::file(telemetry::protocol::identity::path, identity),
+	    resource::file("/telemetry/values.bin", values),
+	    resource::file("/telemetry/rpc.bin", mailbox),
 	    resource::file("/logs/large.bin", largeFile));
 	Peer peer(make(profile, served));
 	qt::ConnectionSession session;
@@ -608,22 +646,49 @@ void sessionIdentity()
 	CHECK(result == Result::NotRenamed && why.contains(QStringLiteral("Short")) &&
 	      session.deviceName() == QStringLiteral("Short"));
 	identity.ignore = false;
-	// The identity is the protocol's: a host's own WRITE or SAVE to it is
-	// refused before it leaves; only rename() writes it.
-	const auto identityIndex =
-	    session.discoveredPaths().indexOf(QStringLiteral("/telemetry/identity.bin"));
-	CHECK(identityIndex >= 0);
+	// The SDK's six files are the protocol's: a host's own WRITE or SAVE to one
+	// is refused before it leaves; only rename() writes the identity. The list
+	// is the profile's own files, the identity and the values, as served.
+	QStringList protocol;
+	for (resource::FileIndex i = 0; i < profile.files().size(); ++i) {
+		const auto path = profile.files().path(i);
+		protocol << QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size()));
+	}
+	protocol << QStringLiteral("/telemetry/identity.bin")
+	         << QStringLiteral("/telemetry/values.bin");
+	CHECK(protocol.size() == 6);
 	std::array<std::byte, 16 + 4> scratch{};
 	const std::array<std::byte, 4> four{};
-	CHECK(files::write(session, scratch, static_cast<resource::FileIndex>(identityIndex), 0, four,
+	for (const auto& path : protocol) {
+		const auto at = session.discoveredPaths().indexOf(path);
+		CHECK(at >= 0 && session.protocolFile(path));
+		CHECK(files::write(session, scratch, static_cast<resource::FileIndex>(at), 0, four, true,
+		                   [](const files::WriteResult&) noexcept {
+		                   })
+		          .status == cl::Status::ReadOnly);
+		CHECK(files::save(session, static_cast<resource::FileIndex>(at), 0,
+		                  [](const files::SaveResult&) noexcept {
+		                  })
+		          .status == cl::Status::ReadOnly);
+	}
+	// Named one by one: a mailbox under /telemetry/ is written as any device
+	// file is.
+	const auto mailboxIndex =
+	    session.discoveredPaths().indexOf(QStringLiteral("/telemetry/rpc.bin"));
+	CHECK(mailboxIndex >= 0 && !session.protocolFile(QStringLiteral("/telemetry/rpc.bin")) &&
+	      !session.protocolFile(QStringLiteral("/logs/large.bin")) &&
+	      !session.protocolFile(QStringLiteral("/telemetry/")));
+	bool mailboxWritten = false;
+	CHECK(files::write(session, scratch, static_cast<resource::FileIndex>(mailboxIndex), 0, four,
 	                   true,
-	                   [](const files::WriteResult&) noexcept {
+	                   [&](const files::WriteResult& written) noexcept {
+		                   mailboxWritten = written.succeeded();
 	                   })
-	          .status == cl::Status::ReadOnly);
-	CHECK(files::save(session, static_cast<resource::FileIndex>(identityIndex), 0,
-	                  [](const files::SaveResult&) noexcept {
-	                  })
-	          .status == cl::Status::ReadOnly);
+	          .status == cl::Status::Ok);
+	CHECK(await([&] {
+		return mailboxWritten;
+	}));
+	CHECK(mailbox.writes == 1);
 	// A disconnect cuts a rename short, at once and once: before the request
 	// leaves, not renamed; in the middle of its save, not known.
 	unsigned endings = 0;
@@ -650,6 +715,19 @@ void sessionIdentity()
 	session.disconnect();
 	CHECK(finished && result == Result::Unconfirmed && !why.isEmpty() && endings == 2);
 	identity.endless = false;
+	// Read back empty after the write: not confirmed, and the identity broken,
+	// not missing - the answer to a rename has to be a name.
+	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
+	CHECK(await([&] {
+		return session.identityState() == qt::ConnectionSession::IdentityState::Known;
+	}));
+	identity.emptyAfterWrite = true;
+	CHECK(renameTo(QStringLiteral("Gone")));
+	CHECK(result == Result::Unconfirmed && !why.isEmpty() && endings == 3 &&
+	      session.identityState() == qt::ConnectionSession::IdentityState::Unreadable &&
+	      session.identityProblem() == QStringLiteral("it is empty"));
+	identity.emptyAfterWrite = false;
+	identity.empty = false;
 	QObject::disconnect(counting);
 	session.disconnect();
 	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent &&
@@ -728,6 +806,22 @@ void sessionIdentity()
 	}));
 	CHECK(session.ready() && session.deviceId().isEmpty() &&
 	      session.identityProblem() == QStringLiteral("not an identity file"));
+	session.disconnect();
+
+	// Placed but never set(): empty, which is no identity - Absent, not broken.
+	const resource::telemetry::v3::IdentityFile unset;
+	tcp::EncodedProfile fourth(std::span<const std::byte>(packed), descriptor.fingerprint());
+	const auto empty = resource::filesystem(
+	    fourth.systemFiles(), resource::file(telemetry::protocol::identity::path, unset));
+	Peer blank(make(fourth, empty));
+	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), blank.listener.serverPort()));
+	CHECK(await([&] {
+		return session.ready() &&
+		       session.identityState() != qt::ConnectionSession::IdentityState::Reading;
+	}));
+	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent &&
+	      session.identityProblem().isEmpty() && session.deviceId().isEmpty() &&
+	      !session.renamable());
 	session.disconnect();
 }
 } // namespace

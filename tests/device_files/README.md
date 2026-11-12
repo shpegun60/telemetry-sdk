@@ -76,14 +76,16 @@ the relocated installed package. No board; only ephemeral localhost sockets.
     refusal `NotRenamed` with the name kept; a name taken but its save refused
     `RenamedNotKept`; a device that shortens the name `Renamed` with what it
     serves; one that answers Ok but keeps the old name `NotRenamed`; a host's
-    own WRITE or SAVE to the identity refused with ReadOnly (the SDK's files
-    under /telemetry/ are the protocol's); a disconnect before the request
+    own WRITE or SAVE to the identity, and a WRITE to the session file, refused
+    with ReadOnly (the SDK's six files are the protocol's), while a WRITE to a
+    mailbox at `/telemetry/rpc.bin` reaches the device; a disconnect before the request
     leaves `NotRenamed`, and one in the middle of a save `Unconfirmed`, each
     ending at once, once; a device without `save()` `RenamedUntilRestart`; a
     plain `IdentityFile` not renamable; a rename on the device reaches the next
     connection;
     without the file Absent; with another file under its name Unreadable with
-    the reason, the connection still ready; disconnecting forgets it.
+    the reason, the connection still ready; an `IdentityFile` never `set()`
+    (an empty file) Absent, not Unreadable; disconnecting forgets it.
 - **Files only** (`FilesOnly.cpp`). Devices whose files are readable but whose
   descriptor is mistyped in its name, too small, or read whole and rejected by the
   parser connect files only: `ready()` false, telemetry refused, the limitation

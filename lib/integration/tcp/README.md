@@ -95,6 +95,9 @@ telemetry::integration::tcp::Server server(model.view(), workspace, profile, tab
 - The client lists the profile's files first, then the device's.
   [Device files](../../../tests/device_files/README.md) checks this over a live
   session.
+- [Device file conventions](../../../doc/DeviceFileConventions.md) lists every
+  `/telemetry/` file, what a host does with each and the rules for the device's
+  own file names.
 
 **Which unit it is: `/telemetry/identity.bin`.** The descriptor is the same for
 every unit of one firmware, so a client cannot tell two boards apart by it, nor

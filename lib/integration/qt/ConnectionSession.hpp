@@ -66,7 +66,7 @@ public:
 	// The device's identity file, /telemetry/identity.bin (wire/IdentityWire.hpp):
 	// read once a connection is ready or files only, never needed for either.
 	enum class IdentityState {
-		// Not connected, or the device lists no identity file.
+		// Not connected, or the device lists no identity file or serves it empty.
 		Absent,
 		// Listed and being read; already so when ready() or filesOnly() turns true.
 		Reading,
@@ -159,6 +159,12 @@ public:
 	// after a colon; empty when it can.
 	Q_INVOKABLE QString nameProblem(const QString& name) const;
 
+	// Whether path names one of the SDK's own files (descriptor.bin, values.bin,
+	// identity.bin, session.bin, read-many.bin, batch.bin under /telemetry/):
+	// submitResource refuses a WRITE or SAVE to it, whatever its Stat says. A
+	// program uses it not to offer such a write.
+	Q_INVOKABLE bool protocolFile(const QString& path) const noexcept;
+
 	// Cancels a request of this session's queue that has not been sent yet; its
 	// callback then reports Cancelled. False when there is nothing to cancel.
 	bool cancel(client::RequestHandle handle) noexcept;
@@ -166,10 +172,12 @@ public:
 	// A raw Resource List, Stat, Read, Write or Save on this session's one
 	// queue. This makes the session a files client: files::list, stat, read,
 	// write, save, FileReader and FileWriter take it directly. Here a WRITE or
-	// SAVE to one of the SDK's own files (under /telemetry/: the descriptor,
-	// the session and batch files, the identity, the values) is refused with
-	// ReadOnly - those are the protocol's; the identity changes only through
-	// rename(). The reply view ends at callback return.
+	// SAVE to one of the SDK's own files (descriptor.bin, values.bin,
+	// identity.bin, session.bin, read-many.bin, batch.bin under /telemetry/)
+	// is refused with ReadOnly - those are the protocol's; the identity changes
+	// only through rename(). An RPC mailbox such as /telemetry/rpc.bin is
+	// written through here by its client. doc/DeviceFileConventions.md lists
+	// every file. The reply view ends at callback return.
 	template<class F>
 	client::Submission submitResource(client::Input request, std::uint32_t replyBytes, F&& callback,
 	                                  std::uint32_t timeoutMs = 30000) noexcept

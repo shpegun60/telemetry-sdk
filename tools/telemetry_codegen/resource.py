@@ -52,7 +52,7 @@ def _paths(payload):
     return result
 
 
-def fetch(exchange: Callable[[bytes], bytes], path="/telemetry/descriptor", *,
+def fetch(exchange: Callable[[bytes], bytes], path="/telemetry/descriptor.bin", *,
           max_bytes=Limits().descriptor_bytes, max_files=65536, max_packets=65536):
     """Find an exact LIST path, STAT it, READ it, then validate wire v3 fully.
 

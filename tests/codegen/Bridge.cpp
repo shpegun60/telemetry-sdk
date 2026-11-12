@@ -47,7 +47,7 @@ static void resourceLoop()
 	rpc::RpcMailbox mailbox{view, cf::workspace, request, result};
 	rpc::DescriptorFile descriptor{cf::descriptorBytes};
 	resource::FileSystem files{std::array{resource::file("/rpc", mailbox),
-	                                      resource::file("/telemetry/descriptor", descriptor)}};
+	                                      resource::file("/telemetry/descriptor.bin", descriptor)}};
 	std::array<std::byte, 64> reply{};
 	std::string text;
 	std::uint32_t now = 0;
