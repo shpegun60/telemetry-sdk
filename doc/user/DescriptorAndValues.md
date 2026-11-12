@@ -274,7 +274,7 @@ Hash обчислюється один раз під час Descriptor construct
 declaration — на compile time. Fingerprint bytes у header під час hashing
 вважаються нульовими; подальші reads повертають уже cached identity.
 Шляхи та declaration order зовнішнього resource filesystem не входять у
-цей descriptor hash. Generic LIST/STAT/READ/WRITE packet не додає fingerprint;
+цей descriptor hash. Generic LIST/STAT/READ/WRITE/SAVE packet не додає fingerprint;
 за потреби одноразове peer узгодження належить application, наприклад
 [Bind/Exchange](../../examples/structured_protocol/README.md).
 

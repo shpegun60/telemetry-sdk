@@ -4,6 +4,7 @@
 
 #include <resource/FileSystem.hpp>
 #include <resource/ChunkWriter.hpp>
+#include <resource/protocol/Packets.hpp>
 #include <resource/protocol/Protocol.hpp>
 #include <array>
 #include <cstdio>
@@ -296,8 +297,176 @@ void progressChecks()
 	}
 }
 
+// SAVE persists what a file holds, a step per request until complete; a file
+// without save() answers NotWritable; every answer keeps the envelope;
+// malformed lengths and unknown operations are the one-byte InvalidData.
+void saveChecks()
+{
+	using resource::protocol::process;
+	namespace rc = resource::protocol::client;
+
+	// Keeps its bytes in steps: two moves, then complete; or refuses, or stalls,
+	// or answers an error that moves its cursor or says complete.
+	struct Steps {
+		unsigned steps = 0;
+		Status status = Status::Ok;
+		bool stall = false, errorMoves = false, errorCompletes = false;
+
+		FileSize size() const noexcept
+		{
+			return 1;
+		}
+
+		ReadResult read(Cursor cursor, Output) const noexcept
+		{
+			return {Status::Ok, cursor, 0, true};
+		}
+
+		SaveResult save(Cursor cursor) noexcept
+		{
+			if (status != Status::Ok)
+				return {status, errorMoves ? cursor + 1 : cursor, errorCompletes};
+			if (stall)
+				return {Status::Ok, cursor, false};
+			++steps;
+			return cursor < 2 ? SaveResult{Status::Ok, cursor + 1, false}
+			                  : SaveResult{Status::Ok, cursor, true};
+		}
+	} steps;
+
+	// Keeps them at once, or refuses.
+	struct Once {
+		unsigned saves = 0;
+		Status status = Status::Ok;
+
+		FileSize size() const noexcept
+		{
+			return 1;
+		}
+
+		ReadResult read(Cursor cursor, Output) const noexcept
+		{
+			return {Status::Ok, cursor, 0, true};
+		}
+
+		SaveResult save(Cursor cursor) noexcept
+		{
+			++saves;
+			return status == Status::Ok ? SaveResult{Status::Ok, cursor, true}
+			                            : SaveResult{status, cursor};
+		}
+	} once;
+
+	// Has nothing to persist.
+	struct Plain {
+		FileSize size() const noexcept
+		{
+			return 1;
+		}
+
+		ReadResult read(Cursor cursor, Output) const noexcept
+		{
+			return {Status::Ok, cursor, 0, true};
+		}
+	} plain;
+
+	static_assert(SavableProvider<decltype(steps)> && !SavableProvider<decltype(plain)>);
+	const auto fs = filesystem(file("/steps", steps), file("/once", once), file("/plain", plain));
+	CHECK(fs.stat(0).flags == (FileFlag::Readable | FileFlag::Savable) &&
+	      fs.stat(1).flags == (FileFlag::Readable | FileFlag::Savable) &&
+	      fs.stat(2).flags == FileFlag::Readable);
+	std::array<std::byte, 13> request{};
+	std::array<std::byte, 16> response{};
+	const auto save = [&](FileIndex index, Cursor cursor) {
+		request.fill(std::byte{0});
+		request[0] = std::byte{5};
+		put(Output{request}, 1, index);
+		put(Output{request}, 5, cursor);
+		return process(fs.view(), request, response);
+	};
+	// In steps, from cursor 0 until complete.
+	Cursor cursor = 0;
+	unsigned replies = 0;
+	for (bool done = false; !done && replies < 10; ++replies) {
+		const auto step = save(0, cursor);
+		CHECK(step.status == Status::Ok && step.written == 10);
+		cursor = get(response, 1, 8);
+		done = response[9] == std::byte{1};
+	}
+	CHECK(replies == 3 && steps.steps == 3 && cursor == 2);
+	// At once: one complete answer, the cursor echoed; its refusal is the answer.
+	auto result = save(1, 3);
+	CHECK(result.status == Status::Ok && response[9] == std::byte{1} && get(response, 1, 8) == 3 &&
+	      once.saves == 1);
+	once.status = Status::InternalError;
+	result = save(1, 0);
+	CHECK(result.status == Status::InternalError &&
+	      response[0] == std::byte(Status::InternalError) && response[9] == std::byte{0} &&
+	      get(response, 1, 8) == 0 && once.saves == 2);
+	once.status = Status::Ok;
+	// Nothing to persist, or no such file: in the envelope, the cursor kept.
+	result = save(2, 7);
+	CHECK(result.status == Status::NotWritable && result.written == 10 && get(response, 1, 8) == 7);
+	result = save(9, 0);
+	CHECK(result.status == Status::InvalidFile && result.written == 10);
+	// A step that neither completes nor moves: InternalError; an error the
+	// provider gives keeps the cursor.
+	steps.stall = true;
+	result = save(0, 5);
+	CHECK(result.status == Status::InternalError && get(response, 1, 8) == 5 &&
+	      response[9] == std::byte{0});
+	steps.stall = false;
+	steps.status = Status::CursorExpired;
+	result = save(0, 4);
+	CHECK(result.status == Status::CursorExpired && get(response, 1, 8) == 4);
+	// An error that moves the cursor or says complete is not one: InternalError,
+	// the cursor kept, not complete.
+	steps.errorMoves = true;
+	result = save(0, 4);
+	CHECK(result.status == Status::InternalError && get(response, 1, 8) == 4 &&
+	      response[9] == std::byte{0});
+	steps.errorMoves = false;
+	steps.errorCompletes = true;
+	result = save(0, 4);
+	CHECK(result.status == Status::InternalError && get(response, 1, 8) == 4 &&
+	      response[9] == std::byte{0});
+	steps.errorCompletes = false;
+	steps.status = Status::Ok;
+	// Malformed lengths: the one-byte InvalidData; a small reply buffer: BufferTooSmall.
+	request.fill(std::byte{0});
+	request[0] = std::byte{5};
+	for (std::size_t n = 1; n < 13; ++n) {
+		const auto shortRequest = process(fs.view(), Input{request}.first(n), response);
+		CHECK(shortRequest.status == Status::InvalidData && shortRequest.written == 1);
+	}
+	std::array<std::byte, 14> longer{};
+	longer[0] = std::byte{5};
+	CHECK(process(fs.view(), longer, response).written == 1);
+	CHECK(process(fs.view(), request, Output{response}.first(9)).status == Status::BufferTooSmall);
+	// Operation 6 is still unknown.
+	request[0] = std::byte{6};
+	const auto unknown = process(fs.view(), request, response);
+	CHECK(unknown.status == Status::InvalidData && unknown.written == 1);
+	// The client's packets: built, answered, parsed.
+	std::array<std::byte, 13> built{};
+	CHECK(rc::makeSave(built, 1, 0).written == 13 && built[0] == std::byte{5});
+	CHECK(rc::makeSave(Output{built}.first(12), 1, 0).status == rc::BuildStatus::BufferTooSmall);
+	const auto answered = process(fs.view(), built, response);
+	const auto parsed = rc::parseSave(Input{response}.first(answered.written));
+	CHECK(parsed && parsed.response.status == Status::Ok && parsed.response.complete &&
+	      once.saves == 3);
+	CHECK(!rc::parseSave(Input{response}.first(9)));
+	std::array<std::byte, 10> claims{};
+	claims[0] = std::byte(Status::InvalidData);
+	claims[9] = std::byte{1};
+	CHECK(!rc::parseSave(claims));
+	const std::array<std::byte, 1> shortError{std::byte(Status::InvalidData)};
+	CHECK(rc::parseSave(shortError) && rc::parseSave(shortError).shortError);
+}
+
 int main()
 {
+	saveChecks();
 	progressChecks();
 	std::array<std::byte, 128> out{};
 	CHECK(files.path(3).empty());
@@ -457,10 +626,10 @@ int main()
 	request.fill(std::byte{0});
 	request[0] = std::byte{3};
 	CHECK(process(wrongFs.view(), Input{request}.first(13), large).status == Status::InternalError);
-	for (unsigned op = 1; op <= 4; ++op) {
+	for (unsigned op = 1; op <= 5; ++op) {
 		request.fill(std::byte{0});
 		request[0] = std::byte(op);
-		const std::size_t fixed = op == 1 ? 9 : op == 2 ? 5 : op == 3 ? 13 : 16;
+		const std::size_t fixed = op == 1 ? 9 : op == 2 ? 5 : op == 3 ? 13 : op == 4 ? 16 : 13;
 		for (std::size_t n = 0; n < fixed; ++n) {
 			CHECK(process(view, Input{request}.first(n), out).status == Status::InvalidData);
 		}

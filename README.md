@@ -89,7 +89,7 @@ Boost.PFR зафіксований на **boost-1.92.0**. На 2026-10-04 це �
 [Api.cpp](examples/device_integration/Api.cpp) є обробник і збирач потоку, у
 [Api.hpp](examples/device_integration/Api.hpp) — коди операцій та runtime facade.
 Один маршрут читає/записує Fields і викликає Commands/Services **без файлів**;
-інший передає файлові LIST/STAT/READ/WRITE у `resource::protocol::process()`.
+інший передає файлові LIST/STAT/READ/WRITE/SAVE у `resource::protocol::process()`.
 Приклад можна зібрати й запустити на host без Qt та пристрою.
 
 [Транспортний посібник](doc/user/TransportWalkthrough.md) пояснює таблиці
@@ -133,7 +133,7 @@ ownership, backpressure та recovery; host transport у ньому є fake.
 | Providers, FileSystem/FileView, cursor і partial READ/WRITE | [Resource files](doc/user/Resources.md) |
 | Immutable descriptor, live Values, fingerprint і buffers | [Descriptor and Values](doc/user/DescriptorAndValues.md) |
 | Exact binary headers/records/default ceilings | [Wire v3.0](doc/WireV3.md) |
-| Complete LIST/STAT/READ/WRITE packet processor | [Resource protocol](lib/resource/protocol/README.md) |
+| Complete LIST/STAT/READ/WRITE/SAVE packet processor | [Resource protocol](lib/resource/protocol/README.md) |
 | Typed remote Field/Command/Service без ручного TRPC header | [RpcClient](doc/RpcClientV1.md) · [Приклад](examples/rpc_client/README.md) |
 | Кілька незалежних клієнтів одного Model | [RpcSessionPool](doc/RpcSessionsV1.md) · [Приклад](examples/rpc_multi_session/README.md) |
 | Реальний COBS Endpoint із telemetry resource packets | [COBS integration](doc/user/COBSIntegration.md) |
@@ -327,7 +327,7 @@ auto result = resource::protocol::process(device::resources::files(), request, r
 Повний приклад власного table/provider/process є в
 [Resources.cpp](examples/user_guide/Resources.cpp). Для прямого керування
 телеметрією **без файлів** є [Encoded.cpp](examples/user_guide/Encoded.cpp).
-Файловий protocol робить LIST/STAT/READ/WRITE; запис Field або виклик
+Файловий protocol робить LIST/STAT/READ/WRITE/SAVE; запис Field або виклик
 Command/Service виконує encoded catalog index або ModelView adapter. Descriptor/Values providers
 саме read-only.
 

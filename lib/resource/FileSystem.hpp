@@ -86,7 +86,8 @@ public:
 		const auto& file = files_[index];
 		// Capability has one source of truth: a present operation callback.
 		const auto flags = (file.ops->read ? FileFlag::Readable : FileFlag::None) |
-		                   (file.ops->write ? FileFlag::Writable : FileFlag::None);
+		                   (file.ops->write ? FileFlag::Writable : FileFlag::None) |
+		                   (file.ops->save ? FileFlag::Savable : FileFlag::None);
 		return {Status::Ok, file.ops->size(file.object), flags};
 	}
 
@@ -113,6 +114,19 @@ public:
 			return {Status::NotWritable, cursor};
 		}
 		return file.ops->write(file.object, cursor, in, final);
+	}
+
+	// A file without save() answers NotWritable: it has nothing to persist.
+	[[nodiscard]] SaveResult save(FileIndex index, Cursor cursor) const noexcept
+	{
+		if (index >= count_) {
+			return {Status::InvalidFile, cursor};
+		}
+		const auto& file = files_[index];
+		if (!file.ops->save) {
+			return {Status::NotWritable, cursor};
+		}
+		return file.ops->save(file.object, cursor);
 	}
 
 private:
@@ -227,6 +241,11 @@ public:
 	                                bool final = false) const noexcept
 	{
 		return view().write(index, cursor, input, final);
+	}
+
+	[[nodiscard]] SaveResult save(FileIndex index, Cursor cursor) const noexcept
+	{
+		return view().save(index, cursor);
 	}
 
 private:

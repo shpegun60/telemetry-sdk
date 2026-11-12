@@ -98,7 +98,7 @@ def main():
     if {path.relative_to(ROOT / 'lib').as_posix() for path in headers} != {
             'resource/Types.hpp', 'resource/File.hpp', 'resource/FileSystem.hpp',
             'resource/FileView.hpp', 'resource/BytesFile.hpp', 'resource/Resource.hpp',
-            'resource/ChunkWriter.hpp', 'resource/StagedFile.hpp', 'resource/protocol/Protocol.hpp',
+            'resource/ChunkWriter.hpp', 'resource/protocol/Protocol.hpp',
             'resource/protocol/Wire.hpp', 'resource/protocol/Packets.hpp'}:
         raise RuntimeError('Generic resource header coverage changed')
     for index, header in enumerate(headers):
@@ -107,8 +107,10 @@ def main():
             input_text='#include <' + relative + '>\n')
         report['headers'].append(relative)
     deleted = r"call to deleted function ['\u2018]file|use of deleted function [^\n]*resource::file"
-    for case in range(39):
-        if 35 <= case <= 37:
+    for case in range(40):
+        if case == 39:
+            diagnostic = r'save\(\) must be SaveResult save\(Cursor\) noexcept'
+        elif 35 <= case <= 37:
             member = ('object', 'ops', 'path')[case - 35]
             diagnostic = rf'(?:\b{member}\b[^\n]*private|private[^\n]*\b{member}\b)'
         elif case == 38:
@@ -147,8 +149,6 @@ def main():
                          '-o', output / (opt + '-BoundaryCheck.o')], 'boundary-check-' + opt)
             run(flags + ['-' + opt, '-c', HERE / 'BytesFileCheck.cpp',
                          '-o', output / (opt + '-BytesFileCheck.o')], 'bytes-check-' + opt)
-            run(flags + ['-' + opt, '-c', HERE / 'StagedFileCheck.cpp',
-                         '-o', output / (opt + '-StagedFileCheck.o')], 'staged-check-' + opt)
             run(flags + ['-' + opt, '-c', HERE / 'FileViewCheck.cpp',
                          '-o', output / (opt + '-FileViewCheck.o')], 'file-view-check-' + opt)
             run(flags + ['-' + opt, '-c', ROOT / 'examples/resources/Files.cpp',
@@ -179,14 +179,13 @@ def main():
                               ('BoundaryCheck', [ROOT / 'lib/resource/protocol/Protocol.cpp']),
                               ('NoHeapCheck', [ROOT / 'lib/resource/protocol/Protocol.cpp']),
                               ('BytesFileCheck', []),
-                              ('StagedFileCheck', []),
                               ('FileViewCheck', []),
                               ('Negative', [])):
             program = output / (stem + ('.exe' if os.name == 'nt' else ''))
             run(flags + ['-O1' if args.sanitize else '-O2', '-DCASE=0', HERE / (stem + '.cpp'),
                          *sources, '-o', program], 'build-' + stem)
             result = run([program], 'execute-' + stem)
-            expected = {'CoreCheck': 4198, 'BoundaryCheck': 306653, 'NoHeapCheck': 5000, 'BytesFileCheck': 122, 'StagedFileCheck': 36,
+            expected = {'CoreCheck': 4245, 'BoundaryCheck': 384182, 'NoHeapCheck': 5000, 'BytesFileCheck': 122,
                         'FileViewCheck': 88, 'Negative': 34}[stem]
             report['conditions'] += counted_conditions(result, expected)
         example = output / ('ResourceExample' + ('.exe' if os.name == 'nt' else ''))

@@ -204,6 +204,12 @@ struct WriteReply {
 	bool complete = false;
 };
 
+struct SaveReply {
+	Status status = Status::InvalidData;
+	Cursor next = 0;
+	bool complete = false;
+};
+
 template<class Response>
 struct ParseResult {
 	ParseStatus parsing = ParseStatus::Malformed;
@@ -359,8 +365,9 @@ constexpr ParseResult<Response> shortReply(Input bytes) noexcept
 	if (bytes.size() == 1) {
 		return detail::shortReply<StatReply>(bytes);
 	}
-	if (bytes.size() != wire::statReplySize || !detail::validStatus(bytes) ||
-	    std::to_integer<unsigned>(bytes[5]) > 3) {
+	// Flag bits this client does not know are kept and ignored by has(), so a
+	// flag a later server adds does not turn its STAT into a malformed reply.
+	if (bytes.size() != wire::statReplySize || !detail::validStatus(bytes)) {
 		return {};
 	}
 	return {ParseStatus::Ok,
@@ -392,6 +399,40 @@ constexpr ParseResult<Response> shortReply(Input bytes) noexcept
 		return {};
 	}
 	return {ParseStatus::Ok, {status, detail::load<Cursor>(bytes, 1), consumed, complete}, false};
+}
+
+// SAVE: persist what the file at index holds now, in steps from cursor 0 until
+// the reply is complete.
+[[nodiscard]] constexpr BuildResult makeSave(Output output, FileIndex index, Cursor cursor) noexcept
+{
+	if (output.size() < wire::saveRequestSize) {
+		return {BuildStatus::BufferTooSmall, 0};
+	}
+	output[0] = std::byte(Op::Save);
+	for (std::size_t i = 0; i != sizeof(index); ++i) {
+		output[1 + i] = std::byte((std::uint64_t(index) >> (8 * i)) & 0xffu);
+	}
+	for (std::size_t i = 0; i != sizeof(cursor); ++i) {
+		output[5 + i] = std::byte((cursor >> (8 * i)) & 0xffu);
+	}
+	return {BuildStatus::Ok, wire::saveRequestSize};
+}
+
+[[nodiscard]] constexpr ParseResult<SaveReply> parseSave(Input bytes) noexcept
+{
+	if (bytes.size() == 1) {
+		return detail::shortReply<SaveReply>(bytes);
+	}
+	if (bytes.size() != wire::saveReplySize || !detail::validStatus(bytes) ||
+	    std::to_integer<unsigned>(bytes[9]) > 1) {
+		return {};
+	}
+	const auto status = static_cast<Status>(std::to_integer<unsigned>(bytes[0]));
+	const auto complete = bytes[9] != std::byte{};
+	if (status != Status::Ok && complete) {
+		return {};
+	}
+	return {ParseStatus::Ok, {status, detail::load<Cursor>(bytes, 1), complete}, false};
 }
 } // namespace resource::protocol::client
 

@@ -20,11 +20,12 @@ bytes are exactly zero or one. Extra trailing input bytes are invalid.
 | STAT = 2 | `u8 op, u32 index` | `u8 status, u32 size, u8 flags` |
 | READ = 3 | `u8 op, u32 index, u64 cursor` | `u8 status, u64 next, u8 eof, u16 dataSize, data[]` |
 | WRITE = 4 | `u8 op, u32 index, u64 cursor, u8 final, u16 dataSize, data[]` | `u8 status, u64 next, u32 consumed, u8 complete` |
+| SAVE = 5 | `u8 op, u32 index, u64 cursor` | `u8 status, u64 next, u8 complete` |
 
 Status codes are fixed: Ok=0, InvalidFile=1, NotReadable=2, NotWritable=3,
 InvalidCursor=4, CursorExpired=5, BufferTooSmall=6, InvalidData=7,
-InternalError=8. STAT flags are Readable=1 and Writable=2. Existing codes
-are not renumbered. `consumed` remains u32 as in the revised specification;
+InternalError=8. STAT flags are Readable=1, Writable=2 and Savable=4. Existing
+codes are not renumbered. `consumed` remains u32 as in the revised specification;
 it is checked against the actual u16-length request payload.
 
 LIST data consists of repeated `[u16 pathLength][path bytes]` entries. The
@@ -61,6 +62,27 @@ written outside its C++ span: that remains a provider contract violation.
 WRITE retries are delivered again. There is no transaction or deduplication
 layer. Clients check status, byte count, progress and completion on every reply.
 
+WRITE `final` marks the end of the file: the provider applies what it was
+given. SAVE is a separate operation that asks the provider to persist what the
+file holds now. A file is Savable when its provider has
+`SaveResult save(Cursor) noexcept`; SAVE to any other file answers NotWritable,
+and to an unknown index InvalidFile, both in the 10-byte envelope with the
+cursor echoed. A provider persists at once (`{Ok, cursor, true}`) or in steps:
+an unfinished Ok step must move the cursor, and the client sends SAVE again
+from the returned `next` until `complete`. As for WRITE, an error makes no
+progress and is not complete; any other result becomes InternalError. SAVE
+validates the exact 13-byte request and the 10-byte reply capacity before
+invoking the provider.
+
+Compatibility. Old servers answer SAVE as an unknown operation: the raw
+processor with the one-byte InvalidData, a TCP server built before SAVE by
+closing the connection. A client therefore sends SAVE only to a file whose
+STAT says Savable, which an old server never does. Clients built before SAVE
+refuse a STAT whose flags exceed 3 as malformed, so a device that serves a
+Savable file needs clients built with SAVE. From SAVE on, `parseStat` keeps
+flag bits it does not know and `resource::has()` ignores them, so a later flag
+does not break this client.
+
 ## Bounded client API
 
 Include `<resource/protocol/Packets.hpp>` for the header-only
@@ -68,7 +90,8 @@ Include `<resource/protocol/Packets.hpp>` for the header-only
 with `process` through `<resource/protocol/Wire.hpp>`:
 `wire::listRequestSize=9`, `statRequestSize=5`, `readRequestSize=13`,
 `writeRequestHeaderSize=16`, `chunkReplyHeaderSize=12`, `statReplySize=6`,
-`writeReplySize=14`, `maxPayloadSize=65535` and `maxListPathSize=65533`.
+`writeReplySize=14`, `saveRequestSize=13`, `saveReplySize=10`,
+`maxPayloadSize=65535` and `maxListPathSize=65533`.
 
 | Builder | Arguments after caller-owned `Output` | Bytes written on success |
 |---|---|---|
@@ -76,6 +99,7 @@ with `process` through `<resource/protocol/Wire.hpp>`:
 | `makeStat` | `FileIndex index` | 5 |
 | `makeRead` | `FileIndex index, Cursor cursor` | 13 |
 | `makeWrite` | `FileIndex index, Cursor cursor, Input data, bool final` | `16 + data.size()` |
+| `makeSave` | `FileIndex index, Cursor cursor` | 13 |
 
 Every builder returns `BuildResult{BuildStatus status, size_t written}`.
 `BuildStatus` is `Ok`, `BufferTooSmall` or `PayloadTooLarge`; failure returns
@@ -91,6 +115,7 @@ the transport has finished reading them.
 | `parseStat(Input reply)` | none | `status, size, flags` |
 | `parseRead(Input reply)` | none | `status, next, eof, data` |
 | `parseWrite(Input reply, size_t submittedBytes)` | original WRITE payload length | `status, next, consumed, complete` |
+| `parseSave(Input reply)` | none | `status, next, complete` |
 
 Parsers return `ParseResult<Response>{parsing, response, shortError}`.
 `parsing` is `ParseStatus::Ok` or `Malformed`; the explicit boolean conversion
@@ -101,8 +126,8 @@ that `process` emits for a malformed request. Such a result has `shortError=true
 only `response.status` is meaningful because no normal response fields were
 transmitted. A one-byte `Ok` or any other status is malformed.
 
-Parsing checks exact packet lengths, trailing bytes, status codes, STAT flag
-bits, boolean bytes, declared data counts and error responses carrying data
+Parsing checks exact packet lengths, trailing bytes, status codes, boolean
+bytes, declared data counts and error responses carrying data
 or completion. LIST additionally checks every complete length-prefixed path
 against the core's flat-label spelling rules and the 65533-byte path limit.
 WRITE verifies `consumed <= submittedBytes <= 65535`. The caller retains the

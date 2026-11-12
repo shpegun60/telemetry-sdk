@@ -206,6 +206,9 @@ private:
 				case Op::Write:
 					header_ = resource::protocol::wire::writeReplySize;
 					break;
+				case Op::Save:
+					header_ = resource::protocol::wire::saveReplySize;
+					break;
 				default:
 					status_ = Status::Invalid;
 					return false;
@@ -224,6 +227,9 @@ private:
 					break;
 				case Op::Write:
 					header_ = resource::protocol::wire::writeRequestHeaderSize;
+					break;
+				case Op::Save:
+					header_ = resource::protocol::wire::saveRequestSize;
 					break;
 				default:
 					status_ = Status::Invalid;

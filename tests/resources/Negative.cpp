@@ -193,6 +193,16 @@ auto bad = resource::file("/raw-ops", provider).ops;
 auto bad = resource::file("/raw-path", provider).path;
 #elif CASE == 38
 resource::FileEntry bad{"/raw-construction", &provider, &resource::detail::operations<Provider>};
+#elif CASE == 39
+// A save() of another shape would leave the file silently not Savable.
+struct WrongSave : Provider {
+	resource::Status save() noexcept
+	{
+		return resource::Status::Ok;
+	}
+} wrongSave;
+
+auto bad = resource::file("/wrong-save", wrongSave);
 #else
 constexpr auto good = resource::filesystem(resource::file("/good", provider));
 static_assert(good.fileCount() == 1);

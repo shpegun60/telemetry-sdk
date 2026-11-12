@@ -12,23 +12,31 @@ the relocated installed package. No board; only ephemeral localhost sockets.
     not a reply, a piece without progress from a misbehaving device;
   - the sink stopping, a timeout, a cancel while a piece is in flight and between
     pieces, the queue cancelling, a busy queue that is retried and a refusal.
-- **Writer** (`Writer.cpp`, no Qt, no network). `files::FileWriter` and
-  `files::write` against the real protocol handler over writable providers, and
-  `resource::StagedFile` on its own. Every ending of a write is reached on purpose:
-  - complete, in pieces of the chunk size with `final` on the last only, a smaller
-    chunk, an empty file (one empty final piece), and a provider that replaces the
-    whole file taking another size when that is allowed;
+- **Writer** (`Writer.cpp`, no Qt, no network). `files::FileWriter`,
+  `files::write` and `files::save` against the real protocol handler over
+  writable providers, some of them savable. Every ending of a write is reached on
+  purpose:
+  - complete, in pieces of the chunk size with `final` on the last only and no
+    SAVE sent, a smaller chunk, and an empty file (one empty final piece);
   - a device that takes part of each piece: the rest sent from the cursor it
     returned, still final when it was;
   - not writable, another size, the content refused, a reply that is not one, a
     device that says complete before every byte, one that never completes (empty
-    final pieces, a bounded number), a timeout that ends it with nothing sent again;
-  - a cancel between pieces (the staged file keeps its old bytes, a write from the
-    start replaces the unfinished stage) and while a piece waits in the queue;
+    final pieces, a bounded number), one that moves its cursor without ever taking
+    a byte (4096 replies, then Stalled), a timeout that ends it with nothing sent
+    again;
+  - a cancel between pieces (the provider's staged pieces leave the file as it
+    was, a write from the start replaces them) and while a piece waits in the
+    queue;
   - a busy queue retried, a refusal, a second start while running, a piece built in
     a scratch too small;
-  - the staged file alone: reads keep the old bytes while a write is staged; a
-    stream too long or too short is refused and changes nothing.
+  - saving as a run of its own after the write, Stat first: a provider that
+    persists at once (one SAVE) and one that persists in three steps (SAVE
+    repeated from the returned cursor until complete), a save the provider
+    refuses, a file that cannot save (NotWritable by its Stat, no SAVE sent), a
+    save that never completes (4096 steps, then Stalled), a reply that is not
+    one, the one-byte InvalidData, a timeout and a cancel in the middle of a
+    save, and one `files::save` alone.
 - **Values** (`Values.cpp`, no Qt, no network). `/telemetry/values.bin` as the
   device serves it (`ValuesFile`, read in pieces) is read back on the host with
   `readValues` against a `RuntimeSchema` parsed from the descriptor's bytes, and

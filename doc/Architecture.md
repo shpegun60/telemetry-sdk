@@ -25,7 +25,7 @@ Field/Command/Service та формат descriptor/values v3.0. Приклади
 | Модуль | Його відповідальність | Вхідний документ |
 | --- | --- | --- |
 | `lib/telemetry` | Typed declarations, reflection, type registry, canonical codec, native/encoded доступ, slots і Descriptor core | [Telemetry](../lib/telemetry/README.md) |
-| `lib/resource` | Плоскі імена файлів, providers, opaque cursors, lazy file views і LIST/STAT/READ/WRITE packet protocol | [Resource](../lib/resource/README.md) |
+| `lib/resource` | Плоскі імена файлів, providers, opaque cursors, lazy file views і LIST/STAT/READ/WRITE/SAVE packet protocol | [Resource](../lib/resource/README.md) |
 | `lib/client` | Async FIFO client, portable callbacks/deadlines і optional native RPC packet engine | [Client](../lib/client/README.md) |
 | `lib/integration` | Необов’язкові Descriptor/Values providers, TEQ1 server, RPC mailbox/session pool і client backends | [Модулі](Modules.md) |
 | `tools/telemetry_codegen` | Host tool: Descriptor → C++/JS/TS/Qt SDK | [Generator](CodeGenerator.md) |

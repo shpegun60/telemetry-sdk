@@ -2,7 +2,8 @@
 
 The real Resource and Encoded dispatchers operate on an actual native Model and
 Descriptor. Tests exercise every split point of headers/bodies, concatenated
-frames and consumed-prefix ownership, known-op reply framing, short errors,
+frames and consumed-prefix ownership, known-op reply framing (LIST, STAT, READ,
+WRITE and SAVE), short errors,
 malformed/oversized frames, monotonic request IDs, session changes, reply capacity
 before mutation, reentrancy and closure during native callbacks. Descriptor
 discovery uses a decoy file at index0 and the descriptor at index1; downloaded

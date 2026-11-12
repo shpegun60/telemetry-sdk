@@ -87,7 +87,7 @@
 | Всі callback/binding forms, exact/As доступ, enums, iteration і slots | [Native API](user/NativeApi.md) |
 | Custom files, providers і cursors | [Resource files](user/Resources.md) |
 | Model descriptor, Values, fingerprint і whole-token READ | [Descriptor and Values](user/DescriptorAndValues.md) |
-| LIST/STAT/READ/WRITE, framing та transport integration | [Transport and resources](user/TransportAndResources.md) |
+| LIST/STAT/READ/WRITE/SAVE, framing та transport integration | [Transport and resources](user/TransportAndResources.md) |
 | Typed remote виклики, retry та caller-owned result decode | [RpcClient v1](RpcClientV1.md) |
 | N mailbox, session handles, ACK gate і спільний Workspace | [RpcSessionPool v1](RpcSessionsV1.md) |
 | З'єднати telemetry resources і реальний COBS endpoint | [COBS integration](user/COBSIntegration.md) |

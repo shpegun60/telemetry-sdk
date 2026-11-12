@@ -46,6 +46,10 @@ static_assert(offsetof(resource::WriteResult, next) == 0 &&
               offsetof(resource::WriteResult, consumed) == 8 &&
               offsetof(resource::WriteResult, status) == 12 &&
               offsetof(resource::WriteResult, complete) == 13);
+static_assert(sizeof(resource::SaveResult) == 16 && alignof(resource::SaveResult) == 8);
+static_assert(offsetof(resource::SaveResult, next) == 0 &&
+              offsetof(resource::SaveResult, status) == 8 &&
+              offsetof(resource::SaveResult, complete) == 9);
 static_assert(sizeof(resource::FileStat) == 8 && alignof(resource::FileStat) == 4);
 static_assert(offsetof(resource::FileStat, size) == 0 &&
               offsetof(resource::FileStat, status) == 4 &&
