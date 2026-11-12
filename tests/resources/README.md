@@ -38,6 +38,14 @@ python tests/resources/run.py --cxx arm-none-eabi-g++ --arm --build-dir build/re
   executed conditions are counted separately. `BytesFileNegative.cpp` rejects
   temporary arrays, conversion proxies and braced buffers; the host also
   checks the u32 size ceiling during constant evaluation.
+- `StagedFileCheck.cpp` checks the staged writable provider: a write changes the
+  file only when its final piece completes the whole file; reads return the old
+  bytes while a write is staged; a cursor out of place, a stream too long or too
+  short, an empty piece that does not end it, and a stage smaller than the file
+  are refused and keep the old bytes; a new transfer drops an unfinished one; the
+  commit hook sees the new bytes first and its refusal keeps the old ones; an
+  empty file completes with one empty final piece. Its 36 executed conditions
+  are counted separately, and it is compiled for Cortex-M7 at -O2 and -Os.
 - `FileViewCheck.cpp` executes 88 conditions for lazy enumeration, checked
   indexing, current size/capabilities, explicit read/write, borrowed lifetime
   through temporary views, independent forward iterators, empty ranges and

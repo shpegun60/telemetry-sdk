@@ -48,6 +48,7 @@ optional RPC mailbox; generic resource core від них не залежить.
 | `FileSystem<N>`, `FileSystemView`, `filesystem()` | [FileSystem.hpp](../../lib/resource/FileSystem.hpp) | Fixed descriptor array та runtime facade |
 | `BytesFile` | [BytesFile.hpp](../../lib/resource/BytesFile.hpp) | Read-only provider над зовнішніми bytes |
 | `ChunkWriter` | [ChunkWriter.hpp](../../lib/resource/ChunkWriter.hpp) | Bounded byte output для реалізації власного provider |
+| `StagedFile` | [StagedFile.hpp](../../lib/resource/StagedFile.hpp) | Writable bytes, committed whole on the final piece; a commit hook may refuse them |
 | `Status`, transfer results, spans, indexes/cursor | [Types.hpp](../../lib/resource/Types.hpp) | Спільні типи resource operations |
 | `resource::protocol::process()` | [Protocol.hpp](../../lib/resource/protocol/Protocol.hpp), [Protocol.cpp](../../lib/resource/protocol/Protocol.cpp) | Один повний resource packet → filesystem operation → reply |
 | `resource::protocol::client` | [Packets.hpp](../../lib/resource/protocol/Packets.hpp) | Request builders і checked borrowed reply parsers |

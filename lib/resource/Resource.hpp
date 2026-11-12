@@ -19,5 +19,6 @@
 #include "FileSystem.hpp"
 #include "BytesFile.hpp"
 #include "ChunkWriter.hpp"
+#include "StagedFile.hpp"
 
 #endif // TELEMETRY_LIB_RESOURCE_RESOURCE_HPP

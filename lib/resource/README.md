@@ -132,6 +132,27 @@ inline constinit const auto settingsFiles = resource::filesystem(
     resource::file("/settings.bin", settings));
 ```
 
+For a file the host replaces whole - settings, a calibration table - use
+`StagedFile`. It borrows the file's bytes and a stage of the same size; the
+pieces of a write are staged, and the bytes change only when the piece marked
+`final` completes the whole file. Until then reads return the old bytes, and a
+write that stops part way (cancelled, disconnected, refused) leaves them whole.
+Cursor 0 starts a new transfer and drops an unfinished one. A stream longer or
+shorter than the file is refused with `InvalidData` and changes nothing. An
+optional `onCommit(context, bytes)` sees the complete new bytes before they
+replace the old ones and returns a status: `Ok` lets them in; anything else -
+a value out of range, storage that failed - is the WRITE's answer and the old
+bytes stay. It runs synchronously inside the request, so slow storage delays
+the reply against the client's timeout:
+
+```cpp
+inline std::array<std::byte, 64> calibration{}, calibrationStage{};
+inline resource::StagedFile calibrationFile{calibration, calibrationStage};
+```
+
+A provider that writes in place may be left part old, part new by an
+interrupted write; say so where it is documented.
+
 `size()` is required and returns an exact u32 size. At least one of `read()`
 or `write()` must exist. Omit `write()` for read-only files; omit `read()` for
 write-only files. There is no virtual base class or registration macro.
@@ -167,6 +188,7 @@ resource/
   File.hpp, FileSystem.hpp       bindings and flat indexed table
   FileView.hpp                   lazy file facade and forward iterator
   BytesFile.hpp, ChunkWriter.hpp byte-array provider and output utility
+  StagedFile.hpp                 writable bytes committed whole on the final piece
   resource.pri                   one qmake manifest
   protocol/                      generic packet operations
 ```
