@@ -3,7 +3,8 @@
 End-user installation commands are in [SDK packages](../../doc/SDKPackages.md).
 
 This offline suite builds only from an external prepared source copy. It relocates
-the CMake install, rejects an incompatible exact version, packs and installs the
+the CMake install, accepts the same minor version and refuses the next minor and an
+unrelated version, packs and installs the
 private ESM tarball, and builds/installs the Python wheel through its source archive.
 Its simulated 32-bit downstream CMake check accepts the header-only prefix and
 refuses a mismatched compiled prefix; it does not execute an MCU binary.

@@ -22,7 +22,7 @@ cmake --build /external/sdk-build --target install
 The consumer uses only the installed prefix:
 
 ```cmake
-find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS
+find_package(Telemetry 0.1 CONFIG REQUIRED COMPONENTS
     read_many_static_client batch_static_client encoded_backend)
 target_link_libraries(my_app PRIVATE Telemetry::read_many_static_client
     Telemetry::batch_static_client Telemetry::encoded_backend)
@@ -30,8 +30,12 @@ target_link_libraries(my_app PRIVATE Telemetry::read_many_static_client
 
 Pass `-DCMAKE_PREFIX_PATH=/external/sdk-prefix` when configuring the consumer.
 Include paths, `Telemetry::` targets and C++ namespaces retain their existing
-names. The initial package policy accepts an exact version; it does not promise
-compatibility with every other `0.x` package. The prefix can be relocated.
+names. Packages follow semantic versioning. While the SDK is `0.x`, a minor
+version may break compatibility, so a consumer asks for the minor it was written
+for (`find_package(Telemetry 0.1)`) and accepts every `0.1.z` patch; the next minor
+is refused. From `1.0` the major version takes that role. Whether a client and a
+device work together is decided by the Descriptor and wire versions in
+`SDKMetadata.json`, not by the package version. The prefix can be relocated.
 An installation containing only interface/header modules is architecture
 independent. A prefix containing compiled libraries retains the architecture
 check, so build it with the intended target toolchain.

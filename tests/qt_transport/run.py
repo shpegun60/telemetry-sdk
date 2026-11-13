@@ -150,7 +150,7 @@ def main():
                 assertions = 'if(Telemetry_qt_serial_transport_FOUND)\nmessage(FATAL_ERROR "Unavailable optional serial reported found")\nendif()\n'
             (directory/'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.21)\n'
                 'project(InstalledConsumer LANGUAGES CXX)\n'
-                'find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED '+find+')\n'+assertions+body)
+                'find_package(Telemetry 0.1 CONFIG REQUIRED '+find+')\n'+assertions+body)
             build = out/(name+'-build')
             search = str(prefix)+(';' + args.qt_prefix if args.qt_prefix else '')
             run(name+'-configure', [args.cmake, '-S', directory, '-B', build, *common,

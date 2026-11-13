@@ -117,7 +117,7 @@ project(Consumer LANGUAGES CXX)
 if(SIMULATED_POINTER_BYTES)
     set(CMAKE_SIZEOF_VOID_P ${SIMULATED_POINTER_BYTES})
 endif()
-find_package(Telemetry ${REQUIRED_SDK} EXACT CONFIG REQUIRED COMPONENTS client encoded_wire)
+find_package(Telemetry ${REQUIRED_SDK} CONFIG REQUIRED COMPONENTS client encoded_wire)
 add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE Telemetry::client Telemetry::encoded_wire)
 ''')
@@ -145,11 +145,19 @@ int main() {
         (compiled_consumer / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 3.20)
 project(CompiledConsumer LANGUAGES CXX)
 set(CMAKE_SIZEOF_VOID_P 4)
-find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS resource_protocol)
+find_package(Telemetry 0.1 CONFIG REQUIRED COMPONENTS resource_protocol)
 ''')
         run('cmake-compiled-cross-size-refusal', [args.cmake, '-S', compiled_consumer,
              '-B', out / 'compiled-cross-size', '-G', 'Ninja',
              '-DCMAKE_PREFIX_PATH=' + str(out / 'compiled-prefix')], success=False)
+        # Semantic versioning: a consumer asks for the minor it was written for and
+        # takes any patch of it; in 0.x the next minor may break and is refused.
+        major, minor = (int(part) for part in version.split('.')[:2])
+        run('cmake-same-minor', [args.cmake, '-S', consumer, '-B', out / 'same-minor',
+             '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=%d.%d' % (major, minor)])
+        run('cmake-next-minor-refusal', [args.cmake, '-S', consumer, '-B', out / 'next-minor',
+             '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix),
+             '-DREQUIRED_SDK=%d.%d' % (major, minor + 1)], success=False)
         run('cmake-version-refusal', [args.cmake, '-S', consumer, '-B', out / 'wrong-version',
              '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=9.9.9'], success=False)
         run('cmake-revision-refusal', [args.cmake, '-S', source, '-B', out / 'bad-revision',
