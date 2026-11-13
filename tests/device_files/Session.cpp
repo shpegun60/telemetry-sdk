@@ -880,6 +880,53 @@ void sessionIdentity()
 	      !session.renamable());
 	session.disconnect();
 }
+
+// A direct presentation observer may close its Session while the rename's
+// state is published, both before admission and after confirmed read-back.
+void renamePublicationDeletion()
+{
+	for (const bool onCompletion : {false, true}) {
+		KeptIdentity identity;
+		CHECK(identity.set("EMU-DELETE", "Before rename", "Demo", "0.1.0"));
+		tcp::EncodedProfile profile(std::span<const std::byte>(packed), descriptor.fingerprint());
+		const auto served = resource::filesystem(
+		    profile.systemFiles(), resource::file(telemetry::protocol::identity::path, identity));
+		Peer peer([&](Peer& at) {
+			return std::make_unique<tcp::Server>(model.view(), at.workspace, profile, served.view(),
+			                                     at.rx, at.tx);
+		});
+		auto session = std::make_unique<qt::ConnectionSession>();
+		const QPointer<qt::ConnectionSession> guard(session.get());
+		CHECK(session->connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
+		CHECK(await([&] {
+			return session->identityState() == qt::ConnectionSession::IdentityState::Known;
+		}));
+		CHECK(session->renamable());
+		unsigned finished = 0, deleted = 0;
+		QObject::connect(session.get(), &qt::ConnectionSession::renameFinished, &peer.listener,
+		                 [&](qt::ConnectionSession::RenameResult, const QString&) { ++finished; });
+		QObject::connect(session.get(), &qt::ConnectionSession::identityChanged, &peer.listener, [&] {
+			if (!guard)
+				return;
+			// Read-back also publishes while still Ended. Delete only when
+			// endRename() has made renamable() true, immediately before its
+			// renameFinished publication, rather than during bootstrap.
+			if (onCompletion &&
+			    (!guard->renamable() || guard->deviceName() != QStringLiteral("After rename")))
+				return;
+			++deleted;
+			session.reset();
+		});
+		CHECK(session->rename(QStringLiteral("After rename")));
+		CHECK(await([&] { return guard.isNull(); }));
+		CHECK(deleted == 1 && !session && finished == 0);
+		for (unsigned turn = 0; turn != 8; ++turn)
+			QCoreApplication::processEvents();
+		CHECK(finished == 0 && identity.taken == (onCompletion ? 1u : 0u) &&
+		      identity.steps == (onCompletion ? 2u : 0u));
+		CHECK(identity.name() == (onCompletion ? "After rename" : "Before rename"));
+	}
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -890,6 +937,7 @@ int main(int argc, char** argv)
 	profileWithApplicationFiles();
 	identityBytes();
 	sessionIdentity();
+	renamePublicationDeletion();
 	std::printf("Device files session: %u checks, 0 failures\n", checks);
 	return 0;
 }

@@ -203,7 +203,8 @@ struct ConnectionSession::Impl {
 		rename.bytes.clear();
 		if (owner) {
 			Q_EMIT owner->identityChanged();
-			Q_EMIT owner->renameFinished(result, problem);
+			if (owner)
+				Q_EMIT owner->renameFinished(result, problem);
 		}
 	}
 
@@ -1295,8 +1296,10 @@ bool ConnectionSession::rename(const QString& name)
 	    QByteArray(reinterpret_cast<const char*>(encoded.data()), static_cast<qsizetype>(written));
 	rename.due = true;
 	// renamable() is false until it ends.
+	const QPointer<ConnectionSession> guard(this);
 	Q_EMIT identityChanged();
-	pumpSoon();
+	if (guard)
+		guard->pumpSoon();
 	return true;
 }
 
