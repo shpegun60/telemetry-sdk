@@ -73,9 +73,11 @@ Compiler, diagnostics, disassembly, sections and symbol logs are retained
 beside the summary. Linked ARM allocation/formatting checks use the same
 newlib-aware controls as the final telemetry qualification suite.
 
-The generic host suite currently executes 316,118 conditions, with 68 intended
-compile-time refusals. ARM has 67 refusals: the external array larger than
-u32 used by the last host control cannot be declared on its 32-bit target.
+The current host runner requires 393,694 counted conditions across its seven
+executables, with 68 intended compile-time refusals. This is the configured
+coverage gate, not a newly executed result. ARM has 67 refusals: the external
+array larger than u32 used by the last host control cannot be declared on its
+32-bit target.
 
 On 2026-10-04 the complete host suite passed under WSL Ubuntu Clang 18.1.3
 with AddressSanitizer, UndefinedBehaviorSanitizer and float-cast-overflow

@@ -371,9 +371,21 @@ setter усе одно перевіряє прикладні правила. Run
 при відсутньому ID, недоступному getter або несумісному типі/перетворенні.
 `writeAs` повертає `WriteResult`.
 
-**Native `callAs(...)` у поточному API немає.** Для Command/Service із runtime
-ID оберіть definition через `visit` та перевірте її Request/Response contract.
-Ось native виклик лише Command з Request `Query`:
+Для runtime ID і відомого exact Request використайте `commands.call(id, request)`;
+форма без Request — `commands.call(id)`. Результат — один `CommandCallStatus`.
+Owning Service викликається через `services.callAs<Response>(id[, request])`,
+borrowed — через `services.callBorrowed<Response>(id[, request])`; один `bool`
+або `hasValue()` перевіряє routing та application success. `Response = void`
+підтримується в owning формі. Request і Response не перетворюються з іншої
+структури: потрібен exact native тип та відповідна owning/borrowed policy.
+
+Для окремих routing/application результатів залишаються Command `callAs(...)`
+та Service `callAs<ServiceResult<Response>>(...)` / borrowed result wrapper.
+Local tables мають ті самі форми з position замість packed ID. Повний contract —
+[Flat runtime API](FlatNative.md).
+
+`visit` зручний для custom handling кількох heterogeneous shapes. Ось
+альтернативний native виклик лише Command з Request `Query`:
 
 ```cpp
 const auto runtimeId = ts::makeId<0, 2>(); // Select у Native.cpp.

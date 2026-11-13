@@ -117,7 +117,11 @@ project(Consumer LANGUAGES CXX)
 if(SIMULATED_POINTER_BYTES)
     set(CMAKE_SIZEOF_VOID_P ${SIMULATED_POINTER_BYTES})
 endif()
-find_package(Telemetry ${REQUIRED_SDK} EXACT CONFIG REQUIRED COMPONENTS client encoded_wire)
+if(REQUIRE_EXACT)
+    set(_exact EXACT)
+endif()
+find_package(Telemetry ${REQUIRED_SDK} ${_exact} CONFIG REQUIRED COMPONENTS client encoded_wire)
+message(STATUS "TELEMETRY_CONSUMER_VERSION=${Telemetry_VERSION}")
 add_executable(consumer main.cpp)
 target_link_libraries(consumer PRIVATE Telemetry::client Telemetry::encoded_wire)
 ''')
@@ -129,13 +133,14 @@ int main() {
 }
 ''')
         run('cmake-consumer-configure', [args.cmake, '-S', consumer, '-B', out / 'consumer-build',
-             '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=' + version])
+             '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=' + version,
+             '-DREQUIRE_EXACT=ON'])
         run('cmake-consumer-build', [args.cmake, '--build', out / 'consumer-build'])
         suffix = '.exe' if os.name == 'nt' else ''
         run('cmake-consumer-run', [out / ('consumer-build/consumer' + suffix)])
         run('cmake-header-only-cross-size', [args.cmake, '-S', consumer, '-B', out / 'header-cross-size',
              '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=' + version,
-             '-DSIMULATED_POINTER_BYTES=4'])
+             '-DSIMULATED_POINTER_BYTES=4', '-DREQUIRE_EXACT=ON'])
         run('cmake-compiled-configure', [args.cmake, '-S', source, '-B', out / 'compiled-build',
              '-G', 'Ninja', '-DTELEMETRY_COMPONENTS=resource_protocol',
              '-DCMAKE_INSTALL_PREFIX=' + str(out / 'compiled-prefix')])
@@ -151,7 +156,59 @@ find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS resource_protocol)
              '-B', out / 'compiled-cross-size', '-G', 'Ninja',
              '-DCMAKE_PREFIX_PATH=' + str(out / 'compiled-prefix')], success=False)
         run('cmake-version-refusal', [args.cmake, '-S', consumer, '-B', out / 'wrong-version',
-             '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=9.9.9'], success=False)
+             '-G', 'Ninja', '-DCMAKE_PREFIX_PATH=' + str(prefix), '-DREQUIRED_SDK=9.9.9',
+             '-DREQUIRE_EXACT=ON'], success=False)
+        # Test a real newer-patch install, not a hand-written version-file oracle.
+        # This fixture affects only the external CMake source; the SDK, npm and
+        # Python package VERSION in the checkout/prepared source stay unchanged.
+        major, minor, patch = map(int, version.split('.'))
+        patch_version = f'{major}.{minor}.{patch + 7}'
+        patch_source = out / 'patch-source'
+        patch_source.mkdir()
+        for name in ('CMakeLists.txt', 'LICENSE'):
+            shutil.copy2(source / name, patch_source / name)
+        (patch_source / 'VERSION').write_text(patch_version + '\n', encoding='utf-8')
+        for name in ('lib', 'cmake'):
+            shutil.copytree(source / name, patch_source / name)
+        run('cmake-patch-configure', [args.cmake, '-S', patch_source, '-B', out / 'patch-build',
+             '-G', 'Ninja', '-DTELEMETRY_COMPONENTS=client;encoded_wire',
+             '-DCMAKE_INSTALL_PREFIX=' + str(out / 'patch-prefix')])
+        run('cmake-patch-install', [args.cmake, '--build', out / 'patch-build', '--target', 'install'])
+        patch_prefix = out / 'patch-relocated-prefix'
+        (out / 'patch-prefix').rename(patch_prefix)
+        patch_info = json.loads((patch_prefix / 'share/telemetry/SDKMetadata.json').read_text())
+        check(patch_info == dict(info, sdkVersion=patch_version),
+              'Newer patch package changes no wire/schema metadata')
+        # Remove both source and original install locations from the consumer path.
+        patch_source.rename(out / 'unavailable-patch-source')
+        report['cmake_version_controls'] = []
+        cases = [('older-patch', version, False, True),
+                 ('same-patch', patch_version, False, True),
+                 ('newer-patch', f'{major}.{minor}.{patch + 8}', False, False),
+                 ('other-minor', f'{major}.{minor + 1}.0', False, False),
+                 ('other-major', f'{major + 1}.{minor}.0', False, False),
+                 ('exact-same', patch_version, True, True),
+                 ('exact-older', version, True, False)]
+        if minor:
+            cases.append(('older-minor', f'{major}.{minor - 1}.{patch + 7}', False, False))
+        for name, requested, exact, accepted in cases:
+            output = run('cmake-patch-' + name, [args.cmake, '-S', consumer,
+                 '-B', out / ('patch-consumer-' + name), '-G', 'Ninja',
+                 '-DCMAKE_PREFIX_PATH=' + str(patch_prefix), '-DREQUIRED_SDK=' + requested,
+                 '-DREQUIRE_EXACT=' + ('ON' if exact else 'OFF')], success=accepted)
+            if accepted:
+                check('TELEMETRY_CONSUMER_VERSION=' + patch_version in output,
+                      name + ': the relocated newer patch was selected')
+            else:
+                check('requested version "' + requested + '"' in output and
+                      'version: ' + patch_version in output,
+                      name + ': refusal names the requested and installed versions')
+            report['cmake_version_controls'].append(dict(name=name, requested=requested,
+                exact=exact, installed=patch_version, accepted=accepted))
+        run('cmake-patch-consumer-build', [args.cmake, '--build', out / 'patch-consumer-older-patch'])
+        run('cmake-patch-consumer-run', [out / ('patch-consumer-older-patch/consumer' + suffix)])
+        check((source / 'VERSION').read_text().strip() == version,
+              'Newer patch fixture preserves the actual SDK version')
         run('cmake-revision-refusal', [args.cmake, '-S', source, '-B', out / 'bad-revision',
              '-G', 'Ninja', '-DTELEMETRY_SOURCE_REVISION=invalid'], success=False)
 
@@ -205,7 +262,7 @@ void typed; void dynamic; void Batch.items; void parseDescriptor; void Status.Ok
         with zipfile.ZipFile(wheel) as archive:
             wheel_metadata = archive.read(next(n for n in archive.namelist()
                                                if n.endswith('.dist-info/METADATA'))).decode()
-            check('Name: telemetry-codegen-core\n' in wheel_metadata,
+            check('Name: telemetry-codegen-core' in wheel_metadata.splitlines(),
                   'Headless generator distribution identity')
             for name in ('Client.ts', 'Client.js', 'Client.d.ts'):
                 check(archive.read('tools/telemetry_codegen/_runtime/' + name) ==

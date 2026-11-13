@@ -43,7 +43,7 @@ foreach(_component IN LISTS _telemetry_selected)
     endif()
 endforeach()
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/TelemetryConfigVersion.cmake"
-    VERSION ${PROJECT_VERSION} COMPATIBILITY ExactVersion ${_version_architecture})
+    VERSION ${PROJECT_VERSION} COMPATIBILITY SameMinorVersion ${_version_architecture})
 configure_file(cmake/SDKMetadata.json.in "${CMAKE_CURRENT_BINARY_DIR}/SDKMetadata.json" @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/TelemetryConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/TelemetryConfigVersion.cmake"

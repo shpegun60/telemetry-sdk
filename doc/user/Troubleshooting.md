@@ -66,8 +66,9 @@ filesystem/protocol та Descriptor/Values providers. Повні host прикл
 ## Великий Model упирається в compiler depth або memory limit
 
 Спочатку розрізніть число endpoints, root occurrences і unique exact types.
-Поточний registry проходить повторені roots навіть після deduplication types.
-Одна велика local table також створює великий `std::tuple`. Поділіть таблиці за
+Поточні tables і catalogs скорочують повторені roots через `RegistryRootTypes`
+перед побудовою Model registry; positional `RootTypes` зберігає всі endpoints.
+Одна велика local table усе одно створює великий `std::tuple`. Поділіть таблиці за
 модулями, повторно використовуйте exact DTO для спільного контракту і не включайте
 повний application Model у кожний runtime consumer.
 
@@ -143,9 +144,11 @@ compile-time `fields.writeAs<Id>(valueFromUi)`. Значення буде пер
 conversion; відмова не викликає setter.
 
 Command/Service потребує exact Request. Складіть його у своєму UI/application
-adapter і перевірте прикладні правила. Universal `callAs` для arbitrary
-Request structs немає. Якщо дані вже прийшли у canonical wire form,
-використайте encoded operations.
+adapter і перевірте прикладні правила. Runtime Command `call(id, request)` та
+Service `callAs<Response>(id, request)` / `callBorrowed<Response>(id, request)`
+підтримуються, але не виконують numeric чи structural Request conversions.
+Їхній contract наведено у [Flat runtime API](FlatNative.md). Якщо дані вже
+прийшли у canonical wire form, використайте encoded operations.
 
 ## `readAs<T>(id)` повертає порожній результат
 

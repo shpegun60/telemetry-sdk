@@ -2,18 +2,20 @@
 
 `run.py` builds and installs `qt_connection` and `tcp_server`, relocates the
 installation, and compiles two ordinary installed consumers. The tests require
-Qt Core/Network and a compatible compiler; SerialPort, UX and a board are absent.
+Qt 6.12 or newer with Core/Network and the matching kit compiler; SerialPort,
+UX and a board are absent.
 
 ```powershell
 python -B tests/qt_read_many/run.py --build-dir C:/temp/qt-read-many-check `
-  --qt-prefix C:/Qt/6.10.1/mingw_64 `
-  --cxx C:/Qt/Tools/mingw1310_64/bin/g++.exe `
+  --qt-prefix C:/Qt/6.12.0/mingw_64 `
+  --cxx C:/Qt/Tools/mingw1510_64/bin/g++.exe `
   --cmake C:/Qt/Tools/CMake_64/bin/cmake.exe `
   --ninja C:/Qt/Tools/Ninja/ninja.exe
 ```
 
-Use a fresh external directory. Nothing is deleted or overwritten. On Linux,
-use the installed Qt/Clang tools and optionally `--sanitize`. `summary.json`
+Use the compiler supplied for the selected Qt kit and a fresh external directory.
+Nothing is deleted or overwritten. On Linux, use the installed Qt/Clang tools
+and optionally `--sanitize`. `summary.json`
 records source hashes before/after, exact commands, log hashes and check counts.
 
 `Native.cpp` tests the standard Resource cursor-zero session WRITE, malformed

@@ -22,7 +22,7 @@ cmake --build /external/sdk-build --target install
 The consumer uses only the installed prefix:
 
 ```cmake
-find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED COMPONENTS
+find_package(Telemetry 0.1.0 CONFIG REQUIRED COMPONENTS
     read_many_static_client batch_static_client encoded_backend)
 target_link_libraries(my_app PRIVATE Telemetry::read_many_static_client
     Telemetry::batch_static_client Telemetry::encoded_backend)
@@ -30,8 +30,12 @@ target_link_libraries(my_app PRIVATE Telemetry::read_many_static_client
 
 Pass `-DCMAKE_PREFIX_PATH=/external/sdk-prefix` when configuring the consumer.
 Include paths, `Telemetry::` targets and C++ namespaces retain their existing
-names. The initial package policy accepts an exact version; it does not promise
-compatibility with every other `0.x` package. The prefix can be relocated.
+names. Package selection accepts the same major and minor version with an
+installed patch at least as new as the requested patch. For example, an installed
+`0.1.7` accepts a request for `0.1.0`, but refuses `0.1.8`, `0.2.0` and `1.1.0`.
+Use `find_package(Telemetry 0.1.0 EXACT CONFIG REQUIRED ...)` when the application
+requires that exact package version. This policy does not make other minor
+versions compatible, including within `0.x`. The prefix can be relocated.
 An installation containing only interface/header modules is architecture
 independent. A prefix containing compiled libraries retains the architecture
 check, so build it with the intended target toolchain.
@@ -152,8 +156,9 @@ a source archive and then tests installed consumers with that source unavailable
 
 ## Qualification boundary
 
-The maintained package suite checks relocated CMake consumption and incompatible
-version refusal, a packed/installed ESM consumer and strict TypeScript imports,
+The maintained package suite checks relocated CMake consumption, same-minor patch
+selection, explicit `EXACT` requests and incompatible-version refusal, a
+packed/installed ESM consumer and strict TypeScript imports,
 and a core wheel-installed CLI with canonical runtime resources. The optional
 UX extension has a separate three-wheel compatibility and migration gate.
 The package suite performs no
