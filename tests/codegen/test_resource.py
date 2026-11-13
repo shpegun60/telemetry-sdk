@@ -129,11 +129,26 @@ class ResourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ResourceError, "no progress"):
             fetch(lambda packet: chunk(0, False))
 
+    def test_all_known_readable_stat_capabilities(self):
+        # SAVE is independent of READ/WRITE. A readable Descriptor can expose
+        # either or both optional capabilities without changing how it is read.
+        for flags in (1, 3, 5, 7):
+            resource = FakeResource(self.data)
+            resource.transform = lambda packet, response, flags=flags: (
+                struct.pack("<BIB", 0, len(self.data), flags) if packet[0] == 2 else response)
+            with self.subTest(flags=flags):
+                self.assertEqual(fetch(resource), self.data)
+                self.assertEqual([packet[0] for packet in resource.requests], [1, 1, 2, 3, 3, 3])
+
     def test_invalid_stat_replies(self):
         for response in (b"", b"\0" * 5, b"\0" * 7,
                          struct.pack("<BIB", 1, len(self.data), 1),
                          struct.pack("<BIB", 0, len(self.data), 0),
                          struct.pack("<BIB", 0, len(self.data), 4),
+                         struct.pack("<BIB", 0, len(self.data), 6),
+                         struct.pack("<BIB", 0, len(self.data), 8),
+                         struct.pack("<BIB", 0, len(self.data), 9),
+                         struct.pack("<BIB", 0, len(self.data), 255),
                          struct.pack("<BIB", 0, 63, 1)):
             resource = FakeResource(self.data)
             resource.transform = lambda packet, valid, response=response: response if packet[0] == 2 else valid

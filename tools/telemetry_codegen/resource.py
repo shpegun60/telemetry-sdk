@@ -100,7 +100,7 @@ def fetch(exchange: Callable[[bytes], bytes], path="/telemetry/descriptor.bin", 
     if not isinstance(stat, bytes) or len(stat) != 6:
         raise ResourceError("invalid STAT reply")
     status, size, flags = struct.unpack("<BIB", stat)
-    if status or flags > 3 or not flags & 1 or not 64 <= size <= max_bytes:
+    if status or flags & ~7 or not flags & 1 or not 64 <= size <= max_bytes:
         raise ResourceError("descriptor is unreadable or exceeds the byte limit")
     result, seen, cursor = bytearray(), set(), 0
     while True:
