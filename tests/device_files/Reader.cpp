@@ -452,10 +452,10 @@ void nullCompletions()
 	CHECK(files::list(device, 0, namedCompletion<files::ListResult>));
 	CHECK(files::stat(device, 0, namedCompletion<files::StatResult>));
 	CHECK(files::read(device, 0, 0, namedCompletion<files::ReadResult>));
-	CHECK(files::write(device, scratch, 0, 0, {}, true, namedCompletion<files::WriteResult>,
-	                   30000, files::maxReplyBytes));
-	CHECK(files::save(device, 0, 0, namedCompletion<files::SaveResult>, 30000,
-	                  files::maxReplyBytes));
+	CHECK(files::write(device, scratch, 0, 0, {}, true, namedCompletion<files::WriteResult>, 30000,
+	                   files::maxReplyBytes));
+	CHECK(
+	    files::save(device, 0, 0, namedCompletion<files::SaveResult>, 30000, files::maxReplyBytes));
 	while (!device.pending.empty())
 		device.fail(cl::Status::Cancelled);
 	CHECK(namedCompletions == 5);

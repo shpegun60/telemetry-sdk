@@ -311,9 +311,13 @@ void rejectedCallbacks()
 	      cl::Status::InvalidArgument);
 	unsigned callbacks = 0;
 	for (const auto timeout : {std::uint32_t{0}, cl::maxTimeoutMs + 1}) {
-		CHECK(bt::batch(w, binding, payloads, request,
-		                [&](const bt::BatchResult&) noexcept { ++callbacks; }, timeout).status ==
-		      cl::Status::InvalidArgument);
+		CHECK(bt::batch(
+		          w, binding, payloads, request,
+		          [&](const bt::BatchResult&) noexcept {
+			          ++callbacks;
+		          },
+		          timeout)
+		          .status == cl::Status::InvalidArgument);
 	}
 	CHECK(w.pending() == 0 && !w.nextPacket() && h.tx == txBefore && request == before);
 	w.process(h.now);

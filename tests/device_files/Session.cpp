@@ -305,18 +305,32 @@ void profileWithApplicationFiles()
 	      resource::protocol::client::BuildStatus::Ok);
 	const auto completedBefore = namedCompletions;
 	CHECK(session.submitResource(request, files::maxReplyBytes, namedCompletion<cl::ResultView>));
-	CHECK(await([&] { return namedCompletions == completedBefore + 1; }));
-	CHECK(files::Submitter<qt::HostWorkbench>::submit(
-	    *session.workbench(), request, files::maxReplyBytes, namedCompletion<cl::ResultView>, 30000));
-	CHECK(await([&] { return namedCompletions == completedBefore + 2; }));
-	CHECK(session.readFieldValue(0, namedCompletion<telemetry::integration::dynamic::DynamicResult>));
-	CHECK(await([&] { return namedCompletions == completedBefore + 3; }));
+	CHECK(await([&] {
+		return namedCompletions == completedBefore + 1;
+	}));
+	CHECK(files::Submitter<qt::HostWorkbench>::submit(*session.workbench(), request,
+	                                                  files::maxReplyBytes,
+	                                                  namedCompletion<cl::ResultView>, 30000));
+	CHECK(await([&] {
+		return namedCompletions == completedBefore + 2;
+	}));
+	CHECK(
+	    session.readFieldValue(0, namedCompletion<telemetry::integration::dynamic::DynamicResult>));
+	CHECK(await([&] {
+		return namedCompletions == completedBefore + 3;
+	}));
 	const std::array<std::uint32_t, 1> ids{0};
-	CHECK(session.readMany(ids, namedCompletion<telemetry::integration::read_many::ReadManyResult>));
-	CHECK(await([&] { return namedCompletions == completedBefore + 4; }));
-	const std::array<qt::ConnectionSession::BatchRequest, 1> batch{{{cl::Operation::FieldRead, 0, {}}}};
+	CHECK(
+	    session.readMany(ids, namedCompletion<telemetry::integration::read_many::ReadManyResult>));
+	CHECK(await([&] {
+		return namedCompletions == completedBefore + 4;
+	}));
+	const std::array<qt::ConnectionSession::BatchRequest, 1> batch{
+	    {{cl::Operation::FieldRead, 0, {}}}};
 	CHECK(session.batch(batch, namedCompletion<telemetry::integration::batch::BatchResult>));
-	CHECK(await([&] { return namedCompletions == completedBefore + 5; }));
+	CHECK(await([&] {
+		return namedCompletions == completedBefore + 5;
+	}));
 
 	std::vector<std::string> paths;
 	bool listed = false;
