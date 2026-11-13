@@ -184,6 +184,35 @@ class CoreTests(unittest.TestCase):
                 self.assertEqual(cli.main(["generate", str(source), "--output", str(output)]), 1)
             self.assertFalse(output.exists())
 
+    def test_reserved_sdk_namespace_refused_before_publication(self):
+        data = golden.fixture("edge")
+        self.assertEqual(load_schema(data).namespace, "device_api")
+        for namespace in ("telemetry::my_device", "company::telemetry"):
+            self.assertEqual(load_schema(data, namespace).namespace, namespace)
+            self.assertIn("cpp/" + namespace.replace("::", "/") + "/ClientBindings.hpp",
+                          cli.render(load_schema(data, namespace), "cpp"))
+        with self.assertRaisesRegex(ValueError, "namespace 'telemetry' is reserved by the native SDK"):
+            load_schema(data, "telemetry")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "descriptor.bin"
+            source.write_bytes(data)
+            existing = root / "existing"
+            existing.mkdir()
+            (existing / "application.txt").write_bytes(b"keep this application\n")
+            before = {path.relative_to(root).as_posix(): path.read_bytes()
+                      for path in root.rglob("*") if path.is_file()}
+            for output in (root / "fresh-parent/generated", existing):
+                stderr = io.StringIO()
+                with patch("sys.stderr", stderr), patch.object(cli, "publish") as publish:
+                    self.assertEqual(cli.main(["generate", str(source), "--targets", "cpp",
+                        "--namespace", "telemetry", "--output", str(output)]), 1)
+                self.assertIn("namespace 'telemetry' is reserved by the native SDK", stderr.getvalue())
+                publish.assert_not_called()
+                self.assertFalse((root / "fresh-parent").exists())
+                self.assertEqual({path.relative_to(root).as_posix(): path.read_bytes()
+                                  for path in root.rglob("*") if path.is_file()}, before)
+
     def test_fetch_cli_writes_only_completed_download(self):
         from tools.telemetry_codegen import resource
         data = golden.fixture("mixed")

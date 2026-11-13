@@ -90,6 +90,12 @@ def validate_namespace(namespace):
     """A requested namespace is an explicit API, so reject rather than rename it."""
     if not isinstance(namespace, str) or not namespace:
         raise ValueError("namespace must be a nonempty C++ namespace")
+    # The generated client bindings would otherwise redeclare the native
+    # telemetry::client API. Only that exact namespace is reserved; a distinct
+    # nested namespace such as telemetry::my_device has its own binding scope.
+    if namespace == "telemetry":
+        raise ValueError("namespace 'telemetry' is reserved by the native SDK; "
+                         "use 'device_api' or a distinct nested namespace such as 'telemetry::my_device'")
     for part in namespace.split("::"):
         if (not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", part) or "__" in part
                 or part in KEYWORDS or part in SUPPORT_NAMES or part in MACROS):
