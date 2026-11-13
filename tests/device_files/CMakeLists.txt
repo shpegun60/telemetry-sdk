@@ -10,7 +10,7 @@ add_executable(writer Writer.cpp)
 # values.bin written as the device serves it, read back on the host.
 add_executable(values Values.cpp)
 target_link_libraries(values PRIVATE Telemetry::values_reader Telemetry::resource_adapter)
-target_link_libraries(reader PRIVATE Telemetry::files_client Telemetry::resource_protocol)
+target_link_libraries(reader PRIVATE Telemetry::files_client Telemetry::resource_protocol Telemetry::encoded_backend)
 target_link_libraries(writer PRIVATE Telemetry::files_client Telemetry::resource_protocol)
 add_executable(session Session.cpp)
 target_link_libraries(session PRIVATE Telemetry::qt_connection Telemetry::tcp_server Telemetry::tcp_encoded_profile

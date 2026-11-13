@@ -1,6 +1,8 @@
 // FileReader and the files requests against the real Resource protocol
 // handler, without a network: every way a read can end, deterministically. MIT.
 #include <integration/files/Client.hpp>
+#include <integration/encoded/Backend.hpp>
+#include <client/DeviceClient.hpp>
 #include <resource/BytesFile.hpp>
 #include <resource/FileSystem.hpp>
 #include <resource/protocol/Protocol.hpp>
@@ -400,6 +402,187 @@ void cancelling()
 	CHECK(queueCancelled.state() == files::ReadState::Cancelled);
 }
 
+
+// Exercise the real queue/Encoded cancellation boundary with deterministic
+// transport phases, not a TCP timing assumption. Resource replies have no
+// request id on the wire, so abandoning a prepared reply requires recovery.
+struct RawCodec {
+	static constexpr std::size_t scratchBytes = 64;
+	static constexpr std::size_t scratchAlign = alignof(std::max_align_t);
+	inline static const std::array<std::byte, 64> header{};
+	static cl::Input descriptorHeader() noexcept { return header; }
+};
+
+struct WireDevice {
+	std::uint32_t now = 0;
+	cl::Clock clock{this, +[](void* p) noexcept { return static_cast<WireDevice*>(p)->now; }};
+	std::array<std::byte, 128> tx{}, rx{};
+	telemetry::integration::encoded::EncodedBackend backend{tx, rx, clock, 30000, false, false, true};
+	cl::DeviceClient<RawCodec, 4, 128, 128> client{backend, clock};
+	unsigned replies = 0;
+
+	WireDevice() { CHECK(client.admitDescriptor(RawCodec::header, 1) == cl::Status::Ok); }
+	~WireDevice()
+	{
+		CHECK(client.pending() == 0);
+		client.close();
+		client.process(now);
+		CHECK(client.drained());
+	}
+	cl::Packet offered(std::vector<std::byte>& copy)
+	{
+		auto packet = client.nextPacket();
+		CHECK(packet && packet.reply == cl::ReplyFrame::Resource);
+		copy.assign(packet.bytes.begin(), packet.bytes.end());
+		packet.bytes = copy;
+		return packet;
+	}
+	void answer(cl::Packet packet, bool prepared = false, bool sent = false, std::size_t replyLimit = 28)
+	{
+		if (!prepared) CHECK(client.prepareHandoff(packet.session, packet.requestId));
+		if (!sent) CHECK(client.onSendAccepted(packet.session, packet.requestId));
+		std::array<std::byte, 128> reply{};
+		const auto result = resource::protocol::process(table.view(), packet.bytes, cl::Output{reply}.first(replyLimit));
+		CHECK(result.written > 0);
+		CHECK(client.onReply(cl::Input{reply}.first(result.written), packet.session, packet.requestId));
+		++replies;
+	}
+};
+
+void passiveStop()
+{
+	// Stop either the accepted Stat or a non-final Read, at queued, offered,
+	// prepared and sent phases. Every accepted request still gets its reply.
+	for (bool read : {false, true}) for (int phase = 0; phase != 4; ++phase) {
+		WireDevice wire;
+		Collected collected;
+		files::FileReader<decltype(wire.client), Sink> reader{wire.client, Sink{&collected}, 30000, 28};
+		CHECK(reader.start(0) == cl::Status::Ok && reader.inFlight());
+		if (read) {
+			std::vector<std::byte> statCopy;
+			wire.answer(wire.offered(statCopy));
+			CHECK(reader.due() && reader.poll() == cl::Status::Ok && reader.inFlight());
+		}
+		std::vector<std::byte> copy;
+		cl::Packet packet;
+		if (phase >= 1) packet = wire.offered(copy);
+		if (phase >= 2) CHECK(wire.client.prepareHandoff(packet.session, packet.requestId));
+		if (phase >= 3) CHECK(wire.client.onSendAccepted(packet.session, packet.requestId));
+		reader.stopAfterCurrent();
+		reader.stopAfterCurrent(); // Idempotent; no second request or cancellation.
+		CHECK(!reader.finished() && reader.inFlight() && wire.client.pending() == 1);
+		wire.client.process(wire.now);
+		CHECK(wire.backend.ready() && !wire.backend.recoveryRequired() && !reader.finished());
+		if (phase == 0) packet = wire.offered(copy);
+		wire.answer(packet, phase >= 2, phase >= 3);
+		CHECK(reader.finished() && reader.state() == files::ReadState::Cancelled);
+		CHECK(reader.clientStatus() == cl::Status::Ok && collected.bytes.size() == (read ? 16u : 0u));
+		CHECK(wire.replies == (read ? 2u : 1u) && wire.client.pending() == 0);
+		CHECK(reader.poll() == cl::Status::Ok && !wire.client.nextPacket());
+		CHECK(wire.backend.ready() && !wire.backend.recoveryRequired() &&
+		      wire.client.submissionStatus() == cl::Status::Ok);
+		// Another user's operation on the same FIFO still completes normally.
+		unsigned completed = 0;
+		CHECK(files::stat(wire.client, 0, [&](const files::StatResult& result) noexcept {
+			CHECK(result.succeeded()); ++completed;
+		}, 30000, 28));
+		wire.answer(wire.offered(copy));
+		CHECK(completed == 1 && wire.client.pending() == 0 && wire.backend.ready());
+	}
+	// Between requests there is nothing to drain and nothing is submitted.
+	WireDevice between;
+	Collected collected;
+	files::FileReader<decltype(between.client), Sink> reader{between.client, Sink{&collected}, 30000, 28};
+	reader.stopAfterCurrent();
+	CHECK(reader.state() == files::ReadState::Idle);
+	CHECK(reader.start(0) == cl::Status::Ok);
+	std::vector<std::byte> copy;
+	between.answer(between.offered(copy));
+	CHECK(reader.due());
+	reader.stopAfterCurrent();
+	CHECK(reader.finished() && reader.state() == files::ReadState::Cancelled && between.client.pending() == 0);
+
+	// A successful final accepted Read is still Complete, not a fabricated
+	// cancellation; the final bytes are delivered exactly once to its sink.
+	{
+		WireDevice wire;
+		Collected bytes;
+		files::FileReader<decltype(wire.client), Sink> final{wire.client, Sink{&bytes}, 30000, 128};
+		CHECK(final.start(0) == cl::Status::Ok);
+		wire.answer(wire.offered(copy));
+		CHECK(final.poll() == cl::Status::Ok && final.inFlight());
+		const auto packet = wire.offered(copy);
+		CHECK(wire.client.prepareHandoff(packet.session, packet.requestId));
+		CHECK(wire.client.onSendAccepted(packet.session, packet.requestId));
+		final.stopAfterCurrent();
+		wire.answer(packet, true, true, 128);
+		CHECK(final.finished() && final.state() == files::ReadState::Complete && final.received() == 50);
+		CHECK(bytes.bytes.size() == 50 && std::equal(patternBytes.begin(), patternBytes.end(), bytes.bytes.begin()));
+		CHECK(final.poll() == cl::Status::Ok && wire.replies == 2 && wire.client.pending() == 0 && wire.backend.ready());
+	}
+	// Logical stop preserves real failures, including the ordinary accepted
+	// request deadline. A lost prepared reply still genuinely needs recovery.
+	{
+		WireDevice wire;
+		Collected bytes;
+		files::FileReader<decltype(wire.client), Sink> timed{wire.client, Sink{&bytes}, 30000, 28};
+		CHECK(timed.start(0) == cl::Status::Ok);
+		const auto packet = wire.offered(copy);
+		CHECK(wire.client.prepareHandoff(packet.session, packet.requestId));
+		CHECK(wire.client.onSendAccepted(packet.session, packet.requestId));
+		timed.stopAfterCurrent();
+		wire.now = 30000;
+		wire.client.process(wire.now);
+		CHECK(timed.finished() && timed.state() == files::ReadState::Failed && timed.clientStatus() == cl::Status::Timeout);
+		CHECK(bytes.bytes.empty() && wire.backend.recoveryRequired() && wire.client.pending() == 0);
+	}
+	{
+		WireDevice wire;
+		Collected bytes;
+		files::FileReader<decltype(wire.client), Sink> refused{wire.client, Sink{&bytes}, 30000, 28};
+		CHECK(refused.start(99) == cl::Status::Ok);
+		const auto packet = wire.offered(copy);
+		refused.stopAfterCurrent();
+		wire.answer(packet);
+		CHECK(refused.finished() && refused.state() == files::ReadState::Refused &&
+		      refused.deviceStatus() != resource::Status::Ok);
+		CHECK(bytes.bytes.empty() && wire.backend.ready() && wire.client.pending() == 0);
+	}
+	{
+		WireDevice wire;
+		Collected bytes;
+		files::FileReader<decltype(wire.client), Sink> malformed{wire.client, Sink{&bytes}, 30000, 28};
+		CHECK(malformed.start(0) == cl::Status::Ok);
+		const auto packet = wire.offered(copy);
+		CHECK(wire.client.prepareHandoff(packet.session, packet.requestId));
+		CHECK(wire.client.onSendAccepted(packet.session, packet.requestId));
+		malformed.stopAfterCurrent();
+		const std::array junk{std::byte{0xff}};
+		CHECK(wire.client.onReply(junk, packet.session, packet.requestId));
+		CHECK(malformed.finished() && malformed.state() == files::ReadState::Malformed);
+		CHECK(bytes.bytes.empty() && wire.backend.ready() && wire.client.pending() == 0);
+	}
+
+	// Preserve cancel()'s existing stronger meaning. It may abandon a prepared
+	// reply and must then require recovery; stopAfterCurrent must not do that.
+	for (int phase = 0; phase != 4; ++phase) {
+		WireDevice wire;
+		Collected bytes;
+		files::FileReader<decltype(wire.client), Sink> cancelled{wire.client, Sink{&bytes}, 30000, 28};
+		CHECK(cancelled.start(0) == cl::Status::Ok);
+		cl::Packet packet;
+		std::vector<std::byte> request;
+		if (phase >= 1) packet = wire.offered(request);
+		if (phase >= 2) CHECK(wire.client.prepareHandoff(packet.session, packet.requestId));
+		if (phase >= 3) CHECK(wire.client.onSendAccepted(packet.session, packet.requestId));
+		cancelled.cancel();
+		wire.client.process(wire.now);
+		CHECK(cancelled.finished() && cancelled.state() == files::ReadState::Cancelled && wire.client.pending() == 0);
+		CHECK(wire.backend.recoveryRequired() == (phase >= 2));
+		CHECK(wire.client.submissionStatus() == (phase >= 2 ? cl::Status::RecoveryRequired : cl::Status::Ok));
+	}
+}
+
 void submissions()
 {
 	Device device;
@@ -474,6 +657,7 @@ int main()
 	complete();
 	endings();
 	cancelling();
+	passiveStop();
 	submissions();
 	nullCompletions();
 	std::printf("Device files reader: %u checks, 0 failures\n", checks);

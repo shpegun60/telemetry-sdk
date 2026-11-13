@@ -322,8 +322,9 @@ public:
 		return submitted.status;
 	}
 
-	// Stops the read. A request still waiting in the queue is cancelled there,
-	// where the client allows it; one already sent completes or times out.
+	// Stops the read and asks the client to cancel its accepted request.
+	// Cancelling after handoff may require shared-session recovery. To retain
+	// the current reply's correlation, use stopAfterCurrent() instead.
 	void cancel() noexcept
 	{
 		if (state_ != ReadState::Running)
@@ -333,6 +334,20 @@ public:
 			finish(ReadState::Cancelled);
 		else
 			(void)Submitter<Client>::cancel(owner_, handle_);
+	}
+
+	// Stops between requests without cancelling the accepted request on the
+	// shared client. That request keeps its normal reply/timeout and correlation;
+	// a successful current Read may still reach the sink, and a final Read may
+	// finish Complete. Errors retain their result; no next piece is submitted.
+	// Keep this reader and sink alive until finished() is true.
+	void stopAfterCurrent() noexcept
+	{
+		if (state_ != ReadState::Running)
+			return;
+		cancelRequested_ = true;
+		if (!inFlight_)
+			finish(ReadState::Cancelled);
 	}
 
 	[[nodiscard]] ReadState state() const noexcept

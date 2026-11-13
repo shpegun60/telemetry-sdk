@@ -15,6 +15,15 @@ directly. A `FileReader` submits its next piece from `poll()`, called from the
 owner's loop, never from a completion: the Workbench refuses submissions while
 one of its completions runs.
 
+To retire a view while preserving the shared connection, call
+`FileReader::stopAfterCurrent()` and retain the reader and sink until
+`finished()`. It waits for the accepted request's normal reply or deadline,
+then submits no further piece. A successful current Read can still reach the
+sink; a final Read can finish `Complete`, and real failures keep their status.
+`cancel()` instead asks the client to cancel the accepted request. After physical
+handoff, cancelling a raw Resource reply can require shared-session recovery
+because that reply has no wire request identity. Neither operation retries it.
+
 ### The device's identity
 
 When the device lists `/telemetry/identity.bin` (`wire/IdentityWire.hpp`), the

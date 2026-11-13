@@ -11,7 +11,12 @@ the relocated installed package. No board; only ephemeral localhost sockets.
   - the device refusing (an unknown index), a write-only file, a reply that is
     not a reply, a piece without progress from a misbehaving device;
   - the sink stopping, a timeout, a cancel while a piece is in flight and between
-    pieces, the queue cancelling, a busy queue that is retried and a refusal.
+    pieces, the queue cancelling, a busy queue that is retried and a refusal;
+  - `stopAfterCurrent()` with the real DeviceClient/Encoded backend at queued,
+    offered, prepared and sent phases, for Stat and Read: the accepted reply
+    drains without recovery and a later request shares the same FIFO; final
+    EOF, timeout, refusal and malformed reply retain their actual results;
+    the existing `cancel()` controls still require recovery after handoff.
 - **Writer** (`Writer.cpp`, no Qt, no network). `files::FileWriter`,
   `files::write` and `files::save` against the real protocol handler over
   writable providers, some of them savable. Every ending of a write is reached on

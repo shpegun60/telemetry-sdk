@@ -88,7 +88,7 @@ def main():
         commands = (out / 'consumer-build/compile_commands.json').read_text(encoding='utf-8').replace('\\', '/')
         if str(ROOT / 'lib').replace('\\', '/') in commands:
             raise RuntimeError('Installed consumer leaked SDK source include paths')
-        for target, pattern, floor in (('reader', r'Device files reader: (\d+) checks, 0 failures', 80),
+        for target, pattern, floor in (('reader', r'Device files reader: (\d+) checks, 0 failures', 449),
                                        ('writer', r'Device files writer: (\d+) checks, 0 failures', 60),
                                        ('values', r'Values reader: (\d+) checks, 0 failures', 50),
                                        ('session', r'Device files session: (\d+) checks, 0 failures', 15),
