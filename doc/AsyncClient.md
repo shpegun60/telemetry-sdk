@@ -53,8 +53,9 @@ reply, which the caller parses with `parseList`, `parseStat`, `parseRead`,
 
 - The value 7 is client-only. It never appears in an Encoded header, and the Encoded
   operation space keeps it reserved.
-- Only `EncodedBackend` constructed with `enableResource` admits it; any other
-  backend, and the RPC backend, answers `Unsupported` at submission.
+- Only `EncodedBackend` constructed with `enableResource` executes it. The raw
+  portable client can enqueue it with other backends, including RPC; when the
+  request is activated, the backend completes it with `Unsupported`.
 - The packet carries `ReplyFrame::Resource` and the Resource operation byte. List,
   Stat and Read are marked `mayExecute = false`: they change nothing on the device,
   so a cancelled one never counts as possibly executed. A Write or a Save is

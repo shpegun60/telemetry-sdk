@@ -128,6 +128,11 @@ template<class Reply, class Client, class F>
 	              "A file completion must be constructed without exceptions");
 	if (request.empty() || !replyBytes || replyBytes > maxReplyBytes)
 		return {client::Status::InvalidArgument, {}};
+	// Preserve the client's null-completion preflight before Parsing hides the
+	// pointer inside an otherwise callable wrapper.
+	if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
+		if (!callback)
+			return {client::Status::InvalidArgument, {}};
 	return Submitter<Client>::submit(
 	    owner, request, replyBytes,
 	    Parsing<Reply, std::decay_t<F>>{std::forward<F>(callback), submitted}, timeoutMs);
@@ -275,6 +280,9 @@ public:
 	{
 		if (state_ == ReadState::Running || inFlight_)
 			return client::Status::Busy;
+		if constexpr (std::is_pointer_v<Sink>)
+			if (!sink_)
+				return client::Status::InvalidArgument;
 		index_ = index;
 		cursor_ = 0;
 		size_ = received_ = 0;

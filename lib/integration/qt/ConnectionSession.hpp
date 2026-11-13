@@ -190,6 +190,10 @@ public:
 		if (const auto files = filesOnlyStorage(status)) {
 			if (!filesSupported())
 				return {client::Status::Unsupported, {}};
+			// Reject before retention hides the pointer from the client's preflight.
+			if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
+				if (!callback)
+					return {client::Status::InvalidArgument, {}};
 			return pumpAfter(files->client.submitResource(
 			    request, replyBytes,
 			    [files, callable = std::forward<F>(callback)](
@@ -205,6 +209,9 @@ public:
 			return {status, {}};
 		if (!filesSupported())
 			return {client::Status::Unsupported, {}};
+		if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
+			if (!callback)
+				return {client::Status::InvalidArgument, {}};
 		return pumpAfter(files::Submitter<HostWorkbench>::submit(
 		    owner->inspector, request, replyBytes,
 		    [owner, callable = std::forward<F>(callback)](
@@ -238,7 +245,7 @@ public:
 		if (requests.empty() || requests.size() > batch::wire::maxItems || !timeoutMs ||
 		    timeoutMs > client::maxTimeoutMs)
 			return {client::Status::InvalidArgument, {}};
-		if constexpr (std::is_pointer_v<std::decay_t<F>>)
+		if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
 			if (!callback)
 				return {client::Status::InvalidArgument, {}};
 		SubmissionScope scope{*this};
@@ -284,7 +291,7 @@ public:
 			return {client::Status::Unsupported, {}};
 		if (!timeoutMs || timeoutMs > client::maxTimeoutMs)
 			return {client::Status::InvalidArgument, {}};
-		if constexpr (std::is_pointer_v<std::decay_t<F>>)
+		if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
 			if (!callback)
 				return {client::Status::InvalidArgument, {}};
 		const auto binding =
@@ -312,7 +319,7 @@ public:
 			return {status, {}};
 		if (!timeoutMs || timeoutMs > client::maxTimeoutMs)
 			return {client::Status::InvalidArgument, {}};
-		if constexpr (std::is_pointer_v<std::decay_t<F>>)
+		if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
 			if (!callback)
 				return {client::Status::InvalidArgument, {}};
 		const auto binding = owner->inspector.bindField(id);

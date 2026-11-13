@@ -29,6 +29,13 @@ namespace cl = telemetry::client;
 
 namespace {
 unsigned checks = 0;
+unsigned namedCompletions = 0;
+
+template<class Result>
+void namedCompletion(const Result&) noexcept
+{
+	++namedCompletions;
+}
 
 void check(bool ok, int line)
 {
@@ -179,6 +186,22 @@ void reading()
 		return session.ready() || (!session.connecting() && !session.lastError().isEmpty());
 	}));
 	CHECK(session.ready() && session.filesSupported());
+	// Null callbacks must be refused before wrappers hide their pointer type:
+	// through the Session, and through the portable Workbench adapter directly.
+	std::array<std::byte, resource::protocol::wire::listRequestSize> request{};
+	CHECK(resource::protocol::client::makeList(request, 0).status ==
+	      resource::protocol::client::BuildStatus::Ok);
+	void (*nullCompletion)(const cl::ResultView&) noexcept = nullptr;
+	const auto pending = session.workbench()->pending();
+	const auto lastRequest = peer.server->lastRequestId();
+	const auto noSessionCallback =
+	    session.submitResource(request, files::maxReplyBytes, nullCompletion);
+	CHECK(!noSessionCallback && noSessionCallback.status == cl::Status::InvalidArgument);
+	const auto noWorkbenchCallback = files::Submitter<qt::HostWorkbench>::submit(
+	    *session.workbench(), request, files::maxReplyBytes, nullCompletion, 30000);
+	CHECK(!noWorkbenchCallback && noWorkbenchCallback.status == cl::Status::InvalidArgument);
+	CHECK(session.workbench()->pending() == pending &&
+	      peer.server->lastRequestId() == lastRequest && !session.busy());
 	// The descriptor's progress was reported while connecting, ending complete.
 	CHECK(progressSignals >= 1 && session.descriptorReceived() == packed.size());
 
@@ -275,6 +298,25 @@ void profileWithApplicationFiles()
 		return session.ready();
 	}));
 	CHECK(!session.filesOnly() && session.filesSupported());
+	// Ordinary named functions remain valid at all callback-retaining Session
+	// boundaries. In particular, they must not trigger -Waddress under -Werror.
+	std::array<std::byte, resource::protocol::wire::listRequestSize> request{};
+	CHECK(resource::protocol::client::makeList(request, 0).status ==
+	      resource::protocol::client::BuildStatus::Ok);
+	const auto completedBefore = namedCompletions;
+	CHECK(session.submitResource(request, files::maxReplyBytes, namedCompletion<cl::ResultView>));
+	CHECK(await([&] { return namedCompletions == completedBefore + 1; }));
+	CHECK(files::Submitter<qt::HostWorkbench>::submit(
+	    *session.workbench(), request, files::maxReplyBytes, namedCompletion<cl::ResultView>, 30000));
+	CHECK(await([&] { return namedCompletions == completedBefore + 2; }));
+	CHECK(session.readFieldValue(0, namedCompletion<telemetry::integration::dynamic::DynamicResult>));
+	CHECK(await([&] { return namedCompletions == completedBefore + 3; }));
+	const std::array<std::uint32_t, 1> ids{0};
+	CHECK(session.readMany(ids, namedCompletion<telemetry::integration::read_many::ReadManyResult>));
+	CHECK(await([&] { return namedCompletions == completedBefore + 4; }));
+	const std::array<qt::ConnectionSession::BatchRequest, 1> batch{{{cl::Operation::FieldRead, 0, {}}}};
+	CHECK(session.batch(batch, namedCompletion<telemetry::integration::batch::BatchResult>));
+	CHECK(await([&] { return namedCompletions == completedBefore + 5; }));
 
 	std::vector<std::string> paths;
 	bool listed = false;

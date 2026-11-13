@@ -294,6 +294,33 @@ void refusalAndReadOnly()
 	CHECK(w.editing() && w.info(scalar) && owner.writes == 0 && owner.commands == 0);
 }
 
+void rejectedCallbacks()
+{
+	Harness h;
+	auto& w = h.workbench;
+	const auto root = h.snapshot();
+	CHECK(w.beginEdit() == rt::Status::Ok &&
+	      w.setScalar(root, std::uint32_t{88}) == rt::Status::Ok);
+	const auto binding = h.batchBinding(sequence);
+	std::array<std::byte, 512> request{};
+	request.fill(std::byte{0x5a});
+	const auto before = request;
+	const auto txBefore = h.tx;
+	void (*nullCallback)(const bt::BatchResult&) noexcept = nullptr;
+	CHECK(bt::batch(w, binding, payloads, request, nullCallback).status ==
+	      cl::Status::InvalidArgument);
+	unsigned callbacks = 0;
+	for (const auto timeout : {std::uint32_t{0}, cl::maxTimeoutMs + 1}) {
+		CHECK(bt::batch(w, binding, payloads, request,
+		                [&](const bt::BatchResult&) noexcept { ++callbacks; }, timeout).status ==
+		      cl::Status::InvalidArgument);
+	}
+	CHECK(w.pending() == 0 && !w.nextPacket() && h.tx == txBefore && request == before);
+	w.process(h.now);
+	CHECK(callbacks == 0 && owner.writes == 0 && owner.commands == 0);
+	CHECK(w.canApply() && w.info(root) && value(w, root, true) == 88 && value(w, root) == 17);
+}
+
 void boundaries()
 {
 	for (unsigned phase = 0; phase < 3; ++phase) {
@@ -437,6 +464,7 @@ int main()
 {
 	acceptance();
 	refusalAndReadOnly();
+	rejectedCallbacks();
 	boundaries();
 	capture();
 	captureBitsAndVoid();

@@ -82,9 +82,10 @@ carries only Resource requests. `limitation()` says why:
 | `DescriptorRejected` | It was read whole, but the descriptor parser or admission refused it. |
 | `Capability` | A ReadMany, Batch or session file is missing, malformed or does not match. |
 
-`lastError()` holds an English description; a program words `limitation()` itself.
-`discoveredPaths()` keeps every path the device listed, until the next connection,
-so a program can name a likely typo in the descriptor's name. A device whose
+`limitationText()` describes the files-only limitation; `lastError()` is cleared
+on successful files-only admission and reports connection failures instead.
+`discoveredPaths()` keeps the first 4096 paths the device listed, until the next
+connection, so a program can name a likely typo in the descriptor's name. A device whose
 replies do not follow the protocol is still a plain failure: no files, no
 limitation. A files-only connection never asks for same-peer recovery; it
 holds no session to recover, so a new connection is all a later one needs. What

@@ -13,7 +13,8 @@ and [migration guide](doc/StructuredTelemetryV3MigrationGuide.md).
   `resource_telemetry_rpc` selects RpcMailbox. Both require an explicit
   telemetry manifest include.
 - `examples/structured_protocol`: optional transport-owned Bind/Exchange.
-- `app`: simulated Qt playground; `web/telemetry.js`: final v3 JS codec.
+- `examples`: SDK usage and device-integration examples; the standalone desktop
+  application lives in `telemetry-qt-client`. `web/telemetry.js` is the v3 JS codec.
 - `lib/delegate`, `lib/boost_pfr`, `lib/magic_enum`: pinned vendor trees.
   Preserve original tracked bytes and licenses.
 

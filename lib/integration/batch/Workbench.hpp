@@ -88,6 +88,11 @@ public:
 			return {status, {}};
 		if (!BatchAccess::current(owner.readOnlyClient(), binding))
 			return {client::Status::NotAdmitted, {}};
+		if (!timeout || timeout > client::maxTimeoutMs)
+			return {client::Status::InvalidArgument, {}};
+		if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
+			if (!callback)
+				return {client::Status::InvalidArgument, {}};
 		bool mutation = false;
 		for (const auto& entry : binding.entries())
 			mutation = mutation || entry.operation != client::Operation::FieldRead;

@@ -242,6 +242,14 @@ void filesStillWork(qt::ConnectionSession& session)
 	// lastError() is for a failed connection; this one is open, with a reason.
 	CHECK(session.lastError().isEmpty() && !session.limitationText().isEmpty() &&
 	      !session.recoveryRequired());
+	// This Session branch captures callbacks too; it must refuse a null one
+	// without leaving work for a later event-loop turn to invoke.
+	std::array<std::byte, resource::protocol::wire::listRequestSize> request{};
+	CHECK(resource::protocol::client::makeList(request, 0).status ==
+	      resource::protocol::client::BuildStatus::Ok);
+	void (*nullCompletion)(const cl::ResultView&) noexcept = nullptr;
+	const auto refusedFile = session.submitResource(request, files::maxReplyBytes, nullCompletion);
+	CHECK(!refusedFile && refusedFile.status == cl::Status::InvalidArgument && !session.busy());
 	// Telemetry is refused; the files are not.
 	const auto refused = session.readFieldValue(
 	    0, [](const telemetry::integration::dynamic::DynamicResult&) noexcept {

@@ -17,6 +17,13 @@ namespace cl = telemetry::client;
 
 namespace {
 unsigned checks = 0;
+unsigned namedCompletions = 0;
+
+template<class Result>
+void namedCompletion(const Result&) noexcept
+{
+	++namedCompletions;
+}
 
 void check(bool ok, int line)
 {
@@ -412,6 +419,53 @@ void submissions()
 	CHECK(refused.finished() && refused.state() == files::ReadState::Failed &&
 	      refused.clientStatus() == cl::Status::NotAdmitted);
 }
+
+void nullCompletions()
+{
+	Device device;
+	device.replyBytes = 1024;
+	unsigned completed = 0;
+	CHECK(files::list(device, 0, [&](const files::ListResult& result) noexcept {
+		CHECK(result.succeeded());
+		++completed;
+	}));
+	const auto sequence = device.sequence;
+	const auto reject = [&](cl::Submission submitted) {
+		CHECK(!submitted && submitted.status == cl::Status::InvalidArgument);
+		CHECK(device.sequence == sequence && device.pending.size() == 1 && completed == 0);
+	};
+	void (*list)(const files::ListResult&) noexcept = nullptr;
+	void (*stat)(const files::StatResult&) noexcept = nullptr;
+	void (*read)(const files::ReadResult&) noexcept = nullptr;
+	void (*write)(const files::WriteResult&) noexcept = nullptr;
+	void (*save)(const files::SaveResult&) noexcept = nullptr;
+	std::array<std::byte, 32> scratch{};
+	reject(files::list(device, 0, list));
+	reject(files::stat(device, 0, stat));
+	reject(files::read(device, 0, 0, read));
+	reject(files::write(device, scratch, 0, 0, {}, true, write, 30000, files::maxReplyBytes));
+	reject(files::save(device, 0, 0, save, 30000, files::maxReplyBytes));
+	device.answer();
+	CHECK(completed == 1 && device.pending.empty());
+	// Named functions are function references here, not nullable pointer
+	// variables; they must compile cleanly under -Werror and remain usable.
+	CHECK(files::list(device, 0, namedCompletion<files::ListResult>));
+	CHECK(files::stat(device, 0, namedCompletion<files::StatResult>));
+	CHECK(files::read(device, 0, 0, namedCompletion<files::ReadResult>));
+	CHECK(files::write(device, scratch, 0, 0, {}, true, namedCompletion<files::WriteResult>,
+	                   30000, files::maxReplyBytes));
+	CHECK(files::save(device, 0, 0, namedCompletion<files::SaveResult>, 30000,
+	                  files::maxReplyBytes));
+	while (!device.pending.empty())
+		device.fail(cl::Status::Cancelled);
+	CHECK(namedCompletions == 5);
+	using NullableSink = bool (*)(cl::Input) noexcept;
+	files::FileReader<Device, NullableSink> reader{device, nullptr};
+	const auto beforeSink = device.sequence;
+	CHECK(reader.start(0) == cl::Status::InvalidArgument);
+	CHECK(reader.state() == files::ReadState::Idle && !reader.inFlight() &&
+	      device.pending.empty() && device.sequence == beforeSink);
+}
 } // namespace
 
 int main()
@@ -421,6 +475,7 @@ int main()
 	endings();
 	cancelling();
 	submissions();
+	nullCompletions();
 	std::printf("Device files reader: %u checks, 0 failures\n", checks);
 	return 0;
 }

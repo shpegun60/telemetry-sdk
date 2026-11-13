@@ -106,6 +106,9 @@ public:
 			return {status, {}};
 		if (!timeoutMs || timeoutMs > client::maxTimeoutMs)
 			return {client::Status::InvalidArgument, {}};
+		if constexpr (std::is_pointer_v<std::remove_reference_t<F>>)
+			if (!callback)
+				return {client::Status::InvalidArgument, {}};
 		const FlagScope publication{owner.publishing_};
 		Completion<W, std::decay_t<F>> completion{owner, std::forward<F>(callback)};
 		return owner.readOnlyClient().submitResource(request, replyBytes, std::move(completion),
