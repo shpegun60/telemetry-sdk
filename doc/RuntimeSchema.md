@@ -62,6 +62,33 @@ explicit member/index steps when a member name contains path punctuation.
 Catalog and endpoint enumeration includes Fields, Commands and Services; this
 module supplies metadata and local value reads/edits, without dynamic request submission.
 
+## Find an endpoint by name
+
+`findField`, `findCommand` and `findService` accept either separate exact group
+and endpoint names, or one path such as `"device.Config"`:
+
+```cpp
+const auto* config = parsed.schema.findField("device.Config");
+const auto* reset = parsed.schema.findCommand("control", "Reset");
+const auto* inspect = parsed.schema.findService("control.Inspect");
+```
+
+`findEndpoint(category, group, name)` and `findEndpoint(category, path)` provide
+the same lookup when the category is selected at runtime. Names are
+case-sensitive UTF-8 bytes; no wildcard, member navigation or request is implied.
+The path is the literal group name, one dot, then the literal endpoint name.
+Both names may contain dots. If `"a.b.c"` matches both group `"a"` / endpoint
+`"b.c"` and group `"a.b"` / endpoint `"c"`, the path overload returns `nullptr`;
+the separate-name overload addresses either endpoint unambiguously. Categories
+are independent, so the same path can identify a Field and a Service.
+
+Missing names, an invalid category and a stale schema return `nullptr`.
+Lookups scan the published metadata without allocating or changing it. A returned
+pointer borrows the descriptor/index storage, just like `endpoints()`; it must
+not be retained across workspace reset, reparse or destruction. It is metadata,
+not a session binding: remote access still uses DynamicClient's admission and
+generation checks.
+
 ## Stage and commit edits
 
 Include `<telemetry/runtime/DynamicValueWriter.hpp>`. `begin` returns a move-only

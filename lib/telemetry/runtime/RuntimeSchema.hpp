@@ -250,7 +250,8 @@ struct PathStep {
 
 // Views borrow a published workspace; no method dereferences an invalidated index.
 // Public methods: parse, valid, owner, generation, descriptor, fingerprint, type,
-// members, enumEntries, catalogs, endpoints, findField, resolve, accepts, view.
+// members, enumEntries, catalogs, endpoints, findEndpoint, findField, findCommand,
+// findService, resolve, accepts, view.
 class RuntimeSchema {
 public:
 	RuntimeSchema() noexcept = default;
@@ -320,18 +321,80 @@ public:
 		           : std::span<const RuntimeEndpoint>{};
 	}
 
-	[[nodiscard]] const RuntimeEndpoint* findField(std::string_view group,
-	                                               std::string_view name) const noexcept
+	// Exact, case-sensitive names in one category. The result borrows the
+	// published workspace, like endpoints(); do not retain it across reset/parse.
+	[[nodiscard]] const RuntimeEndpoint* findEndpoint(descriptor::Category category,
+	                                                  std::string_view group,
+	                                                  std::string_view name) const noexcept
 	{
-		for (const auto& catalog : catalogs(descriptor::Category::Field)) {
+		const auto items = endpoints(category);
+		for (const auto& catalog : catalogs(category)) {
 			if (catalog.name != group)
 				continue;
-			for (const auto& endpoint : endpoints(descriptor::Category::Field)
-			                                .subspan(catalog.firstEndpoint, catalog.endpointCount))
+			for (const auto& endpoint : items.subspan(catalog.firstEndpoint, catalog.endpointCount))
 				if (endpoint.name == name)
 					return &endpoint;
 		}
 		return nullptr;
+	}
+
+	// A path is the literal group name, '.', and endpoint name. Names may
+	// themselves contain dots: more than one matching pair is ambiguous and
+	// returns nullptr. The separate-name overload always addresses either pair.
+	[[nodiscard]] const RuntimeEndpoint* findEndpoint(descriptor::Category category,
+	                                                  std::string_view path) const noexcept
+	{
+		const auto items = endpoints(category);
+		const RuntimeEndpoint* found = nullptr;
+		for (const auto& catalog : catalogs(category)) {
+			if (path.size() <= catalog.name.size() ||
+			    path.substr(0, catalog.name.size()) != catalog.name ||
+			    path[catalog.name.size()] != '.')
+				continue;
+			const auto name = path.substr(catalog.name.size() + 1);
+			for (const auto& endpoint :
+			     items.subspan(catalog.firstEndpoint, catalog.endpointCount)) {
+				if (endpoint.name != name)
+					continue;
+				if (found)
+					return nullptr;
+				found = &endpoint;
+			}
+		}
+		return found;
+	}
+
+	[[nodiscard]] const RuntimeEndpoint* findField(std::string_view group,
+	                                               std::string_view name) const noexcept
+	{
+		return findEndpoint(descriptor::Category::Field, group, name);
+	}
+
+	[[nodiscard]] const RuntimeEndpoint* findField(std::string_view path) const noexcept
+	{
+		return findEndpoint(descriptor::Category::Field, path);
+	}
+
+	[[nodiscard]] const RuntimeEndpoint* findCommand(std::string_view group,
+	                                                 std::string_view name) const noexcept
+	{
+		return findEndpoint(descriptor::Category::Command, group, name);
+	}
+
+	[[nodiscard]] const RuntimeEndpoint* findCommand(std::string_view path) const noexcept
+	{
+		return findEndpoint(descriptor::Category::Command, path);
+	}
+
+	[[nodiscard]] const RuntimeEndpoint* findService(std::string_view group,
+	                                                 std::string_view name) const noexcept
+	{
+		return findEndpoint(descriptor::Category::Service, group, name);
+	}
+
+	[[nodiscard]] const RuntimeEndpoint* findService(std::string_view path) const noexcept
+	{
+		return findEndpoint(descriptor::Category::Service, path);
 	}
 
 	[[nodiscard]] Result<PreparedHandle> resolve(TypeId root,

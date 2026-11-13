@@ -297,7 +297,7 @@ def main():
     execution_counts = {}
     text = run('execute-Producer', [producer, native])
     execution_counts['native'] = int(re.search(r': (\d+) checks, 0 failures', text)[1])
-    if execution_counts['native'] < 14:
+    if execution_counts['native'] < 15:
         raise RuntimeError('Native producer count below floor')
     cases = corpus((native / 'descriptor.bin').read_bytes())
     for name, data in cases:
@@ -307,7 +307,7 @@ def main():
         binary = build(stem, [HERE / (stem + '.cpp')])
         text = run('execute-' + stem, [binary, native])
         match = re.search(r': (\d+) checks, 0 failures', text)
-        if not match or int(match[1]) < 295:
+        if not match or int(match[1]) < 381:
             raise RuntimeError(stem + ' count below floor')
         execution_counts[stem] = int(match[1])
     control = build('NoHeapControl', [HERE / 'NoHeap.cpp'], ['-DRUNTIME_HEAP_CONTROL'])
@@ -336,7 +336,7 @@ def main():
     lifetime = build('Lifetime', [HERE / 'Lifetime.cpp'])
     text = run('execute-Lifetime', [lifetime, native / 'descriptor.bin', native / 'payload.bin'])
     match = re.search(r': (\d+) checks, 0 failures', text)
-    if not match or int(match[1]) < 99:
+    if not match or int(match[1]) < 117:
         raise RuntimeError('Lifetime count below floor')
     execution_counts['Lifetime'] = int(match[1])
     access_checks = dict(executed=False, reason='requires Linux protected pages and child-process signals')

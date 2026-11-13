@@ -73,6 +73,12 @@ void stale(const rt::RuntimeSchema& schema, const rt::DynamicValueView& view,
 	CHECK(schema.catalogs(telemetry::descriptor::Category::Field).empty());
 	CHECK(schema.endpoints(telemetry::descriptor::Category::Service).empty());
 	CHECK(!schema.findField("dynamic", "Packet"));
+	CHECK(!schema.findField("dynamic.Packet"));
+	CHECK(!schema.findCommand("dynamic", "Apply"));
+	CHECK(!schema.findCommand("dynamic.Apply"));
+	CHECK(!schema.findService("dynamic", "Inspect"));
+	CHECK(!schema.findService("dynamic.Inspect"));
+	CHECK(!schema.findEndpoint(telemetry::descriptor::Category::Field, "dynamic.Packet"));
 	CHECK(schema.descriptor().empty());
 	CHECK(schema.fingerprint() == 0);
 	CHECK(!schema.accepts(handle));

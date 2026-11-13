@@ -49,6 +49,55 @@ struct Storage {
 	rt::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs, endpoints};
 };
 
+void endpointLookup(const char* directory)
+{
+	using C = telemetry::descriptor::Category;
+	std::array<std::byte, 65536> descriptor{};
+	const auto size = load(directory, "lookup-descriptor.bin", descriptor);
+	Storage storage;
+	const auto parsed = rt::RuntimeSchema::parse({descriptor.data(), size}, storage.workspace);
+	CHECK(parsed);
+	const auto& schema = parsed.schema;
+	for (const auto category : {C::Field, C::Command, C::Service}) {
+		const auto* left = schema.findEndpoint(category, "a", "b.c");
+		const auto* right = schema.findEndpoint(category, "a.b", "c");
+		const auto* unique = schema.findEndpoint(category, "a.b.unique");
+		CHECK(left && right && unique);
+		CHECK(left != right && left->id == 0 && right->id == 65536);
+		CHECK(unique->category == category && unique->id == 65537);
+		CHECK(schema.findEndpoint(category, "a.b", "unique") == unique);
+		CHECK(!schema.findEndpoint(category, "a.b.c"));
+		CHECK(schema.findEndpoint(category, "a.\xCE\xBC") ==
+		      schema.findEndpoint(category, "a", "\xCE\xBC"));
+		CHECK(schema.findEndpoint(category, "a.\xCE\xBC"));
+		CHECK(schema.findEndpoint(category, "\xCE\xB1.unique"));
+		for (const auto path : {"", "a", "a.", "a.b", "a.b.Unique", "xa.b.unique", "a.b.uniquex",
+		                        "a.b.unique.", "a.b.unique.member", "a.*"})
+			CHECK(!schema.findEndpoint(category, path));
+		CHECK(!schema.findEndpoint(category, "missing", "unique"));
+		CHECK(!schema.findEndpoint(category, "a.b", "missing"));
+	}
+	CHECK(schema.findField("a.b.unique") == schema.findEndpoint(C::Field, "a.b", "unique"));
+	CHECK(schema.findCommand("a.b.unique") == schema.findEndpoint(C::Command, "a.b", "unique"));
+	CHECK(schema.findService("a.b.unique") == schema.findEndpoint(C::Service, "a.b", "unique"));
+	CHECK(schema.findField("a", "b.c") == schema.findEndpoint(C::Field, "a", "b.c"));
+	CHECK(schema.findCommand("a", "b.c") == schema.findEndpoint(C::Command, "a", "b.c"));
+	CHECK(schema.findService("a", "b.c") == schema.findEndpoint(C::Service, "a", "b.c"));
+	CHECK(!schema.findField("a.b.c"));
+	CHECK(!schema.findCommand("a.b.c"));
+	CHECK(!schema.findService("a.b.c"));
+	CHECK(schema.findField("a.b.unique") != schema.findCommand("a.b.unique"));
+	CHECK(schema.findCommand("a.b.unique") != schema.findService("a.b.unique"));
+	for (const auto invalid : {static_cast<C>(0), static_cast<C>(4), static_cast<C>(255)}) {
+		CHECK(!schema.findEndpoint(invalid, "a.b.unique"));
+		CHECK(!schema.findEndpoint(invalid, "a.b", "unique"));
+	}
+	CHECK(storage.workspace.reset() == rt::Status::Ok);
+	CHECK(!schema.findField("a.b.unique"));
+	CHECK(!schema.findCommand("a.b", "unique"));
+	CHECK(!schema.findService("a.b.unique"));
+}
+
 template<class T>
 T read(const rt::RuntimeSchema& schema, const rt::DynamicValueView& view, telemetry::TypeId root,
        std::string_view path)
@@ -342,6 +391,7 @@ int main(int argc, char** argv)
 #endif
 	if (argc != 2)
 		return 2;
+	endpointLookup(argv[1]);
 	execute(argv[1]);
 	std::printf("runtime schema: %u checks, 0 failures\n", checks);
 	std::printf(

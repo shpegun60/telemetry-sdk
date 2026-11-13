@@ -11,6 +11,42 @@
 namespace {
 unsigned checks = 0;
 
+// Real producer names deliberately collide only after joining them with '.'.
+// Keep categories separate, and include UTF-8 in both a group and an endpoint.
+using runtime_fixture::Device;
+using runtime_fixture::device;
+inline constexpr telemetry::FieldTable lookupFields{
+    telemetry::field<&Device::readEmpty>("b.c", device),
+    telemetry::field<&Device::readEmpty>("\xCE\xBC", device)};
+inline constexpr telemetry::FieldTable lookupLongFields{
+    telemetry::field<&Device::readEmpty>("c", device),
+    telemetry::field<&Device::readEmpty>("unique", device)};
+inline constexpr telemetry::CommandTable lookupCommands{
+    telemetry::command<&Device::apply>("b.c", device),
+    telemetry::command<&Device::apply>("\xCE\xBC", device)};
+inline constexpr telemetry::CommandTable lookupLongCommands{
+    telemetry::command<&Device::apply>("c", device),
+    telemetry::command<&Device::apply>("unique", device)};
+inline constexpr telemetry::ServiceTable lookupServices{
+    telemetry::service<&Device::inspect>("b.c", device),
+    telemetry::service<&Device::inspect>("\xCE\xBC", device)};
+inline constexpr telemetry::ServiceTable lookupLongServices{
+    telemetry::service<&Device::inspect>("c", device),
+    telemetry::service<&Device::inspect>("unique", device)};
+inline constexpr telemetry::FieldCatalogTable lookupFieldCatalogs{
+    telemetry::group("a", lookupFields), telemetry::group("a.b", lookupLongFields),
+    telemetry::group("\xCE\xB1", lookupLongFields)};
+inline constexpr telemetry::CommandCatalogTable lookupCommandCatalogs{
+    telemetry::group("a", lookupCommands), telemetry::group("a.b", lookupLongCommands),
+    telemetry::group("\xCE\xB1", lookupLongCommands)};
+inline constexpr telemetry::ServiceCatalogTable lookupServiceCatalogs{
+    telemetry::group("a", lookupServices), telemetry::group("a.b", lookupLongServices),
+    telemetry::group("\xCE\xB1", lookupLongServices)};
+inline constexpr telemetry::Model lookupModel{lookupFieldCatalogs, lookupCommandCatalogs,
+                                              lookupServiceCatalogs};
+inline constexpr telemetry::descriptor::Descriptor lookupDescriptor{lookupModel};
+inline constexpr auto lookupBytes = telemetry::descriptor::packDescriptor<lookupDescriptor>();
+
 bool check(bool value)
 {
 	++checks;
@@ -52,7 +88,8 @@ int main(int argc, char** argv)
 	    !check(std::bit_cast<std::uint32_t>(decoded.f32) == 0x80000000u))
 		return 1;
 	if (!check(save(argv[1], "descriptor.bin", descriptorBytes)) ||
-	    !check(save(argv[1], "payload.bin", encoded)))
+	    !check(save(argv[1], "payload.bin", encoded)) ||
+	    !check(save(argv[1], "lookup-descriptor.bin", lookupBytes)))
 		return 1;
 	auto variants = initial;
 	variants.f32 = std::bit_cast<float>(0x7fc12345u);

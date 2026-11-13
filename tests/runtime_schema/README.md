@@ -16,6 +16,13 @@ capacities, overlap and malformed values. A generated standalone SDK decodes
 and re-encodes both native payloads byte for byte. Compiler dependency output
 rejects reflection, Resource, Client and Integration in the runtime-only probe.
 
+A second real Native descriptor checks category-aware endpoint lookup with
+separate names and literal `group.endpoint` paths. It covers Fields, Commands
+and Services, UTF-8 group/endpoint names, paths ambiguous because names contain
+dots, missing names, invalid categories and exact prefix/suffix/case matching.
+The allocation-trap reader runs those same lookups. Lifetime tests repeat them
+after invalidation and actual release of descriptor and metadata storage.
+
 The move-only Writer stages edits without a generated DTO. Its independent
 checks exercise exact scalar types, nested arrays, open enum codes, unaligned
 buffers, all integer boundaries and bit-exact signed zeros, subnormals,
