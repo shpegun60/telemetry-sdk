@@ -897,28 +897,34 @@ void renamePublicationDeletion()
 		});
 		auto session = std::make_unique<qt::ConnectionSession>();
 		const QPointer<qt::ConnectionSession> guard(session.get());
-		CHECK(session->connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
+		CHECK(
+		    session->connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
 		CHECK(await([&] {
 			return session->identityState() == qt::ConnectionSession::IdentityState::Known;
 		}));
 		CHECK(session->renamable());
 		unsigned finished = 0, deleted = 0;
 		QObject::connect(session.get(), &qt::ConnectionSession::renameFinished, &peer.listener,
-		                 [&](qt::ConnectionSession::RenameResult, const QString&) { ++finished; });
-		QObject::connect(session.get(), &qt::ConnectionSession::identityChanged, &peer.listener, [&] {
-			if (!guard)
-				return;
-			// Read-back also publishes while still Ended. Delete only when
-			// endRename() has made renamable() true, immediately before its
-			// renameFinished publication, rather than during bootstrap.
-			if (onCompletion &&
-			    (!guard->renamable() || guard->deviceName() != QStringLiteral("After rename")))
-				return;
-			++deleted;
-			session.reset();
-		});
+		                 [&](qt::ConnectionSession::RenameResult, const QString&) {
+			                 ++finished;
+		                 });
+		QObject::connect(
+		    session.get(), &qt::ConnectionSession::identityChanged, &peer.listener, [&] {
+			    if (!guard)
+				    return;
+			    // Read-back also publishes while still Ended. Delete only when
+			    // endRename() has made renamable() true, immediately before its
+			    // renameFinished publication, rather than during bootstrap.
+			    if (onCompletion &&
+			        (!guard->renamable() || guard->deviceName() != QStringLiteral("After rename")))
+				    return;
+			    ++deleted;
+			    session.reset();
+		    });
 		CHECK(session->rename(QStringLiteral("After rename")));
-		CHECK(await([&] { return guard.isNull(); }));
+		CHECK(await([&] {
+			return guard.isNull();
+		}));
 		CHECK(deleted == 1 && !session && finished == 0);
 		for (unsigned turn = 0; turn != 8; ++turn)
 			QCoreApplication::processEvents();
