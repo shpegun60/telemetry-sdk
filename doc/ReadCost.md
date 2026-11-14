@@ -168,6 +168,56 @@ struct the application publishes at design time. An Aggregate remains the
 way to get values taken at one instant; no path here gives that - one Batch
 only narrows the gap between its items to one dispatch.
 
+## What the load run already says about the 10 ms
+
+The 30-minute ReadMany run on the NUCLEO
+([evidence](evidence/read-many-uart-load-2026-11-02/README.md)) gives four
+mean exchange times. A straight line through them fits within 0.25 ms:
+
+| Fields | Mean ms | Framed bytes | Airtime ms | Beyond airtime ms |
+| ---: | ---: | ---: | ---: | ---: |
+| 8 | 29.19 | 208 | 18.06 | 11.13 |
+| 12 | 34.08 | 272 | 23.61 | 10.47 |
+| 16 | 39.69 | 336 | 29.17 | 10.52 |
+| 32 | 60.78 | 592 | 51.39 | 9.39 |
+
+latency ≈ 18.5 ms + 1.32 ms a Field. Each Field adds 16 framed bytes, 1.39 ms
+of airtime at 115 200 baud, so **the per-item cost is the wire's** - the
+device's work per item does not show. The fixed 18.5 ms is 80 framed bytes
+(6.9 ms of airtime) and **about 11.5 ms that is not airtime**. That part
+shrinks a little as replies grow (11.1 ms at 8 Fields, 9.4 ms at 32), as if
+some of it overlapped the transmission - a USB bridge passing bytes on in
+packets would do that - but which of the device, the ST-LINK bridge and the
+host owns it is still not established; it takes the measurement under
+"Still to measure". Some items of the run were Unavailable and carried no
+value, which lowers the slope slightly.
+
+## ReadMany of any type, worked out
+
+The table of options above first judged this from a device with Batch. On
+the NUCLEO, which has none, every struct is a FieldRead of its own, so the
+same model gives (serial at 115 200 baud, 10 ms a turnaround):
+
+| What is read | Today | One Batch | One ReadMany of any type |
+| --- | ---: | ---: | ---: |
+| 16 structs of 64 B, device with Batch | 354 ms, 16 exchanges | 134 ms, 1 412 B | 122 ms, 1 284 B |
+| The same, NUCLEO (no Batch) | 354 ms | - | 122 ms |
+| A Device-tree view of 64 Fields (51 scalars, 13 structs of 64 B), with Batch | 216 ms (ReadMany + one Batch), 2 112 B | 235 ms, 2 452 B | 190 ms, 1 940 B, 2 exchanges |
+| The same, NUCLEO | 393 ms (ReadMany + FieldRead each struct), 15 exchanges | - | 190 ms |
+
+With Batch the gain is 8 bytes an item, about a tenth. Without Batch it is
+two to three times, but only with a larger reply budget: these replies
+(1 186 and 1 198 bytes) exceed ReadMany's 514-byte reply body, and at 514
+the structs would need three exchanges, not one. A device that can spare
+that buffer can as well spare Batch's.
+
+The cheaper path to most of it is no wire change at all: Batch on the
+NUCLEO's image (134 ms against 122 ms above), and a client that treats a
+Batch made only of reads as not mutating, so a read that times out is not
+reported as an unknown outcome (finding 3). Decided on 14 November 2026:
+ReadMany stays for scalars and enums; structs go by Batch where the device
+has it (Client roadmap WL-6, PV-2).
+
 ## What a protocol change could add
 
 Each of these would be an SDK change of its own, for the owner to decide. None
@@ -179,7 +229,7 @@ is recommended before the turnaround is measured on hardware and on TCP.
 | **A compact ReadMany reply** (status and value; the client already knows the IDs, order and widths) | 7 of 12 bytes an item: 1024 4-byte values from 1.6 s to 1.0 s of airtime at 115 200 baud. | A new reply form behind a capability; the reply no longer echoes IDs for the client to check. |
 | **More items a request** (32 to 64) | Half the exchanges: 1024 values save about 0.16 s of turnarounds at 115 200 baud, and about 7 % of airtime. | A wire change: the limit of 32 is fixed at compile time and today's clients refuse more. The NUCLEO's 2048-byte buffers hold 64 items, not 128; the real cost is stack, since the per-call arrays grow with the limit. |
 | **A member or slice read** (offset and length inside a Field) | Bytes when a few values of a large Field are watched: three 4-byte members of a 4 KiB struct take about 128 bytes instead of 4160, and can be read over a serial link that cannot carry the whole Field. | A new operation. The device still produces the whole value (getters return it whole), so it needs scratch for it or a walk by offset: wire bytes are saved, not processor time. |
-| **ReadMany of any type** | 8 bytes an item against a Batch. | Little to gain; a Batch already does it. Not worth a change. |
+| **ReadMany of any type** | 8 bytes an item against a Batch; on a device without Batch, an exchange for every struct after the first (worked out below). | A wire change behind a capability, a reply budget large enough for structs, and every client's portion planner by bytes. Not now: the owner, 14 November 2026, "if it is complex, do not complicate ReadMany for now". |
 
 ## Still to measure
 
