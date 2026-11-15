@@ -68,7 +68,8 @@ inline runtime::Status initializeNode(const runtime::RuntimeSchema& schema, Type
 		const auto entries = schema.enumEntries(type->id);
 		if (entries.empty())
 			return scalar(underlying->scalarCode, underlying->wireBytes, bytes, offset, write);
-		const auto status = scalar(underlying->scalarCode, underlying->wireBytes, bytes, offset, false);
+		const auto status =
+		    scalar(underlying->scalarCode, underlying->wireBytes, bytes, offset, false);
 		if (status != runtime::Status::Ok || !write)
 			return status;
 		const auto bits = entries.front().codeBits;

@@ -24,7 +24,8 @@ static void initializationAndOverlap() noexcept
 	// the request's three Mode values are Negative (-7, f9 ff); Wide's first,
 	// Low, is zero.
 	for (std::size_t i = 0; i < size; ++i)
-		CHECK(bytes[i] == std::byte{0} || (bytes[i] == std::byte{0xf9} && i + 1 < size && bytes[i + 1] == std::byte{0xff}) ||
+		CHECK(bytes[i] == std::byte{0} ||
+		      (bytes[i] == std::byte{0xf9} && i + 1 < size && bytes[i + 1] == std::byte{0xff}) ||
 		      (bytes[i] == std::byte{0xff} && i > 0 && bytes[i - 1] == std::byte{0xf9}));
 	CHECK(std::count(bytes.begin(), bytes.begin() + size, std::byte{0xf9}) == 3);
 	CHECK(bytes[size] == std::byte{0xa5});
