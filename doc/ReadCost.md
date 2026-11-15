@@ -142,11 +142,12 @@ unknown) one Batch of everything would win.
 3. **Keep scalars in ReadMany, even beside a Batch.** On bytes and time alone,
    folding k scalars into a Batch that is sent anyway pays while one saved
    exchange outweighs 8 bytes a scalar: up to about 24 scalars at 115 200 baud
-   with the measured turnaround, and nearly always on TCP. But a Batch counts
-   as a mutating operation in the client, so a Batch that only reads and times
-   out reports its outcome as unknown, as a write would; and a device without
-   Batch could not read the scalars at all. Revisit if the client learns that
-   a reading Batch is not mutating.
+   with the measured turnaround, and nearly always on TCP. A device without
+   Batch could not read the scalars at all. Since 15 November 2026 a Batch of
+   FieldReads only is a read in the native client: lost after its handoff it
+   times out or is cancelled as a read, not "outcome unknown" (before, it was
+   counted as mutating); the session still needs its recovery either way, as
+   after any lost read.
 4. **The tree's previews: ReadMany plus one Batch** (PV-2), lowest in
    priority. A view of 64 Fields falls from 64 exchanges to 3, and from 32 s
    at today's pace to about 0.2 s of wire time.

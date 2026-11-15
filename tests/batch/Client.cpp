@@ -249,6 +249,37 @@ static void lifecycle() noexcept
 	CHECK(calls == 1 && device.commands == 1);
 }
 
+// A Batch that only reads changes nothing: lost after its handoff it times
+// out as a FieldRead does, never OutcomeUnknown, and the session still needs
+// its recovery because the request was handed off.
+static void readOnlyLifecycle() noexcept
+{
+	for (unsigned phase = 0; phase < 3; ++phase) {
+		Harness h;
+		const std::array<bt::Endpoint, 2> endpoints{
+		    {{cl::Operation::FieldRead, 0}, {cl::Operation::FieldRead, 0}}};
+		const auto binding = h.bind(endpoints);
+		const std::array<cl::Input, 2> payloads{};
+		BatchObserved observed;
+		CHECK(bt::batch(
+		    h.client, binding, payloads, h.request,
+		    [&](const auto& r) noexcept {
+			    observed(r);
+		    },
+		    50));
+		cl::Packet packet;
+		if (phase)
+			packet = h.offered();
+		if (phase == 2)
+			CHECK(h.client.prepareHandoff(packet.session, packet.requestId));
+		h.now = 50;
+		h.client.process(h.now);
+		CHECK(observed.calls == 1 && observed.status == cl::Status::Timeout);
+		CHECK(h.client.recoveryRequired() == (phase == 2));
+		CHECK(h.client.pending() == 0);
+	}
+}
+
 static void malformedLaterValue() noexcept
 {
 	for (unsigned mutation = 0; mutation < 4; ++mutation) {
@@ -493,6 +524,7 @@ int main()
 	orderedOperations();
 	refusalAndBudgets();
 	lifecycle();
+	readOnlyLifecycle();
 	malformedLaterValue();
 	fifoAndIdentity();
 	retryAndRpc();

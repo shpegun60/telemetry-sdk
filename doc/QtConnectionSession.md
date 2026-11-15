@@ -283,7 +283,10 @@ publication guard. `dataInvalidated()` then lets sibling presentation views
 retire their caches; it does not revoke schema/session admission. UI hosts apply
 their shared mutation permission before submission. The SDK's explicit call is
 authorization; `ConnectionStorage::mutationAuthorized` is transport handoff
-evidence used for recovery, not a permission flag.
+evidence used for recovery, not a permission flag. A Batch of FieldReads only
+is not a mutation: it sets no handoff evidence, retires no snapshot and raises
+no `dataInvalidated()`, and a lost reply after its handoff is cancelled or
+times out as a read, with recovery still required.
 
 Callbacks run on the owner thread, storing owned results for `progressed()`.
 Disconnect/close preserves native outcomes, including `OutcomeUnknown` after an

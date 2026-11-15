@@ -35,9 +35,14 @@ number of executions. Exhausted attempts after an authorized handoff retain
 OutcomeUnknown and the existing recovery requirements. Ordinary EncodedBackend
 does not retry. This component adds no retry scheduler.
 
-For conservative and predictable behavior, operation 6 is classified as potentially
-mutating even when one particular Batch contains only reads. Use ReadMany or
-ordinary FieldRead for the established read-only timeout classification.
+A Batch whose items are all FieldReads only reads. The native Encoded backend
+and the Qt connection's handoff evidence classify it by its body
+(`batch::onlyReads`): lost after its handoff it times out or is cancelled as a
+FieldRead or ReadMany is, never OutcomeUnknown, and the session still requires
+its recovery because the request was handed off. A Batch with any write,
+Command or Service item, or a body that is not well formed, stays potentially
+mutating. The JavaScript client still classifies every operation 6 as
+potentially mutating (see [JS Batch](JsBatch.md)).
 
 ## Capability and budgets
 

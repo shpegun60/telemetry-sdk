@@ -15,6 +15,7 @@
 #pragma once
 
 #include <client/Backend.hpp>
+#include <wire/BatchWire.hpp>
 #include <wire/EncodedWire.hpp>
 #include <cstring>
 #include <cstdlib>
@@ -105,7 +106,11 @@ public:
 		prepared_ = false;
 		resource_ = false;
 		operation_ = request.operation;
-		mutates_ = !::telemetry::client::isReadOnly(request.operation);
+		// A Batch of FieldReads only reads: lost after its handoff it times out
+		// as a read does, though the session still needs its recovery.
+		mutates_ = request.operation == ::telemetry::client::Operation::Batch
+		               ? !encoded_wire::batch::onlyReads(request.payload)
+		               : !::telemetry::client::isReadOnly(request.operation);
 		completion_ = {};
 		completion_.operation = request.operation;
 		state_ = State::Offered;
@@ -354,7 +359,7 @@ private:
 	void finish(::telemetry::client::Status reason) noexcept
 	{
 		// Handed off and lost: what a request that changes the device did is
-		// not known.
+		// not known; a read, a Batch of reads among them, only timed out.
 		completion_.status =
 		    prepared_ && mutates_ ? ::telemetry::client::Status::OutcomeUnknown : reason;
 		completion_.payload = {};

@@ -600,6 +600,36 @@ void droppedMutation()
 	          .status == cl::Status::Closed);
 }
 
+// A Batch of reads whose reply never comes changed nothing on the device: the
+// disconnect cancels it as it cancels a read, never OutcomeUnknown, and the session
+// still needs its recovery, since the request was handed off.
+void droppedRead()
+{
+	device = {};
+	Peer peer;
+	qt::ConnectionSession connection;
+	CHECK(connection.connectTcpReference(QStringLiteral("127.0.0.1"), peer.port()));
+	CHECK(await([&] {
+		return connection.ready();
+	}));
+	peer.dropBatch = true;
+	const std::array<qt::ConnectionSession::BatchRequest, 2> requests{
+	    {{cl::Operation::FieldRead, 0, {}}, {cl::Operation::FieldRead, 0, {}}}};
+	unsigned callbacks = 0;
+	cl::Status outcome = cl::Status::Ok;
+	CHECK(connection.batch(requests, [&](const bt::BatchResult& result) noexcept {
+		++callbacks;
+		outcome = result.operation.status;
+	}));
+	CHECK(await([&] {
+		return peer.encoded > 0 && device.reads == 2;
+	})); // The device read both, and its reply was dropped.
+	connection.disconnect();
+	CHECK(callbacks == 1 && outcome == cl::Status::Cancelled && connection.recoveryRequired());
+	CHECK(device.writes == 0 && device.commands == 0);
+	connection.close();
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -611,6 +641,7 @@ int main(int argc, char** argv)
 	mixed();
 	readManyOnly();
 	droppedMutation();
+	droppedRead();
 	retirementDuringPublication();
 	callbackMoveDisconnect();
 	std::printf("Qt Batch session: %u checks, 0 failures\n", checks);

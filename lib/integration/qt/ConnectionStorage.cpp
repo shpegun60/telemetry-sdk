@@ -4,6 +4,7 @@
  * @author Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT
  */
 #include <integration/qt/ConnectionStorage.hpp>
+#include <wire/BatchWire.hpp>
 #include <wire/EncodedWire.hpp>
 #include <cstdlib>
 
@@ -78,7 +79,9 @@ client::Packet ConnectionStorage::progressTransport(DeviceTransport* transport)
 			if (packet.mayExecute &&
 			    (packet.reply == client::ReplyFrame::Resource ||
 			     (parsed && parsed.header.operation != protocol::encoded::Operation::FieldRead &&
-			      parsed.header.operation != protocol::encoded::Operation::ReadMany)))
+			      parsed.header.operation != protocol::encoded::Operation::ReadMany &&
+			      !(parsed.header.operation == protocol::encoded::Operation::Batch &&
+			        protocol::encoded::batch::onlyReads(parsed.payload)))))
 				mutationAuthorized = true;
 			remoteRequestId = packet.requestId;
 			if (!transport->sendStaged())
