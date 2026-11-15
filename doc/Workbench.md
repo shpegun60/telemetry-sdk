@@ -213,7 +213,9 @@ form instead of presenting those bytes as a value read from the device.
 Initialization traverses validated runtime types and bounds before writing the
 request. It encodes false, integer zero and positive floating-point zero in
 canonical little-endian form, including nested structs and arrays, and validates
-the resulting value. Open enums start with underlying zero, which may be unnamed.
+the resulting value. An enum starts at its first named enumerator, in the
+Descriptor's order, so a fresh value is always one of its names; an enum with no
+entries starts at underlying zero.
 These are initial arguments, not device defaults: Descriptor v3 contains no
 application default values or parameter ranges. A Void request has no value or
 Writer; an empty Struct is a real zero-byte value with a root and no children.

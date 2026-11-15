@@ -19,9 +19,15 @@ static void initializationAndOverlap() noexcept
 	const auto size = binding.endpoint.requestBytes();
 	CHECK(wb::RequestEditor::initialize(f.metadata.schema, type, std::span{bytes}.first(size)) ==
 	      rt::Status::Ok);
-	CHECK(std::all_of(bytes.begin(), bytes.begin() + size, [](auto byte) {
-		return byte == std::byte{0};
-	}));
+	// Every value starts at zero except an enum, which starts at its first
+	// named enumerator, so a fresh request holds only values its types name:
+	// the request's three Mode values are Negative (-7, f9 ff); Wide's first,
+	// Low, is zero.
+	for (std::size_t i = 0; i < size; ++i)
+		CHECK(bytes[i] == std::byte{0} ||
+		      (bytes[i] == std::byte{0xf9} && i + 1 < size && bytes[i + 1] == std::byte{0xff}) ||
+		      (bytes[i] == std::byte{0xff} && i > 0 && bytes[i - 1] == std::byte{0xf9}));
+	CHECK(std::count(bytes.begin(), bytes.begin() + size, std::byte{0xf9}) == 3);
 	CHECK(bytes[size] == std::byte{0xa5});
 	const auto view = f.metadata.schema.view(type, rt::Input{bytes}.first(size));
 	CHECK(view);
@@ -32,8 +38,8 @@ static void initializationAndOverlap() noexcept
 	CHECK(std::bit_cast<std::uint32_t>(floating.value.get<float>().value) == 0);
 	const auto mode = view.value.member("nested").value.member("mode");
 	CHECK(mode && mode.value.enumUnderlying<std::int16_t>());
-	CHECK(mode.value.enumUnderlying<std::int16_t>().value == 0 &&
-	      !mode.value.enumName().value.known);
+	CHECK(mode.value.enumUnderlying<std::int16_t>().value == -7 &&
+	      mode.value.enumName().value.known && mode.value.enumName().value.name == "Negative");
 	std::fill(bytes.begin(), bytes.end(), std::byte{0xa5});
 	const auto unchanged = bytes;
 	CHECK(wb::RequestEditor::initialize(f.metadata.schema, type,
