@@ -134,11 +134,10 @@ static void readingBodies(const std::array<bw::RequestItem, 32>& mixed)
 		// Each item's operation, reserved byte and length, one at a time.
 		for (std::size_t item = 0; item < n; ++item) {
 			const auto at = 2 + 8 * item;
-			for (const auto [offset, value] : {std::pair{std::size_t{4}, std::byte{1}},
-			                                   std::pair{std::size_t{4}, std::byte{5}},
-			                                   std::pair{std::size_t{5}, std::byte{1}},
-			                                   std::pair{std::size_t{6}, std::byte{1}},
-			                                   std::pair{std::size_t{7}, std::byte{1}}}) {
+			for (const auto [offset, value] :
+			     {std::pair{std::size_t{4}, std::byte{1}}, std::pair{std::size_t{4}, std::byte{5}},
+			      std::pair{std::size_t{5}, std::byte{1}}, std::pair{std::size_t{6}, std::byte{1}},
+			      std::pair{std::size_t{7}, std::byte{1}}}) {
 				const auto kept = bytes[at + offset];
 				bytes[at + offset] = value;
 				CHECK(!bw::onlyReads(input));
@@ -158,7 +157,8 @@ static void readingBodies(const std::array<bw::RequestItem, 32>& mixed)
 	for (std::size_t n = 1; n <= mixed.size(); ++n) {
 		const auto written = bw::writeRequest(bytes, std::span{mixed}.first(n));
 		CHECK(bool(written));
-		CHECK(bw::onlyReads(Input{bytes}.first(written.written)) == !bw::hasMutations(std::span{mixed}.first(n)));
+		CHECK(bw::onlyReads(Input{bytes}.first(written.written)) ==
+		      !bw::hasMutations(std::span{mixed}.first(n)));
 	}
 	static std::array<std::byte, 65536> large{};
 	CHECK(!bw::onlyReads(large));
