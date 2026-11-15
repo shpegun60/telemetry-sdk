@@ -128,12 +128,23 @@ its advanced factory does not create a second execution owner. Inspector uses
 this same implementation instead of a private TCP driver.
 
 The owner-loop timer ticks every 5 ms for deadlines and for whatever waits. A
-reply that arrives, and a file request the session accepts, also queue one
-`process()` on the loop's next turn, coalesced: the reply is settled and the next
-request sent without waiting for a tick. Before this, each file request waited
-for two ticks - one to settle its reply, one to send the next - which made a
-listing of 4096 files take over a minute on Windows, where a 5 ms timer fires
-about every 15.6 ms.
+reply that arrives, a reply settled with a request queued behind it, and every
+request the session accepts - a file request, `readMany`, `readFieldValue`,
+`batch` - also queue one `process()` on the loop's next turn, coalesced: the
+reply is settled and the next request sent without waiting for a tick. No call
+advances `process()` synchronously, and a session waiting for a reply does not
+pump, so it never spins. Before this, each file request waited for two ticks -
+one to settle its reply, one to send the next - which made a listing of 4096
+files take over a minute on Windows, where a 5 ms timer fires about every
+15.6 ms; and until 15 November 2026 each ReadMany, FieldRead or Batch waited
+for one tick to be written, which set a Watchlist exchange at about 5 ms on
+localhost (`tests/qt_read_many/Session.cpp` now times 64 chained exchanges:
+under 10 ms where the tick made it over 320 ms).
+
+Requests the Workbench accepts directly - a Configurator's refresh or apply,
+submitted past the session - still wait for the tick; so does a request the
+timer's deadline handling sends. Making those event-driven too, and the timer a
+backstop only, is a separate change.
 
 All calls and storage access belong to the creating Qt thread. `workbench()` is
 an advanced borrowing seam, available only while ready. Consumer UI code normally

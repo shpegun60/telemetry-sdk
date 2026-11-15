@@ -795,14 +795,20 @@ struct ConnectionSession::Impl {
 			working = nativeActive = true;
 			const auto files = filesOnly;
 			files->progressTransport(transport.get());
+			const bool settled = !files->replies.empty();
 			files->settleReplies();
 			nativeActive = false;
 			publishProgress();
 			working = false;
-			if (closeRequested || !owner)
+			if (closeRequested || !owner) {
 				retire();
-			else
+			} else {
 				advanceIdentity();
+				// A reply settled: a request queued behind it is sent on the
+				// next turn, not the next tick.
+				if (settled && owner)
+					owner->pumpSoon();
+			}
 			return;
 		}
 		if (working || retiring || !connected || !current || !transport)
@@ -811,17 +817,24 @@ struct ConnectionSession::Impl {
 		const auto state = current;
 		nativeActive = true;
 		(void)state->progressTransport(transport.get());
+		const bool settled = !state->replies.empty();
 		state->settleReplies();
 		nativeActive = false;
 		publishProgress();
 		const bool lost = !state->inspector.isCurrent() || state->inspector.recoveryRequired();
 		working = false;
-		if (closeRequested || !owner)
+		if (closeRequested || !owner) {
 			retire();
-		else if (lost)
+		} else if (lost) {
 			fail(QStringLiteral("Session is no longer current; reconnect explicitly"));
-		else
+		} else {
 			advanceIdentity();
+			// A reply settled: a request queued behind it is sent on the next
+			// turn, not the next tick. A session waiting for a reply does not
+			// pump, so it never spins.
+			if (settled && owner)
+				owner->pumpSoon();
+		}
 	}
 };
 
