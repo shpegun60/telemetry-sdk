@@ -5,6 +5,8 @@
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QEventLoop>
+#include <QTimer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QPointer>
@@ -32,6 +34,27 @@ void check(bool ok, int line)
 }
 
 #define CHECK(...) check(bool(__VA_ARGS__), __LINE__)
+
+// Runs the owner loop, without sleeping, until done or 5 s: the time taken
+// is the session's own, not a polling loop's.
+qint64 runUntil(const std::function<bool()>& done)
+{
+	QElapsedTimer clock;
+	clock.start();
+	QEventLoop loop;
+	QTimer poll, limit;
+	QObject::connect(&poll, &QTimer::timeout, &loop, [&] {
+		if (done())
+			loop.quit();
+	});
+	QObject::connect(&limit, &QTimer::timeout, &loop, &QEventLoop::quit);
+	poll.start(0);
+	limit.setSingleShot(true);
+	limit.start(5000);
+	if (!done())
+		loop.exec();
+	return done() ? clock.elapsed() : -1;
+}
 
 bool await(const std::function<bool()>& done)
 {
@@ -207,6 +230,69 @@ void modern()
 		return batches == 1 && reads == 1;
 	}));
 	CHECK(batchOk && readOk && peer.encoded == 2 && device.reads == before + 2);
+	// An accepted request is written on the owner loop's next turn, not on
+	// the session timer's next 5 ms tick. 64 ReadMany, each submitted once the
+	// one before has been answered, take far less than 64 ticks (320 ms).
+	{
+		int chained = 0;
+		bool chainOk = true;
+		std::function<void()> next = [&] {
+			chainOk = chainOk &&
+			          bool(connection.readMany(ids, [&](const rm::ReadManyResult& result) noexcept {
+				          chainOk = chainOk && result.operation.succeeded();
+				          // A callback cannot submit; the next goes on the next turn.
+				          if (++chained < 64)
+					          QTimer::singleShot(0, &connection, [&] {
+						          next();
+					          });
+			          }));
+		};
+		next();
+		const auto ms = runUntil([&] {
+			return chained == 64;
+		});
+		std::printf("Qt ReadMany chained: 64 exchanges in %lld ms\n", static_cast<long long>(ms));
+		CHECK(chainOk && ms >= 0 && ms < 200);
+		// The same for single Field reads.
+		int fields = 0;
+		bool fieldsOk = true;
+		std::function<void()> field = [&] {
+			fieldsOk =
+			    fieldsOk &&
+			    bool(connection.readFieldValue(
+			        0, [&](const telemetry::integration::dynamic::DynamicResult& result) noexcept {
+				        fieldsOk = fieldsOk && result.operation.succeeded();
+				        if (++fields < 64)
+					        QTimer::singleShot(0, &connection, [&] {
+						        field();
+					        });
+			        }));
+		};
+		field();
+		const auto fieldMs = runUntil([&] {
+			return fields == 64;
+		});
+		std::printf("Qt FieldRead chained: 64 exchanges in %lld ms\n",
+		            static_cast<long long>(fieldMs));
+		CHECK(fieldsOk && fieldMs >= 0 && fieldMs < 200);
+		// Requests queued together: each is sent as soon as the one before
+		// it is settled, not on the next tick (7 ticks would be 35 ms).
+		int queued = 0;
+		bool queuedOk = true;
+		for (int i = 0; i < 8; ++i)
+			queuedOk =
+			    queuedOk &&
+			    bool(connection.readMany(ids, [&](const rm::ReadManyResult& result) noexcept {
+				    queuedOk = queuedOk && result.operation.succeeded();
+				    ++queued;
+			    }));
+		const auto queuedMs = runUntil([&] {
+			return queued == 8;
+		});
+		std::printf("Qt ReadMany queued: 8 exchanges in %lld ms\n",
+		            static_cast<long long>(queuedMs));
+		CHECK(queuedOk && queuedMs >= 0 && queuedMs < 30);
+	}
 	const auto session = connection.workbench()->session();
 	connection.disconnect();
 	CHECK(await([&] {
@@ -228,7 +314,8 @@ void modern()
 	}));
 	connection.disconnect(); // Queued callback owns its backing through synchronous retirement.
 	CHECK(cancelled == 1 && !connection.ready());
-	CHECK(device.reads == before + 2);
+	// The two first reads, then the 64 + 64 + 8 timed ones.
+	CHECK(device.reads == before + 2 + 136);
 }
 
 void discoveryFailures()

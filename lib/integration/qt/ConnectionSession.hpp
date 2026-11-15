@@ -270,12 +270,15 @@ public:
 		    },
 		    timeoutMs);
 		scope.mutation = bool(submitted) && mutation;
-		return submitted;
+		// Written on the owner loop's next turn, not the timer's next tick.
+		return pumpAfter(submitted);
 	}
 
 	// Snapshot-preserving operations over the same Workbench/FIFO. Result views
 	// borrow storage only during callback; accepted callbacks retain that storage
-	// through Session retirement. These guards never advance process().
+	// through Session retirement. These guards never advance process()
+	// synchronously: an accepted request queues one on the owner loop's next
+	// turn (pumpSoon), so it is written then, not on the timer's next tick.
 	template<class F>
 	client::Submission readMany(std::span<const std::uint32_t> ids, F&& callback,
 	                            std::uint32_t timeoutMs = 30000) noexcept
@@ -298,13 +301,13 @@ public:
 		    read_many::bindReadMany(owner->inspector, owner->backend, *owner->readMany, ids);
 		if (!binding)
 			return {binding.status, {}};
-		return read_many::readMany(
+		return pumpAfter(read_many::readMany(
 		    owner->inspector, binding.binding,
 		    [owner, callable = std::forward<F>(callback)](
 		        const read_many::ReadManyResult& result) mutable noexcept {
 			    callable(result);
 		    },
-		    timeoutMs);
+		    timeoutMs));
 	}
 
 	template<class F>
@@ -325,13 +328,13 @@ public:
 		const auto binding = owner->inspector.bindField(id);
 		if (!binding)
 			return {binding.status, {}};
-		return read_many::readFieldValue(
+		return pumpAfter(read_many::readFieldValue(
 		    owner->inspector, binding.endpoint,
 		    [owner, callable = std::forward<F>(callback)](
 		        const dynamic::DynamicResult& result) mutable noexcept {
 			    callable(result);
 		    },
-		    timeoutMs);
+		    timeoutMs));
 	}
 
 	std::shared_ptr<ConnectionStorage> storage() const;
@@ -342,7 +345,8 @@ public:
 	void setWriteChunkBytes(int bytes);
 	void setExchangeTimeout(int milliseconds);
 	// A GUI event-loop timer calls this automatically, and the session queues
-	// it at once when a reply arrives or a file request is accepted. Exposed for
+	// it at once when a reply arrives, when a reply has been settled with more
+	// waiting behind it, and when any request is accepted. Exposed for
 	// controlled owner-loop/test integration; recursive calls do not advance
 	// native work.
 	void process();
