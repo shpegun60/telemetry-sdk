@@ -166,7 +166,8 @@ public:
 	Q_INVOKABLE bool protocolFile(const QString& path) const noexcept;
 
 	// Cancels a request of this session's queue that has not been sent yet; its
-	// callback then reports Cancelled. False when there is nothing to cancel.
+	// callback then reports Cancelled on the owner loop's next turn. False when
+	// there is nothing to cancel.
 	bool cancel(client::RequestHandle handle) noexcept;
 
 	// A raw Resource List, Stat, Read, Write or Save on this session's one
@@ -337,16 +338,29 @@ public:
 		    timeoutMs));
 	}
 
+	// The session's own storage and Workbench, for hosts that submit to the
+	// Workbench directly (a Configurator's refresh or apply). The session runs
+	// only when it has work and cannot see a request submitted past it: call
+	// wake() after every request accepted there, or it waits for the idle
+	// heartbeat - up to a second - before it is written.
 	std::shared_ptr<ConnectionStorage> storage() const;
 	HostWorkbench* workbench() const;
+	// Queues one process() on the owner loop's next turn, coalesced, as the
+	// session's own submissions do. For requests submitted past the session
+	// through workbench() or storage(). Owner thread only; safe from a
+	// completion callback, and nothing when not connected.
+	void wake() noexcept;
 	// Useful when one host also admits other explicit transport profiles. It
 	// cannot lower/reuse a session number and performs no native processing.
 	bool reserveSessionsThrough(quint32 lastUsed);
 	void setWriteChunkBytes(int bytes);
 	void setExchangeTimeout(int milliseconds);
-	// A GUI event-loop timer calls this automatically, and the session queues
-	// it at once when a reply arrives, when a reply has been settled with more
-	// waiting behind it, and when any request is accepted. Exposed for
+	// The session queues this on the owner loop's next turn when a request is
+	// accepted or cancelled, when wake() is called, when the transport has
+	// handed a packet over or a reply arrives, and again after a pass that
+	// settled a reply or completed a request. A backstop timer calls it every
+	// 100 ms while anything is pending, for deadlines; an idle session runs
+	// nothing but a 1 s heartbeat that only looks for un-woken work. Exposed for
 	// controlled owner-loop/test integration; recursive calls do not advance
 	// native work.
 	void process();
@@ -359,6 +373,9 @@ Q_SIGNALS:
 	void dataInvalidated();
 	// Only after the core callback stack has returned. Borrowing UI adapters
 	// consume owned outcome slots here; no Qt publication occurs inside core.
+	// Emitted after a pass that wrote a packet, settled a reply or completed a
+	// request, and on an error or retirement; never by an idle session, so it
+	// is not a clock.
 	void progressed();
 	void stateChanged();
 	void discoveryProgressed();

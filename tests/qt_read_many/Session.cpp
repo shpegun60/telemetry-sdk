@@ -11,6 +11,7 @@
 #include <QTcpSocket>
 #include <QPointer>
 #include <QThread>
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -114,6 +115,8 @@ public:
 	std::array<std::byte, 8192> rx{}, tx{};
 	QByteArray pending;
 	unsigned connections = 0, encoded = 0;
+	// Takes requests in and never answers them.
+	bool silent = false;
 
 	explicit Peer(Mode mode = Mode::Modern)
 	{
@@ -169,6 +172,8 @@ public:
 		CHECK(socket && server);
 		CHECK(pending.size() + socket->bytesAvailable() <= 16384);
 		pending += socket->readAll();
+		if (silent)
+			return;
 		while (!pending.isEmpty()) {
 			const auto result =
 			    server->receive({reinterpret_cast<const std::byte*>(pending.constData()),
@@ -387,6 +392,148 @@ void lifetime()
 		return !peer.socket;
 	}));
 }
+
+// The session runs only when there is work. Idle it publishes nothing. A
+// request submitted to the Workbench past it is written at once after wake(),
+// and found by the idle heartbeat without it. Behind an unanswered request,
+// waiting publishes nothing, a request that times out completes within the
+// 100 ms backstop of its deadline, and a cancel reports on the next turn.
+void onlyWithWork()
+{
+	Peer peer;
+	qt::ConnectionSession connection;
+	CHECK(connection.connectTcpReference(QStringLiteral("127.0.0.1"), peer.port()));
+	CHECK(runUntil([&] {
+		      return connection.ready();
+	      }) >= 0);
+	unsigned published = 0;
+	QObject::connect(&connection, &qt::ConnectionSession::progressed, &connection, [&] {
+		++published;
+	});
+	// Nothing pending: no pass publishes, and no timer runs one but the
+	// heartbeat. A 5 ms timer published on every tick, 31 to 100 in 500 ms.
+	QElapsedTimer idle;
+	idle.start();
+	(void)runUntil([&] {
+		return idle.elapsed() >= 500;
+	});
+	std::printf("Qt session idle: %u progressed in 500 ms\n", published);
+	CHECK(published == 0 && !connection.busy());
+
+	// Submitted to the Workbench directly, then woken: written on the next
+	// turn, far sooner than the heartbeat or the backstop would.
+	auto* workbench = connection.workbench();
+	CHECK(workbench);
+	const auto field = workbench->bindField(0);
+	CHECK(field);
+	unsigned direct = 0;
+	bool directOk = true;
+	const auto readDirect = [&] {
+		return bool(workbench->readField(
+		    field.endpoint,
+		    [&](const telemetry::integration::inspector::ReadResult& result) noexcept {
+			    directOk = directOk && result.operation.succeeded() && result.published;
+			    ++direct;
+		    }));
+	};
+	QElapsedTimer clock;
+	clock.start();
+	CHECK(readDirect());
+	connection.wake();
+	CHECK(runUntil([&] {
+		      return direct == 1;
+	      }) >= 0);
+	const auto wokenMs = clock.elapsed();
+	std::printf("Qt session woken: a direct Workbench read in %lld ms\n",
+	            static_cast<long long>(wokenMs));
+	CHECK(directOk && wokenMs < 90);
+	// Not woken: the idle heartbeat finds it within its second.
+	clock.restart();
+	CHECK(readDirect());
+	CHECK(runUntil([&] {
+		      return direct == 2;
+	      }) >= 0);
+	const auto heartbeatMs = clock.elapsed();
+	std::printf("Qt session not woken: a direct Workbench read in %lld ms\n",
+	            static_cast<long long>(heartbeatMs));
+	CHECK(directOk && heartbeatMs < 1300);
+
+	// An unanswered request, sent: waiting for it publishes nothing.
+	peer.silent = true;
+	const std::array<std::uint32_t, 1> ids{0};
+	unsigned unanswered = 0;
+	CHECK(connection.readMany(ids, [&](const rm::ReadManyResult&) noexcept {
+		++unanswered;
+	}));
+	CHECK(runUntil([&] {
+		      return !peer.pending.isEmpty();
+	      }) >= 0);
+	// The pass that sent it has published; from here on only waiting is counted.
+	published = 0;
+	clock.restart();
+	(void)runUntil([&] {
+		return clock.elapsed() >= 250;
+	});
+	CHECK(published == 0 && unanswered == 0 && connection.busy());
+	// Queued behind it with a 200 ms deadline: it times out within the
+	// backstop of that deadline, and nothing is published before it does.
+	bool timedOut = false;
+	unsigned publishedBefore = 1;
+	clock.restart();
+	CHECK(connection.readMany(
+	    ids,
+	    [&](const rm::ReadManyResult& result) noexcept {
+		    timedOut = result.operation.status == cl::Status::Timeout;
+		    publishedBefore = published;
+	    },
+	    200));
+	CHECK(runUntil([&] {
+		      return timedOut;
+	      }) >= 0);
+	const auto timeoutMs = clock.elapsed();
+	std::printf("Qt session: a 200 ms deadline behind an unanswered request ended in %lld ms\n",
+	            static_cast<long long>(timeoutMs));
+	CHECK(timedOut && publishedBefore == 0 && timeoutMs >= 195 && timeoutMs < 200 + 100 + 80);
+	CHECK(runUntil([&] {
+		      return published == 1;
+	      }) >= 0);
+	// Six queued behind it, left until their submissions' pass has run, then
+	// cancelled together. The cancel queues a pass. A pass calls process() up
+	// to three times and each call completes at most one request, so the
+	// completions queue further passes: all six report Cancelled on
+	// consecutive turns, not on the backstop's next tick. Three rounds, so a
+	// tick that happens to fall just after the cancels cannot pass for this.
+	qint64 slowestCancelMs = 0;
+	for (int round = 0; round < 3; ++round) {
+		unsigned cancelled = 0;
+		std::array<cl::Submission, 6> queued{};
+		for (auto& submission : queued) {
+			submission = connection.readMany(ids, [&](const rm::ReadManyResult& result) noexcept {
+				if (result.operation.status == cl::Status::Cancelled)
+					++cancelled;
+			});
+			CHECK(submission);
+		}
+		clock.restart();
+		(void)runUntil([&] {
+			return clock.elapsed() >= 30;
+		});
+		CHECK(cancelled == 0);
+		clock.restart();
+		for (const auto& submission : queued)
+			CHECK(connection.cancel(submission.handle));
+		CHECK(runUntil([&] {
+			      return cancelled == queued.size();
+		      }) >= 0);
+		slowestCancelMs = std::max(slowestCancelMs, clock.elapsed());
+		CHECK(cancelled == queued.size());
+	}
+	std::printf("Qt session: six cancels reported in %lld ms at most, in 3 rounds\n",
+	            static_cast<long long>(slowestCancelMs));
+	CHECK(slowestCancelMs < 20 && unanswered == 0);
+	connection.disconnect();
+	CHECK(unanswered == 1 && !connection.ready());
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -395,5 +542,6 @@ int main(int argc, char** argv)
 	modern();
 	discoveryFailures();
 	lifetime();
+	onlyWithWork();
 	std::printf("Qt ReadMany session: %u checks, 0 failures\n", checks);
 }

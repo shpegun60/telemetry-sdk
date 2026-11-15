@@ -10,10 +10,12 @@
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QPointer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
+#include <QTimer>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -56,6 +58,25 @@ bool await(const std::function<bool()>& done, int milliseconds = 10000)
 		QCoreApplication::processEvents();
 		QThread::msleep(1);
 	}
+	return done();
+}
+
+// Runs the owner loop, without sleeping, until done or 10 s: what it times is
+// the session's own, not a polling loop's.
+bool runUntil(const std::function<bool()>& done)
+{
+	QEventLoop loop;
+	QTimer poll, limit;
+	QObject::connect(&poll, &QTimer::timeout, &loop, [&] {
+		if (done())
+			loop.quit();
+	});
+	QObject::connect(&limit, &QTimer::timeout, &loop, &QEventLoop::quit);
+	poll.start(0);
+	limit.setSingleShot(true);
+	limit.start(10000);
+	if (!done())
+		loop.exec();
 	return done();
 }
 
@@ -311,6 +332,8 @@ void profileWithApplicationFiles()
 	CHECK(files::Submitter<qt::HostWorkbench>::submit(*session.workbench(), request,
 	                                                  files::maxReplyBytes,
 	                                                  namedCompletion<cl::ResultView>, 30000));
+	// Submitted past the session: wake it, or it waits for the idle heartbeat.
+	session.wake();
 	CHECK(await([&] {
 		return namedCompletions == completedBefore + 2;
 	}));
@@ -629,11 +652,30 @@ void sessionIdentity()
 			readingWhenReady =
 			    session.identityState() == qt::ConnectionSession::IdentityState::Reading;
 	});
+	// Its Stat and Read are driven by the session's own turns, never by a
+	// timer: read well within the 100 ms backstop of the moment it is ready.
+	QElapsedTimer sinceReady;
+	qint64 identityMs = -1;
+	const auto timing =
+	    QObject::connect(&session, &qt::ConnectionSession::stateChanged, &session, [&] {
+		    if (session.ready() && !sinceReady.isValid())
+			    sinceReady.start();
+	    });
+	const auto known =
+	    QObject::connect(&session, &qt::ConnectionSession::identityChanged, &session, [&] {
+		    if (identityMs < 0 && sinceReady.isValid() &&
+		        session.identityState() == qt::ConnectionSession::IdentityState::Known)
+			    identityMs = sinceReady.elapsed();
+	    });
 	CHECK(session.identityState() == qt::ConnectionSession::IdentityState::Absent);
 	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
-	CHECK(await([&] {
+	CHECK(runUntil([&] {
 		return session.identityState() == qt::ConnectionSession::IdentityState::Known;
 	}));
+	QObject::disconnect(timing);
+	QObject::disconnect(known);
+	std::printf("Identity read: Known %lld ms after ready\n", static_cast<long long>(identityMs));
+	CHECK(identityMs >= 0 && identityMs < 80);
 	CHECK(readingWhenReady && session.ready() && announced >= 1);
 	CHECK(session.deviceId() == QStringLiteral("EMU-00A1") &&
 	      session.deviceName() == QStringLiteral("Bench analyzer") &&
