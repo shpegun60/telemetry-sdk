@@ -73,7 +73,8 @@ the relocated installed package. No board; only ephemeral localhost sockets.
     Savable; its `write()` taking the whole file in one piece and refusing a
     piece or a later cursor;
   - the session reads it: already Reading when `ready()` turns true, then Known
-    with the id, name, model and firmware; renamed from the session
+    with the id, name, model and firmware, within 80 ms - driven by the
+    session's own turns, not by its 100 ms backstop timer; renamed from the session
     (`rename()`, `renamable()`, `keepsName()`): the file written whole, saved in
     two SAVE steps, read back, `Renamed`; `renamable()` false while it runs and
     a second rename refused; the name it has, and the names an identity cannot
@@ -96,7 +97,8 @@ the relocated installed package. No board; only ephemeral localhost sockets.
   parser connect files only: `ready()` false, telemetry refused, the limitation
   named, the listed paths kept, and their files - the broken descriptor included -
   read byte for byte. A device that answers with bytes that are not the protocol is
-  a plain failure with no files.
+  a plain failure with no files. A files-only device's identity is read within
+  80 ms of connecting, as a telemetry session's is, then renamed.
 
 ```sh
 python3 -B tests/device_files/run.py --build-dir /external/device-files \

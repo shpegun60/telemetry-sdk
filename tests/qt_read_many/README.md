@@ -26,7 +26,13 @@ server and the public Qt owner: bootstrap invokes no getter, optional pair
 discovery fails closed if incomplete or schema-mismatched, legacy Descriptor-only
 servers keep individual FieldRead, ReadMany and FieldRead share one FIFO, reconnect
 advances identity, queued retirement completes once, and borrowed values remain
-valid while a callback destroys its Session owner.
+valid while a callback destroys its Session owner. It also checks that the
+Session runs only when there is work: idle for 500 ms it publishes no
+`progressed()`; a read submitted to the Workbench directly is written on the
+next turn after `wake()` and by the 1 s heartbeat without it; behind a request
+the peer never answers, waiting publishes nothing, a request with a 200 ms
+deadline times out within the 100 ms backstop of it, and six queued requests
+cancelled together all report `Cancelled` within 20 ms, in three rounds.
 
 These tests establish local host contracts. They do not measure physical DMA,
 firmware memory fit, sustained throughput, or hardware behavior.
