@@ -112,13 +112,52 @@ struct ConnectionSession::Impl {
 		}
 	} identityRename;
 
+	// The timer is a backstop, not the engine: every request, cancel, handover
+	// and reply already queues a pass. It runs every backstopMs while anything
+	// is pending, since deadlines are checked only in a pass. An idle session
+	// keeps only a heartbeat that looks for a request submitted past it without
+	// wake() and does nothing else.
+	static constexpr int backstopMs = 100;
+	static constexpr int heartbeatMs = 1000;
+
 	Impl(ConnectionSession& target, StorageFactory value)
 	    : owner(&target), factory(std::move(value))
 	{
-		timer.setInterval(5);
 		QObject::connect(&timer, &QTimer::timeout, &target, [&target] {
-			target.process();
+			const auto state = target.d;
+			if (state->hasWork())
+				state->progress();
+			else
+				state->rearm();
 		});
+	}
+
+	// Whether a pass has anything to do: a request queued or on its way, a
+	// reply or a handover to record, or an identity or rename step to take.
+	bool hasWork() const noexcept
+	{
+		if (current && (current->inspector.pending() != 0 || !current->replies.empty() ||
+		                current->remoteAccepted))
+			return true;
+		if (filesOnly && (filesOnly->client.pending() != 0 || !filesOnly->replies.empty() ||
+		                  filesOnly->remoteAccepted))
+			return true;
+		return identityRead.due || identityRead.inFlight || identityRename.running() ||
+		       identityRename.step == IdentityRename::Step::Ended;
+	}
+
+	// The backstop while there is work, the heartbeat while there is none, and
+	// nothing while not connected. A running timer is left alone unless its
+	// period changes, so a busy session does not re-register it on every pass.
+	void rearm()
+	{
+		if (!owner || !connected || retiring) {
+			timer.stop();
+			return;
+		}
+		const int period = hasWork() ? backstopMs : heartbeatMs;
+		if (!timer.isActive() || timer.interval() != period)
+			timer.start(period);
 	}
 
 	void notify()
@@ -630,7 +669,10 @@ struct ConnectionSession::Impl {
 		// lastError() keeps meaning why a connection failed or ended.
 		error.clear();
 		beginIdentity();
-		timer.start();
+		// The identity's first request is submitted by a pass: queue one now.
+		rearm();
+		if (owner)
+			owner->pumpSoon();
 		if (owner)
 			Q_EMIT owner->admissionChanged();
 		notify();
@@ -780,7 +822,10 @@ struct ConnectionSession::Impl {
 		opening = false;
 		error.clear();
 		beginIdentity();
-		timer.start();
+		// The identity's first request is submitted by a pass: queue one now.
+		rearm();
+		if (owner)
+			owner->pumpSoon();
 		if (owner)
 			Q_EMIT owner->admissionChanged();
 		notify();
@@ -789,24 +834,55 @@ struct ConnectionSession::Impl {
 			retire();
 	}
 
+	// One pass, then the timer set for what is left.
 	void progress()
+	{
+		pass();
+		rearm();
+	}
+
+	// What one pass did, judged from before and after it.
+	struct Moved {
+		// A reply was settled, or a request completed (pending() changed).
+		bool settled = false, completed = false;
+		// A packet was handed to the transport.
+		bool sent = false;
+
+		bool any() const noexcept
+		{
+			return settled || completed || sent;
+		}
+	};
+
+	// Advances native work once. progressed() is published only when the pass
+	// moved something, and on the way out; a session waiting for a reply
+	// publishes nothing. After a reply was settled or a request completed it
+	// queues one more pass: a request queued behind it is sent on the next
+	// turn, and DeviceClient::process() completes one request per call, so a
+	// run of cancelled or timed-out requests completes on consecutive turns. A
+	// pass that moves nothing queues none, so the session never spins.
+	void pass()
 	{
 		if (!working && !retiring && connected && filesOnly && transport) {
 			working = nativeActive = true;
 			const auto files = filesOnly;
+			const auto sentBefore = files->remoteRequestId;
+			const auto pendingBefore = files->client.pending();
 			files->progressTransport(transport.get());
-			const bool settled = !files->replies.empty();
+			Moved moved;
+			moved.settled = !files->replies.empty();
 			files->settleReplies();
 			nativeActive = false;
-			publishProgress();
+			moved.completed = files->client.pending() != pendingBefore;
+			moved.sent = files->remoteRequestId != sentBefore;
+			if (moved.any() || closeRequested)
+				publishProgress();
 			working = false;
 			if (closeRequested || !owner) {
 				retire();
 			} else {
 				advanceIdentity();
-				// A reply settled: a request queued behind it is sent on the
-				// next turn, not the next tick.
-				if (settled && owner)
+				if ((moved.settled || moved.completed) && owner)
 					owner->pumpSoon();
 			}
 			return;
@@ -815,13 +891,19 @@ struct ConnectionSession::Impl {
 			return;
 		working = true;
 		const auto state = current;
+		const auto sentBefore = state->remoteRequestId;
+		const auto pendingBefore = state->inspector.pending();
 		nativeActive = true;
 		(void)state->progressTransport(transport.get());
-		const bool settled = !state->replies.empty();
+		Moved moved;
+		moved.settled = !state->replies.empty();
 		state->settleReplies();
 		nativeActive = false;
-		publishProgress();
+		moved.completed = state->inspector.pending() != pendingBefore;
+		moved.sent = state->remoteRequestId != sentBefore;
 		const bool lost = !state->inspector.isCurrent() || state->inspector.recoveryRequired();
+		if (moved.any() || lost || closeRequested)
+			publishProgress();
 		working = false;
 		if (closeRequested || !owner) {
 			retire();
@@ -829,10 +911,7 @@ struct ConnectionSession::Impl {
 			fail(QStringLiteral("Session is no longer current; reconnect explicitly"));
 		} else {
 			advanceIdentity();
-			// A reply settled: a request queued behind it is sent on the next
-			// turn, not the next tick. A session waiting for a reply does not
-			// pump, so it never spins.
-			if (settled && owner)
+			if ((moved.settled || moved.completed) && owner)
 				owner->pumpSoon();
 		}
 	}
@@ -939,12 +1018,14 @@ bool ConnectionSession::connectTcpReference(const QString& inputHost, quint16 in
 	    Qt::QueuedConnection);
 	QObject::connect(
 	    state->transport.get(), &DeviceTransport::packetAccepted, this,
-	    [weak, epoch](quint32 session, quint32 id) {
+	    [this, weak, epoch](quint32 session, quint32 id) {
 		    if (const auto value = weak.lock(); value && value->generation == epoch) {
 			    if (value->current)
 				    (void)value->current->acceptPacket(session, id);
 			    else if (value->filesOnly)
 				    (void)value->filesOnly->acceptPacket(session, id);
+			    // Record the handover on the next turn, not on a timer.
+			    pumpSoon();
 		    }
 	    },
 	    Qt::QueuedConnection);
@@ -1070,10 +1151,15 @@ std::optional<batch::wire::Capability> ConnectionSession::batchCapability() cons
 
 bool ConnectionSession::cancel(client::RequestHandle handle) noexcept
 {
+	bool cancelled = false;
 	if (const auto files = d->filesOnly)
-		return files->client.cancel(handle);
-	const auto owner = d->current;
-	return owner && files::Submitter<HostWorkbench>::cancel(owner->inspector, handle);
+		cancelled = files->client.cancel(handle);
+	else if (const auto owner = d->current)
+		cancelled = files::Submitter<HostWorkbench>::cancel(owner->inspector, handle);
+	// A pass completes it: report Cancelled on the next turn, not on a timer.
+	if (cancelled)
+		pumpSoon();
+	return cancelled;
 }
 
 bool ConnectionSession::filesSupported() const noexcept
@@ -1162,6 +1248,13 @@ std::shared_ptr<ConnectionStorage> ConnectionSession::storage() const
 HostWorkbench* ConnectionSession::workbench() const
 {
 	return ready() ? &d->current->inspector : nullptr;
+}
+
+void ConnectionSession::wake() noexcept
+{
+	Q_ASSERT(thread() == QThread::currentThread());
+	if (d->connected)
+		pumpSoon();
 }
 
 bool ConnectionSession::reserveSessionsThrough(quint32 lastUsed)

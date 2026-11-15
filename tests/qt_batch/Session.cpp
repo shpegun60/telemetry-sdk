@@ -386,6 +386,8 @@ void mixed()
 		CHECK(result.published);
 		++reads;
 	}));
+	// Submitted past the session: wake it, or it waits for the idle heartbeat.
+	connection.wake();
 	CHECK(await([&] {
 		return reads == 1;
 	}));

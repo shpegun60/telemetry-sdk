@@ -9,10 +9,12 @@
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QEventLoop>
 #include <QPointer>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QThread>
+#include <QTimer>
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -48,6 +50,25 @@ bool await(const std::function<bool()>& done, int milliseconds = 10000)
 		QCoreApplication::processEvents();
 		QThread::msleep(1);
 	}
+	return done();
+}
+
+// Runs the owner loop, without sleeping, until done or 10 s: what it times is
+// the session's own, not a polling loop's.
+bool runUntil(const std::function<bool()>& done)
+{
+	QEventLoop loop;
+	QTimer poll, limit;
+	QObject::connect(&poll, &QTimer::timeout, &loop, [&] {
+		if (done())
+			loop.quit();
+	});
+	QObject::connect(&limit, &QTimer::timeout, &loop, &QEventLoop::quit);
+	poll.start(0);
+	limit.setSingleShot(true);
+	limit.start(10000);
+	if (!done())
+		loop.exec();
 	return done();
 }
 
@@ -344,10 +365,26 @@ void renamedFilesOnly()
 	                         resource::file(telemetry::protocol::identity::path, identity));
 	Peer peer{table.view()};
 	qt::ConnectionSession session;
-	CHECK(connected(session, peer));
-	CHECK(session.filesOnly() && await([&] {
-		      return session.identityState() == qt::ConnectionSession::IdentityState::Known;
-	      }));
+	// Files only, the identity is read by the session's own turns too, never
+	// by a timer: well within the 100 ms backstop of the moment it connects.
+	QElapsedTimer sinceConnected;
+	qint64 identityMs = -1;
+	QObject::connect(&session, &qt::ConnectionSession::stateChanged, &session, [&] {
+		if (session.filesOnly() && !sinceConnected.isValid())
+			sinceConnected.start();
+	});
+	QObject::connect(&session, &qt::ConnectionSession::identityChanged, &session, [&] {
+		if (identityMs < 0 && sinceConnected.isValid() &&
+		    session.identityState() == qt::ConnectionSession::IdentityState::Known)
+			identityMs = sinceConnected.elapsed();
+	});
+	CHECK(session.connectTcpReference(QStringLiteral("127.0.0.1"), peer.listener.serverPort()));
+	CHECK(runUntil([&] {
+		return session.identityState() == qt::ConnectionSession::IdentityState::Known;
+	}));
+	std::printf("Files-only identity read: Known %lld ms after connecting\n",
+	            static_cast<long long>(identityMs));
+	CHECK(session.filesOnly() && identityMs >= 0 && identityMs < 80);
 	CHECK(session.renamable() && session.keepsName());
 	bool finished = false;
 	auto result = qt::ConnectionSession::RenameResult::NotRenamed;

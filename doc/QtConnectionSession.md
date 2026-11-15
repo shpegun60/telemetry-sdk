@@ -127,24 +127,46 @@ state and guarded handoff/deadline-ordered reply processing for existing hosts;
 its advanced factory does not create a second execution owner. Inspector uses
 this same implementation instead of a private TCP driver.
 
-The owner-loop timer ticks every 5 ms for deadlines and for whatever waits. A
-reply that arrives, a reply settled with a request queued behind it, and every
-request the session accepts - a file request, `readMany`, `readFieldValue`,
-`batch` - also queue one `process()` on the loop's next turn, coalesced: the
-reply is settled and the next request sent without waiting for a tick. No call
-advances `process()` synchronously, and a session waiting for a reply does not
-pump, so it never spins. Before this, each file request waited for two ticks -
-one to settle its reply, one to send the next - which made a listing of 4096
-files take over a minute on Windows, where a 5 ms timer fires about every
-15.6 ms; and until 15 November 2026 each ReadMany, FieldRead or Batch waited
-for one tick to be written, which set a Watchlist exchange at about 5 ms on
-localhost (`tests/qt_read_many/Session.cpp` now times 64 chained exchanges:
-under 10 ms where the tick made it over 320 ms).
+The session runs only when there is work. Each of these queues one `process()`
+on the owner loop's next turn, coalesced:
+
+- every request the session accepts - a file request, `readMany`,
+  `readFieldValue`, `batch` - and `rename()`;
+- a `cancel()` that cancelled something, so its callback reports `Cancelled` on
+  the next turn;
+- `wake()`, for a request submitted past the session (below);
+- the transport handing a packet over, and a reply arriving;
+- the connection becoming ready or files only, which starts the identity read;
+- a pass that settled a reply or completed a request. A request queued behind
+  it is then sent on the next turn, and since `DeviceClient::process()`
+  completes one request per call, a run of cancelled or timed-out requests
+  completes on consecutive turns.
+
+No call advances `process()` synchronously. A pass that moves nothing queues
+nothing, so a session waiting for a reply never spins.
+
+A backstop timer runs a pass every 100 ms while anything is pending - a request
+queued or on its way, an identity step due or in flight, a rename running -
+because request deadlines are checked only in a pass: a request that times out
+completes within about 100 ms of its deadline. Idle, the session keeps only a
+1 s heartbeat that checks whether a request was queued past it without
+`wake()`, and runs a pass only if one was. Until 15 November 2026 a 5 ms timer
+ran a pass whatever there was to do. On Windows, where such a timer fires about
+every 15.6 ms, each file request had waited for two ticks - a listing of 4096
+files took over a minute - and each ReadMany, FieldRead or Batch for one
+(`tests/qt_read_many/Session.cpp` times 64 chained exchanges: under 10 ms where
+the tick made it over 320 ms).
+
+`progressed()` is published only by a pass that wrote a packet, settled a reply
+or completed a request, and on an error or retirement. An idle session publishes
+nothing, so `progressed()` is not a clock: a view that refreshes on a period
+needs a timer of its own.
 
 Requests the Workbench accepts directly - a Configurator's refresh or apply,
-submitted past the session - still wait for the tick; so does a request the
-timer's deadline handling sends. Making those event-driven too, and the timer a
-backstop only, is a separate change.
+submitted through `workbench()` or `storage()` past the session - are invisible
+to it: call `wake()` after each one. Without it such a request is written only
+when the idle heartbeat finds it, up to a second later; the heartbeat is a
+safety net, not a contract.
 
 All calls and storage access belong to the creating Qt thread. `workbench()` is
 an advanced borrowing seam, available only while ready. Consumer UI code normally
