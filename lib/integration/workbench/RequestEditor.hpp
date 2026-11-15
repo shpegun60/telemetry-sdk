@@ -62,9 +62,19 @@ inline runtime::Status initializeNode(const runtime::RuntimeSchema& schema, Type
 		    underlying->scalarCode < ScalarCode::U8 || underlying->scalarCode > ScalarCode::S64 ||
 		    underlying->wireBytes != type->wireBytes)
 			return runtime::Status::InvalidPayload;
-		// Open enums admit zero even when it has no name; this is not an
-		// application/device default or a choice of the first named enumerator.
-		return scalar(underlying->scalarCode, underlying->wireBytes, bytes, offset, write);
+		// An enum starts at its first named enumerator, so a fresh value is
+		// always one of its names; an enum with no entries starts at zero
+		// (open enums admit it). Neither is an application or device default.
+		const auto entries = schema.enumEntries(type->id);
+		if (entries.empty())
+			return scalar(underlying->scalarCode, underlying->wireBytes, bytes, offset, write);
+		const auto status = scalar(underlying->scalarCode, underlying->wireBytes, bytes, offset, false);
+		if (status != runtime::Status::Ok || !write)
+			return status;
+		const auto bits = entries.front().codeBits;
+		for (std::uint32_t i = 0; i < underlying->wireBytes; ++i)
+			bytes[offset + i] = std::byte((bits >> (8 * i)) & 0xffu);
+		return runtime::Status::Ok;
 	}
 	if (type->kind == TypeKind::Struct) {
 		for (const auto& member : schema.members(id)) {
