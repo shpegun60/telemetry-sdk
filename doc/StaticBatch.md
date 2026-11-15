@@ -124,9 +124,11 @@ performs its global preflight before the first endpoint call.
 Batch is sequential and non-atomic. An endpoint refusal does not stop later
 items. Command `Accepted` does not mean application work completed; use its
 existing `accepted()`/`executed()` distinctions. There is no rollback,
-exactly-once guarantee or automatic replay by this helper. Opcode 6 retains the
-backend's conservative potentially mutating OutcomeUnknown classification even
-for a selection containing only reads. Normal recovery remains mandatory.
+exactly-once guarantee or automatic replay by this helper. A selection of reads
+only is classified by the backend as a read: a lost reply after handoff times
+out, never OutcomeUnknown; a selection with any write, Command or Service keeps
+the potentially mutating OutcomeUnknown classification. Normal recovery remains
+mandatory either way.
 Unsupported backends and RPC return Unsupported, without hidden fan-out. See
 [Encoded Mixed Batch](MixedBatchEncoded.md) for the unchanged wire contract.
 For a group of eligible scalar reads, [ReadMany](StaticReadMany.md) has a smaller

@@ -160,6 +160,29 @@ constexpr void store(Output output, std::size_t offset, T value) noexcept
 	return false;
 }
 
+// Whether a request body only reads: well formed as parseRequest takes it,
+// and every item a FieldRead. Scanned in place, without a RequestResult, so
+// its stack does not grow with the item limit. A body that is not well formed
+// is one that may change the device.
+[[nodiscard]] inline bool onlyReads(Input input, std::size_t itemLimit = maxItems) noexcept
+{
+	if (input.size() < 2 || input.size() > maxRequestPayload)
+		return false;
+	const auto count = detail::load<std::uint16_t>(input, 0);
+	if (itemLimit == 0 || itemLimit > maxItems || count == 0 || count > itemLimit)
+		return false;
+	std::size_t cursor = 2;
+	for (std::size_t i = 0; i < count; ++i, cursor += 8) {
+		if (input.size() - cursor < 8)
+			return false;
+		const auto operation = static_cast<Operation>(std::to_integer<unsigned>(input[cursor + 4]));
+		if (operation != Operation::FieldRead || input[cursor + 5] != std::byte{0} ||
+		    detail::load<std::uint16_t>(input, cursor + 6) != 0)
+			return false;
+	}
+	return cursor == input.size();
+}
+
 [[nodiscard]] inline CapabilityResult parseCapability(Input input) noexcept
 {
 	if (input.size() != capabilityBytes)

@@ -55,6 +55,8 @@ static void capabilities()
 	}
 }
 
+static void readingBodies(const std::array<bw::RequestItem, 32>& mixed);
+
 static void requests()
 {
 	std::array<std::byte, 4> value{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
@@ -109,6 +111,57 @@ static void requests()
 	CHECK(bw::hasMutations(items));
 	const bw::RequestItem read{ew::Operation::FieldRead, 1, {}};
 	CHECK(!bw::hasMutations(std::span{&read, 1}));
+	readingBodies(items);
+}
+
+// Whether a body only reads, without parsing it into items: true exactly when
+// parseRequest accepts it and every item is a FieldRead.
+static void readingBodies(const std::array<bw::RequestItem, 32>& mixed)
+{
+	std::array<bw::RequestItem, 32> reads{};
+	for (std::size_t i = 0; i < reads.size(); ++i)
+		reads[i] = {ew::Operation::FieldRead, 0x01020304u + std::uint32_t(i), {}};
+	std::array<std::byte, 512> bytes{};
+	for (std::size_t n = 1; n <= reads.size(); ++n) {
+		const auto written = bw::writeRequest(bytes, std::span{reads}.first(n));
+		CHECK(bool(written) && written.written == 2 + 8 * n);
+		const auto input = Input{bytes}.first(written.written);
+		CHECK(bw::onlyReads(input) && bw::onlyReads(input, n) && !bw::onlyReads(input, n - 1));
+		CHECK(!bw::onlyReads(input, 0) && !bw::onlyReads(input, bw::maxItems + 1));
+		for (std::size_t size = 0; size < written.written; ++size)
+			CHECK(!bw::onlyReads(input.first(size)));
+		CHECK(!bw::onlyReads(Input{bytes}.first(written.written + 1)));
+		// Each item's operation, reserved byte and length, one at a time.
+		for (std::size_t item = 0; item < n; ++item) {
+			const auto at = 2 + 8 * item;
+			for (const auto& [offset, value] :
+			     {std::pair{std::size_t{4}, std::byte{1}}, std::pair{std::size_t{4}, std::byte{5}},
+			      std::pair{std::size_t{5}, std::byte{1}}, std::pair{std::size_t{6}, std::byte{1}},
+			      std::pair{std::size_t{7}, std::byte{1}}}) {
+				const auto kept = bytes[at + offset];
+				bytes[at + offset] = value;
+				CHECK(!bw::onlyReads(input));
+				bytes[at + offset] = kept;
+			}
+		}
+		CHECK(bw::onlyReads(input));
+	}
+	// A count of zero, and one past the items written.
+	std::array<std::byte, 2> none{};
+	CHECK(!bw::onlyReads(none));
+	const auto one = bw::writeRequest(bytes, std::span{reads}.first(1));
+	CHECK(bool(one));
+	bytes[0] = std::byte{2};
+	CHECK(!bw::onlyReads(Input{bytes}.first(one.written)));
+	// A write, a Command or a Service anywhere: not only reads.
+	for (std::size_t n = 1; n <= mixed.size(); ++n) {
+		const auto written = bw::writeRequest(bytes, std::span{mixed}.first(n));
+		CHECK(bool(written));
+		CHECK(bw::onlyReads(Input{bytes}.first(written.written)) ==
+		      !bw::hasMutations(std::span{mixed}.first(n)));
+	}
+	static std::array<std::byte, 65536> large{};
+	CHECK(!bw::onlyReads(large));
 }
 
 static void replies()

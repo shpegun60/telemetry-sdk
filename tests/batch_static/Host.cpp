@@ -786,7 +786,7 @@ static void callableKindsAndClosedRecovery() noexcept
 	    cl::Status::Closed);
 	CHECK(observed.calls == 2 && recovering.client.pending() == 1);
 	recovering.client.process(50);
-	CHECK(observed.calls == 3 && observed.status == cl::Status::OutcomeUnknown && !observed.item);
+	CHECK(observed.calls == 3 && observed.status == cl::Status::Timeout && !observed.item);
 	CHECK(!storage.busy());
 	recovering.stop();
 }

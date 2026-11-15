@@ -63,6 +63,9 @@ a fabricated value; callers must check each item's `valueStatus`.
 An ordinary Encoded backend performs one exchange. Batch adds no rollback,
 atomic snapshot or exactly-once execution guarantee. A lost reply after handoff
 retains conservative OutcomeUnknown/recovery, including an all-read batch.
+The native client classifies an all-read Batch as a read since November 2026
+([Encoded Mixed Batch](MixedBatchEncoded.md)); whether the JavaScript client
+follows is open.
 An explicitly selected retrying backend may execute items again. Workbench or
 application code must not silently replay an uncertain mutation.
 
