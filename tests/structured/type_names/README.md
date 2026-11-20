@@ -53,7 +53,9 @@ directory must be outside the checkout. Nothing touches a device.
    automatic enum names and an explicit name colliding with an automatic one
    (`duplicateTypeName`), invalid UTF-8, NUL and empty explicit names, an
    explicit name with two scopes or a path character, a class declared in a
-   function (a local class, which has no stable automatic name), a
+   function (a local class, which has no stable automatic name; GCC, MinGW
+   and ARM GCC refuse it, while Clang spells it without its function, so
+   under Clang the case is a control that builds), a
    `TypeReflection` on an array, a wrong `TypeReflection::name` type and a
    name longer than a tightened profile. Seven controls must build: names
    off, the stripping profile, an explicit name and `noTypeName()` settle

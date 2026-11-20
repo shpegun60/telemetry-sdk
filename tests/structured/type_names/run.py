@@ -40,6 +40,7 @@ COMPILE_FAILURES = {
     8: r'TypeReflection<T>::name must be typeName', 9: r'invalidDescriptorName',
     10: r'abort', 11: r'abort', 12: r'A local class has no stable automatic type name',
 }
+GCC_ONLY_FAILURES = {12}
 COMPILE_CONTROLS = {101: ['-DTELEMETRY_TYPE_NAMES=0'], 102: [], 103: [], 104: [], 105: [],
                     106: ['-DTELEMETRY_TYPE_NAMES=0'], 107: []}
 CROSS_NAMES = {'device::Mode', 'v2::Config', 'Board::Probe', 'Board::Channel', 'Пара',
@@ -199,7 +200,7 @@ def main():
         strict.append('-fno-delete-null-pointer-checks')
     flags = strict + include + (['-O1', '-g', '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                                  '-fno-omit-frame-pointer'] if args.sanitize else ['-O2'])
-    run(host.argv(['--version']), 'compiler')
+    host_clang = 'clang' in run(host.argv(['--version']), 'compiler').lower()
 
     # 1. Independent goldens and the shared decoder table.
     for name in ('mixed', 'edge', 'empty', 'named', 'attrs', 'tree'):
@@ -301,8 +302,14 @@ def main():
     print(f'decoder table: {len(positives)} accepted, {len(table["negative"])} refused, '
           'same verdict and model in C++, JS and Python', flush=True)
 
-    # 4. Compile-time refusals and controls.
+    # 4. Compile-time refusals and controls. Clang spells a local class without
+    # its function (plan 13.6 rule 3), so only GCC-family compilers refuse it;
+    # under Clang case 12 must build and name the class as if it were global.
     for case, diagnostic in COMPILE_FAILURES.items():
+        if case in GCC_ONLY_FAILURES and host_clang:
+            run(host.argv([*strict, *include, '-O2', f'-DCASE={case}', '-fsyntax-only', HERE / 'Negative.cpp']),
+                f'clang-control-{case}')
+            continue
         run(host.argv([*strict, *include, '-O2', f'-DCASE={case}', '-fsyntax-only', HERE / 'Negative.cpp']),
             f'negative-{case}', diagnostic)
     for case, extra in COMPILE_CONTROLS.items():
