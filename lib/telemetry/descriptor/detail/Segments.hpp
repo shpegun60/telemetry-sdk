@@ -76,6 +76,7 @@ struct Header {
 	std::uint16_t minor = binaryMinor;
 	std::span<const std::string_view> typeNames{};
 	std::span<const std::uint16_t> groupDepths{};
+	std::uint16_t flags = 0; // HeaderFlag::GroupTree when groupDepths is the tree's
 };
 
 // The emitted name of one type record: empty for an unnamed type and for
@@ -187,8 +188,6 @@ constexpr void string(Sink& sink, std::string_view text) noexcept
 			return {model.commands.catalogs()[part.key].name, bytes - 28};
 		case SegmentKind::ServiceCatalog:
 			return {model.services.catalogs()[part.key].name, bytes - 28};
-		case SegmentKind::GroupCatalog:
-			return {model.fields.catalogs()[part.key].name, bytes - 28};
 		case SegmentKind::Field:
 			return {model.fields.catalogs()[group].entries[entry].name, bytes - 24};
 		case SegmentKind::Command:
@@ -198,6 +197,30 @@ constexpr void string(Sink& sink, std::string_view text) noexcept
 		default:
 			return {};
 	}
+}
+
+// One group record of a tree, outside emit() so that its loads do not widen
+// the streaming emitter's ARM frame. Four arguments stay in registers (AAPCS);
+// the record length is recomputed from the name instead of passed.
+template<class Sink>
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+constexpr void groupRecord(const Segment& part, const ts::ModelView& model, const Header& header,
+                           Sink& sink) noexcept
+{
+	const char* name = model.fields.catalogs()[part.key].name;
+	std::uint32_t size = 0;
+	while (name[size] != '\0')
+		++size;
+	record(sink, RecordKind::Catalog, 28 + size);
+	sink.integer(groupCategory, 1);
+	sink.integer(0, 1);
+	sink.integer(header.groupDepths[part.key], 2);
+	sink.integer(model.fields.catalogs()[part.key].count, 4);
+	sink.integer(model.commands.catalogs()[part.key].count, 4);
+	sink.integer(model.services.catalogs()[part.key].count, 4);
+	string(sink, {name, size});
 }
 
 // part/bytes must come from the validated positional index. The emitter
@@ -214,8 +237,7 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 			sink.integer(binaryMajor, 2);
 			sink.integer(header.minor, 2);
 			sink.integer(descriptorHeaderBytes, 2);
-			sink.integer(
-			    header.groupDepths.empty() ? 0u : static_cast<unsigned>(HeaderFlag::GroupTree), 2);
+			sink.integer(header.flags, 2);
 			sink.integer(header.totalBytes, 4);
 			sink.integer(header.fingerprint, 8);
 			sink.integer(header.typeCount, 4);
@@ -295,14 +317,7 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 		}
 		case SegmentKind::GroupCatalog:
 			// One group of the shared tree: every family's row at this position.
-			record(sink, RecordKind::Catalog, bytes);
-			sink.integer(groupCategory, 1);
-			sink.integer(0, 1);
-			sink.integer(header.groupDepths[part.key], 2);
-			sink.integer(model.fields.catalogs()[part.key].count, 4);
-			sink.integer(model.commands.catalogs()[part.key].count, 4);
-			sink.integer(model.services.catalogs()[part.key].count, 4);
-			string(sink, segmentName(part, bytes, model));
+			groupRecord(part, model, header, sink);
 			return;
 		case SegmentKind::Field:
 			record(sink, RecordKind::Field, bytes);

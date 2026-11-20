@@ -318,9 +318,9 @@ def negative_cases():
         add(f'unknown-critical-tag-{tag:02x}', fixture('named', attributes={('type', 14): attribute(tag)}),
             'Record', 'unknown critical attribute tag', 'Unknown critical attribute tag')
     # GroupTree: the header flag, group records and the tree's name rules.
-    add('group-tree-on-minor-0', tree_fixture(minor=0), 'Header', 'header version', 'Descriptor version')
-    add('header-flag-bit-1', tree_fixture(flags=2), 'Header', 'header version', 'Descriptor version')
-    add('header-flags-tree-and-bit-1', tree_fixture(flags=3), 'Header', 'header version', 'Descriptor version')
+    add('group-tree-on-minor-0', tree_fixture(minor=0), 'Header', 'header version', 'Header size/flags')
+    add('header-flag-bit-1', tree_fixture(flags=2), 'Header', 'header version', 'Header size/flags')
+    add('header-flags-tree-and-bit-1', tree_fixture(flags=3), 'Header', 'header version', 'Header size/flags')
     add('tree-catalog-counts-differ', tree_fixture(counts=[4, 5, 3, 1, 4, 1]), 'Header',
         'group tree catalog counts differ', 'Group tree catalog counts differ')
     add('group-record-outside-tree-mode', tree_fixture(flags=0, minor=1, counts=[4, 5, 0, 1, 0, 1]), 'Catalog',

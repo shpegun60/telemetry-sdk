@@ -306,7 +306,7 @@ export function parseDescriptor(input, overrides = {})
 	// v3.0 reserves the header flags; v3.1 defines bit 0, GroupTree.
 	const headerFlags = header.u16();
 	require(headerFlags === 0 || (minor >= 1 && headerFlags === headerGroupTree),
-	        'Descriptor version/flags');
+	        'Header size/flags');
 	const tree = headerFlags === headerGroupTree;
 	const total = header.u32();
 	const fingerprint = header.u64();

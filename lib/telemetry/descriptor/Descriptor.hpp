@@ -452,16 +452,22 @@ class Descriptor {
 	}
 
 	// Each part of every emitted type name within maxNameBytes, and the whole
-	// name within maxPathBytes. Compile-time facts, checked once.
+	// name within maxPathBytes. Compile-time facts, checked once. An index scan,
+	// not string_view::find: GCC's null-check modes cannot fold find's pointer
+	// comparison on the registry's static name storage.
 	static consteval bool typeNamesFitProfile() noexcept
 	{
 		for (const auto name : emittedTypeNames()) {
-			const auto separator = name.find("::");
-			const auto first = separator == std::string_view::npos ? name.size() : separator;
-			const auto second =
-			    separator == std::string_view::npos ? 0 : name.size() - separator - 2;
-			if (first > Ceilings::nameBytes || second > Ceilings::nameBytes ||
-			    name.size() > Ceilings::pathBytes)
+			std::size_t part = 0;
+			for (std::size_t i = 0; i < name.size(); ++i) {
+				if (name[i] == ':') {
+					++i; // The shape rule makes every ':' half of one "::".
+					part = 0;
+				} else if (++part > Ceilings::nameBytes) {
+					return false;
+				}
+			}
+			if (name.size() > Ceilings::pathBytes)
 				return false;
 		}
 		return true;
@@ -761,6 +767,7 @@ private:
 		}
 		header_.typeNames = emittedTypeNames();
 		header_.groupDepths = groupDepths();
+		header_.flags = groupTree ? static_cast<std::uint16_t>(HeaderFlag::GroupTree) : 0;
 		std::size_t next = 0;
 		if (!add(next, descriptorHeaderBytes, Kind::Header)) {
 			return;

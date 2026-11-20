@@ -15,7 +15,7 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-EXPECTED_JS_CHECKS = 8889
+EXPECTED_JS_CHECKS = 8892  # +3: one tightening check per v3.1 group-tree ceiling
 
 
 def client_report(text):
