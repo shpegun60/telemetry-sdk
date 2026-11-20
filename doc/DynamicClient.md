@@ -2,6 +2,8 @@
 
 This document specifies the first C++ DynamicClient implementation. The optional
 Integration API is described in [Using DynamicClient](DynamicClientUsage.md).
+`endpoint(path)` returns a `PathHandle` resolved once by path; see
+[endpoint handles](GeneratedNamesAndHandles.md#the-dynamic-clients-endpointpath).
 The acceptance matrix below defines required behavior; execution evidence is
 reported by the implementation's test runners and CI for their exact inputs.
 

@@ -9,6 +9,7 @@
 [Генератор C++/TS/JS SDK](CodeGenerator.md) ·
 [Generated C++](GeneratedCppApi.md) · [Generated JS/TS](GeneratedTsJsApi.md) ·
 [Generated Qt/QML](GeneratedQmlApi.md) ·
+[Type names, group trees and endpoint handles](GeneratedNamesAndHandles.md) ·
 [Schema compatibility](GeneratedSchemaCompatibility.md) ·
 [Asynchronous client](AsyncClient.md) ·
 [Runtime schema and values](RuntimeSchema.md) ·

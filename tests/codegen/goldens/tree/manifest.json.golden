@@ -7,7 +7,7 @@
   ],
   "format": "telemetry-codegen-owned-output-v1",
   "generated_files": {
-    "cpp/device_api/ClientBindings.hpp": "d78b0c33d9af2d40983894109e13503c4ece29b2625a378cc1c24ff9250d069b",
+    "cpp/device_api/ClientBindings.hpp": "d495ecc6c0b0483e702d3bf65b5becbd48bff53ec192a49e85059cf029880202",
     "cpp/device_api/Codec.hpp": "5211abb6cfe641b3743035a8735562b0cc42b792d59fac5d8b02ed5189e9ce83",
     "cpp/device_api/EncodedBindings.hpp": "e686a70066c99246379b0e9344a1b4396c102503a9757f72324d088a85716f7d",
     "cpp/device_api/Endpoints.hpp": "19b9b66ccde13669ba4c7d0970591c843c08a65e22bc2a902be2e5b5eb28659a",

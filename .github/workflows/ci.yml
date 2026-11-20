@@ -328,6 +328,16 @@ jobs:
           python3 -B tests/client_dynamic_web/run.py --node node \
             --tsc "$RUNNER_TEMP/async-tools/node_modules/typescript/bin/tsc" \
             --cxx clang++-18 --sanitize --build-dir "$RUNNER_TEMP/dynamic-web-sanitized"
+      - name: Endpoint handles by path, generated and Dynamic clients (C++ and JS)
+        run: |
+          python3 -B tests/client_handles/run.py --node node \
+            --tsc "$RUNNER_TEMP/async-tools/node_modules/typescript/bin/tsc" \
+            --cxx g++ --build-dir "$RUNNER_TEMP/client-handles"
+      - name: Sanitized endpoint handles parity
+        run: |
+          python3 -B tests/client_handles/run.py --node node \
+            --tsc "$RUNNER_TEMP/async-tools/node_modules/typescript/bin/tsc" \
+            --cxx clang++-18 --sanitize --build-dir "$RUNNER_TEMP/client-handles-sanitized"
       - name: Installed connection facade and deterministic ownership contracts
         run: |
           python3 -B tests/connection_session/run.py --node node \

@@ -5,6 +5,11 @@ endpoint contracts and standalone C++/TypeScript/JavaScript codecs. The native
 STM32 model, structures, reflection, Encoded API, Descriptor/Values v3.0 and
 RPC v1.0 retain their existing contracts. Firmware does not run this tool.
 
+A v3.1 descriptor (type names, a group tree, attributes) generates additional
+symbols and, with `--client-runtime`, endpoint handles; a v3.0 descriptor gives
+byte-identical output. See [type names, group trees and endpoint
+handles](GeneratedNamesAndHandles.md).
+
 ## Generate an SDK
 
 Python 3.10 or newer and the repository checkout suffice for C++/JS/TS. No Python packages,

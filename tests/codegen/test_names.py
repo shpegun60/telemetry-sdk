@@ -51,7 +51,7 @@ class GoldenTests(unittest.TestCase):
         for name in ("named", "tree"):
             files = names.golden_render(name)
             for path in names.GOLDEN_FILES:
-                expected = text((names.GOLDENS / name / path).read_bytes())
+                expected = text(names.golden_path(name, path).read_bytes())
                 self.assertEqual(files[path], expected, f"{name}/{path}; refresh with names.py write-goldens")
 
     def test_named_definitions_keep_type_n(self):
@@ -130,6 +130,39 @@ class SymbolTests(unittest.TestCase):
         endpoints = generate_cpp(schema)["cpp/device_api/Endpoints.hpp"]
         self.assertIn("namespace types_value {\ninline constexpr auto fields_value = fields::fields_value;\n"
                       "inline constexpr auto a_b_2 = fields::a_b;", endpoints)
+
+
+class HandleTests(unittest.TestCase):
+    def test_handles_only_for_v31_and_with_the_client_runtime(self):
+        tree = load_schema(names.fixture("tree"))
+        files = render(tree, ("cpp", "js", "ts"), client_runtime=True)
+        self.assertIn("js/handles.js", files)
+        self.assertIn("ts/handles.ts", files)
+        self.assertIn("template<class Client> class Device {", files["cpp/device_api/ClientBindings.hpp"].decode())
+        self.assertNotIn("js/handles.js", render(tree, ("js",)))
+        mixed = render(load_schema(names.fixture("mixed")), ("cpp", "js", "ts"), client_runtime=True)
+        self.assertNotIn("js/handles.js", mixed)
+        self.assertNotIn("class Device", mixed["cpp/device_api/ClientBindings.hpp"].decode())
+
+    def test_handle_tree_paths(self):
+        from tools.telemetry_codegen.generators.handles import handle_tree
+        roots, leaves = handle_tree(load_schema(names.fixture("tree")))
+        self.assertEqual([symbol for symbol, _ in roots], ["adc", "metrology"])
+        self.assertEqual([(leaf.path, leaf.access) for leaf in leaves][:3],
+                         [("adc/Config", "adc.Config"), ("adc/Status", "adc.Status_value"),
+                          ("adc/channel1/Gain", "adc.channel1.Gain")])
+        roots, leaves = handle_tree(load_schema(names.fixture("named")))
+        self.assertEqual(leaves[7].access, "motor.fields.Config")
+        self.assertEqual(leaves[10].access, "motor.services.Echo")
+        # A flat path naming endpoints of two families has no path form.
+        groups = ((("read", [(2, "Reset"), (2, "Mode")]),), (("read", [(0, "Reset")]),), ())
+        from test_core import descriptor
+        flat = bytearray(descriptor((golden.enum_type(12, 2, 1, [(0, "A")], name="Kind"),), groups))
+        flat[6] = 1  # the name makes it v3.1
+        roots, leaves = handle_tree(load_schema(golden.rehash(bytes(flat))))
+        self.assertEqual([symbol for symbol, _ in roots], ["read_2"])  # not a device method
+        self.assertEqual([(leaf.path, leaf.registered) for leaf in leaves],
+                         [("read/Reset", False), ("read/Mode", True), ("read/Reset", False)])
 
 
 class AttributeTests(unittest.TestCase):

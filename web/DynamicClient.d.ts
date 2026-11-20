@@ -58,6 +58,22 @@ export interface Quiescence {
 	readonly oldFramesExcluded: boolean;
 	readonly remoteSessionClosed: boolean;
 }
+/**
+ * A handle by path: group/.../endpoint, then .member and [i] for part of a Field.
+ * read()/write()/call() throw, naming the path, for a wrong kind, a member write or
+ * a read-only Field; a member's read() resolves to the member's value.
+ */
+export interface DynamicEndpointHandle {
+	readonly id: number;
+	readonly path: string;
+	readonly category: 'Field'|'Command'|'Service';
+	/** True for a .member or [i] path: readable, never written by itself. */
+	readonly member: boolean;
+	read(timeoutMs?: number): DynamicRequest<DynamicResult>;
+	write(value: unknown, timeoutMs?: number): DynamicRequest<DynamicResult>;
+	/** A Command or Service: (request, timeoutMs?), or (timeoutMs?) without a request. */
+	call(...args: unknown[]): DynamicRequest<DynamicResult>;
+}
 export interface DynamicBatchRequest {
 	readonly endpoint: EndpointBinding;
 	readonly value?: unknown;
@@ -86,6 +102,8 @@ export class DynamicClient {
 	close(): void;
 	process(): void;
 	bind(operation: EndpointOperation, id: number): BindingResult<'endpoint', EndpointBinding>;
+	/** Resolve a section-15 path once; throws `No endpoint at path "..."` and the like. */
+	endpoint(path: string): DynamicEndpointHandle;
 	readField(endpoint: EndpointBinding, timeoutMs?: number): DynamicRequest<DynamicResult>;
 	writeField(endpoint: EndpointBinding, value: unknown,
 	           timeoutMs?: number): DynamicRequest<DynamicResult>;

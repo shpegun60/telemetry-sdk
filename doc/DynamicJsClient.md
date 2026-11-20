@@ -4,6 +4,9 @@
 one session and privately owns the existing asynchronous DeviceClient. It uses
 the same Encoded/Retrying/RPC backends and FIFO as generated static bindings.
 It adds neither a parser/type graph nor a transport or scheduling engine.
+`endpoint(path)` returns a handle resolved once by path, with the generated
+device's wording for refusals; see
+[endpoint handles](GeneratedNamesAndHandles.md#the-dynamic-clients-endpointpath).
 
 ```js
 import {parseDescriptor} from './web/telemetry.js';

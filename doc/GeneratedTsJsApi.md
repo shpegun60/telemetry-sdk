@@ -3,6 +3,9 @@
 The JS target is a browser-compatible ES module plus `.d.ts`; the TS target is
 a strict TypeScript source module. They expose the same runtime contract.
 Neither imports the Descriptor parser or walks a runtime type graph.
+For a v3.1 descriptor, `types.adc.Config`, nested group objects and the
+`bindDevice(client)` handles (`device.endpoint('adc/channel1/Gain')`) are
+described in [type names, group trees and endpoint handles](GeneratedNamesAndHandles.md).
 
 ```ts
 import {device, codecs, fingerprint} from './generated/js/device.js';

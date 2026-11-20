@@ -171,7 +171,7 @@ def main():
             floor = 250
         elif name.startswith("names-parity-"):
             floor = 40  # Every type name and endpoint path of the fixture.
-        elif name.startswith(("names-tree-", "names-aliases-")):
+        elif name.startswith(("names-tree-", "names-aliases-", "names-handles-")):
             floor = 5  # One per endpoint; the fixtures have 5 to 7 endpoints.
         else:
             floor = next((count for fixture, count in
@@ -421,6 +421,14 @@ def main():
                 source.write_text(names.parity_source(schema, _reachable(schema)), encoding="utf-8")
                 program = compile_program(source, "names-parity-" + name, (), target)
                 counted([program, names_build / (name + ".bin")], "names-parity-" + name)
+                # The generated device's handles: every path form is its nested handle.
+                source = names_build / (name + "-Handles.cpp")
+                source.write_text(names.handles_source(schema), encoding="utf-8")
+                program = compile_program(source, "names-handles-" + name, [abi], target)
+                counted([program], "names-handles-" + name)
+                run([*tsc, "--strict", "--target", "ES2022", "--module", "ES2022", "--moduleResolution", "node",
+                     "--noEmit", target / "ts/handles.ts"], "type-names-handles-" + name)
+                report["executions"].append(dict(name="type-names-handles-" + name, checks=1))
             if schema.groups is not None:
                 source = names_build / (name + "-Tree.cpp")
                 source.write_text(names.tree_source(schema), encoding="utf-8")

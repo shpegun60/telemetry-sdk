@@ -80,6 +80,11 @@ The [TCP Inspector suite](https://github.com/shpegun60/telemetry-ux/blob/main/te
 Resource Descriptor discovery, partial transmission, connection failures, stale
 replies, recovery and a separate-process TCP/QML window smoke test.
 
+The [endpoint handles suite](client_handles/README.md) runs the same paths through
+the generated device and DynamicClient::endpoint(path), in C++ and JS, against one
+native group-tree Model: equal values and refusals, one handle for the nested and
+path forms, TS path checks at compile time, C++ build-time refusals naming the path.
+
 The [runtime schema suite](runtime_schema/README.md) reads real Descriptor v3
 files and wire payloads with caller-owned storage, compares generated codecs,
 and checks malformed descriptors against the independent Python parser.

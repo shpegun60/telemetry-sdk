@@ -636,6 +636,11 @@ def generate_js(schema, client_runtime=False, wire_editing=False) -> dict[str, s
     files = {"js/device.js": _runtime(schema, False, wire_editing), "js/device.d.ts": _declarations(schema, wire_editing)}
     if client_runtime:
         files.update(_client_files("js", ("js", "d.ts")))
+        if schema.minor >= 1:
+            # v3.1: endpoint handles over the bundled client, nested and by path.
+            from .handles import web_handles, web_handles_declarations
+            files["js/handles.js"] = web_handles(schema, False)
+            files["js/handles.d.ts"] = web_handles_declarations(schema)
     return files
 
 
@@ -644,6 +649,9 @@ def generate_ts(schema, client_runtime=False, wire_editing=False) -> dict[str, s
     files = {"ts/device.ts": _runtime(schema, True, wire_editing)}
     if client_runtime:
         files.update(_client_files("ts", ("ts",)))
+        if schema.minor >= 1:
+            from .handles import web_handles
+            files["ts/handles.ts"] = web_handles(schema, True)
     return files
 
 

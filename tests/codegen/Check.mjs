@@ -272,13 +272,15 @@ for (const type of model.types.filter(type => type.name !== undefined && codec(t
 	      holder[parts[parts.length - 1]] === source['Type_' + type.id]);
 }
 // A codec or an enum dictionary is one type; any other object is a scope of them.
-const isTypeLeaf = value => Object.hasOwn(value, 'wireBytes') ||
-                            Object.values(value).every(x => typeof x === 'number' || typeof x === 'bigint');
+const isTypeLeaf = value =>
+    Object.hasOwn(value, 'wireBytes') ||
+    Object.values(value).every(x => typeof x === 'number' || typeof x === 'bigint');
 if (namedCount === 0)
 	check(generated.types === undefined);
 else
 	equal(Object.values(generated.types)
-	          .reduce((total, child) => total + (isTypeLeaf(child) ? 1 : Object.keys(child).length), 0),
+	          .reduce((total, child) => total + (isTypeLeaf(child) ? 1 : Object.keys(child).length),
+	                  0),
 	      namedCount);
 
 // A group tree nests group objects: subgroups and endpoints side by side, the
@@ -287,6 +289,7 @@ const familyNames = [ 'fields', 'commands', 'services' ];
 const isGroup = value => value && typeof value === 'object' && value.types && value.fields &&
                          value.commands && value.services;
 let treeGroups = 0;
+
 function visitTree(value, depth)
 {
 	++treeGroups;
@@ -319,7 +322,7 @@ function visitTree(value, depth)
 let fieldCount = 0, commandCount = 0, serviceCount = 0;
 const groupObjects = Object.values(generated).filter(isGroup);
 if (model.groupTree) {
-	for (const value of [...groupObjects ])
+	for (const value of [...groupObjects])
 		visitTree(value, 0);
 	for (let i = 0; i < groupObjects.length; ++i)
 		for (const [key, child] of Object.entries(groupObjects[i]))
