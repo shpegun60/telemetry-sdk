@@ -25,6 +25,7 @@ native доступу Model не створюють; encoded catalog indexes т�
 - [Ролі об'єктів](#ролі-обєктів)
 - [Повний приклад](#повний-приклад)
 - [Model API](#model-api)
+- [Group tree: a Model from branch files](#group-tree-a-model-from-branch-files)
 - [Typed access і runtime access](#typed-access-і-runtime-access)
 - [Encoded API: catalog index або ModelView](#encoded-api-catalog-index-або-modelview)
 - [Encoded результати й порядок перевірок](#encoded-результати-й-порядок-перевірок)
@@ -259,6 +260,61 @@ Manual C++20 build має include roots `lib`, `lib/boost_pfr/include` і `lib/m
 
 Числові значення `configId` і `queryId` однакові: families мають окремі логічні
 простори. Transport передає також вид операції, який вибирає потрібний index.
+
+## Group tree: a Model from branch files
+
+A device with many subsystems describes each one in its own branch file, one
+expression with no tables and no IDs, and mounts the branches in one Model.
+`ts::group(name, items...)` takes subgroups, Fields, Commands and Services in
+any mix; a group may be empty and may mount another branch.
+
+```cpp
+// adc/AdcTelemetry.hpp - Adc.hpp knows nothing of telemetry
+inline constexpr auto branch = ts::group("adc",
+    ts::group("channel1", ts::field<&Adc::gain<0>, &Adc::setGain<0>>("Gain", instance)),
+    ts::group("channel2", ts::field<&Adc::gain<1>, &Adc::setGain<1>>("Gain", instance)),
+    ts::field<&Adc::config, &Adc::setConfig>("Config", instance),   // type adc::Config
+    ts::command<&Adc::reset>("Reset", instance),
+    ts::service<&Adc::calibrate>("Calibrate", instance));
+
+// Telemetry.cpp - the one composition point
+inline constexpr telemetry::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr telemetry::descriptor::Descriptor descriptor{model};   // v3.1, GroupTree
+
+const auto gain = telemetry::read<model, "adc/channel1/Gain">();        // std::optional<float>
+const auto rate = telemetry::read<model, "adc/Config.rateHz">();        // a member of the Field
+const auto status = telemetry::write<model, "adc/channel2/Gain">(2.5f); // whole Fields only
+const auto reset = telemetry::call<model, "adc/Reset">();               // Command or Service
+static_assert(model.idOf<"adc/channel1/Gain">() == telemetry::makeId(1, 0));
+```
+
+- The tree is flattened in pre-order at compile time: the group, then its
+  subgroups in declaration order. A group's position is the group part of
+  every PackedId in all three families (`adc` 0, `adc/channel1` 1, ...); its
+  entries keep declaration order inside each family. Each family keeps
+  today's catalog array, now one row per group, empty where a group has none
+  of that family, so dispatch stays O(1) through the unchanged `ModelView`
+  and the structured ABI revision stays 6.
+- The Model owns each group's tables and the three catalog tables
+  (`model.fields()`, `commands()`, `services()`); it is neither copyable nor
+  movable. `model.flat()` is the equivalent three-catalog Model.
+- Names in a tree are path segments: no `/`, `.`, `[`, `]` or `\`, and unique
+  among everything a group holds (subgroups and endpoints of all three
+  families). Both are build errors at the `ts::group` that breaks them.
+  Ceilings come from the descriptor's profile: `maxGroupDepth` 8 levels,
+  `maxNameBytes` 64, `maxPathBytes` 256.
+- `read<>` takes a Field or a member or element of it: it calls the whole
+  Field's getter, returns the selected part in `std::optional`, and adds no
+  string or table to the image. `write<>` takes whole Fields, because a
+  member write would be a hidden read-modify-write; `call<>` takes Commands
+  and Services. A path that names nothing is a build error whose trace shows
+  the path as `EndpointPath<N>{"..."}`.
+- C++20 cannot read an object's names inside its own member function at
+  compile time, so the model is a template argument of `read`, `write`,
+  `call` and `idOf`; `model.idOf<"...">()` is the one member form, a
+  consteval call on a constexpr model.
+- Today's `Model{fields, commands, services}` is unchanged and keeps v3.0
+  bytes; three branches select the tree form.
 
 ## Model API
 

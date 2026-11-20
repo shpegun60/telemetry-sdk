@@ -25,8 +25,10 @@ writes the descriptor v3.1 fixtures: `named.hex` (1027 B, the mixed model
 with the scoped names `fixture::Mode`, `fixture::State` and
 `fixture::MotorConfig`, which the default producer emits byte for byte),
 `attrs.hex` (1106 B, named plus advisory and
-application attributes on every record kind, 5-byte attribute headers) and
-`v31_cases.json`, the
+application attributes on every record kind, 5-byte attribute headers),
+`tree.hex` (1130 B, the GroupTree mode: the adc and metrology branches of the
+[group-tree suite](../group_tree/README.md), which its producer emits byte
+for byte) and `v31_cases.json`, the
 decoder table the [type-names suite](../type_names/README.md) runs in C++,
 JS and Python.
 Running `golden.py` explicitly rewrites fixtures; the test runner never does.

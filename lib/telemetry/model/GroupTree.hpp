@@ -29,6 +29,7 @@
 #pragma once
 
 #include "Model.hpp"
+#include "TreePath.hpp"
 
 #include <array>
 #include <cstddef>
@@ -393,6 +394,7 @@ template<class... Explicit, class... Items>
 // - fields(), commands(), services(): Borrow typed catalog tables.
 // - flat(): Borrow the equivalent flat Model.
 // - groupName(): Borrow one group's name.
+// - idOf(): Resolve a path at compile time (consteval, constexpr model).
 // - max*(): Bound scratch and payloads, as for a flat Model.
 template<class... Branches>
 class Model<detail::GroupTreeFields<Branches...>, detail::GroupTreeCommands<Branches...>,
@@ -487,6 +489,19 @@ public:
 		return fields_[group].name;
 	}
 
+	// The PackedId of the endpoint at group/.../endpoint, resolved at compile
+	// time on a constexpr model: model.idOf<"adc/channel1/Gain">(). A path that
+	// names no endpoint fails the build (noEndpointAtPath). Typed access by path
+	// is telemetry::read/write/call<model, path>() in TreePath.hpp.
+	template<EndpointPath P>
+	[[nodiscard]] consteval PackedId idOf() const noexcept
+	{
+		const auto at = detail::locatePath(*this, P.view());
+		if (at.error != detail::PathError::None || at.memberStart != P.view().size())
+			detail::noEndpointAtPath();
+		return makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	}
+
 	[[nodiscard]] constexpr std::uint32_t maxFieldScratch() const noexcept
 	{
 		return flat_.maxFieldScratch();
@@ -576,14 +591,6 @@ template<class... Branches>
 Model(const Branches&...)
     -> Model<detail::GroupTreeFields<Branches...>, detail::GroupTreeCommands<Branches...>,
              detail::GroupTreeServices<Branches...>>;
-
-namespace detail {
-
-// A Model of the group-tree form.
-template<class M>
-inline constexpr bool groupTreeModel = requires { requires M::groupTree; };
-
-} // namespace detail
 
 } // namespace telemetry
 
