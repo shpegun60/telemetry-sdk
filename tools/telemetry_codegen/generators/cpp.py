@@ -61,22 +61,32 @@ def _types(schema, reachable):
         item = schema.types[index]
         name = f"Type_{index}"
         kind = item["kind"]
+        # A named type is defined under its own symbol, in its scope's namespace;
+        # Type_N stays as an alias, so every existing spelling keeps compiling.
+        named = schema.type_symbol(index)
+        defined = named.symbol if named else name
+        if named and named.scope:
+            rows.append(f"namespace {named.scope} {{\n")
         if kind == 0:
             rows.append(f"using {name} = void;\n")
         elif kind == 1:
             rows.append(f"using {name} = {SCALARS[item['code']]};\n")
         elif kind == 2:
-            rows.append(f"enum class {name} : Type_{item['underlying']} {{\n")
+            rows.append(f"enum class {defined} : Type_{item['underlying']} {{\n")
             for (value, _), symbol in zip(item["entries"], schema.enum_names[index]):
                 rows.append(f"    {symbol} = {_literal(value)},\n")
             rows.append("};\n")
         elif kind == 3:
-            rows.append(f"struct {name} {{\n")
+            rows.append(f"struct {defined} {{\n")
             for (child, _), symbol in zip(item["members"], schema.member_names[index]):
                 rows.append(f"    Type_{child} {symbol};\n")
             rows.append("};\n")
         elif kind == 4:
             rows.append(f"using {name} = std::array<Type_{item['element']}, {item['count']}>;\n")
+        if named and named.scope:
+            rows.append(f"}} // namespace {named.scope}\n")
+        if named:
+            rows.append(f"using {name} = {named.detail};\n")
     rows.append("} // namespace detail\n")
     aliases = {}
     for endpoint in schema.endpoints:
@@ -91,7 +101,29 @@ def _types(schema, reachable):
         for alias, index in entries.items():
             rows.append(f"using {alias} = {_type(index)};\n")
         rows.append(f"}} // namespace {group}::types\n")
+    rows.append(_named_types(schema, reachable))
     rows.append(f"}} // namespace {schema.namespace}\n")
+    return "".join(rows)
+
+
+def _named_types(schema, reachable):
+    """The public `types` scope of named types, nested by their own scope (v3.1)."""
+    named = [schema.type_symbol(index) for index in reachable if schema.type_symbol(index)]
+    if not named:
+        return ""
+    rows = ["\n// Named types (descriptor v3.1), by their wire scope: adc::Config is types::adc::Config.\n",
+            "namespace types {\n"]
+    scopes = {}
+    for symbol in named:
+        scopes.setdefault(symbol.scope, []).append(symbol)
+    for scope, symbols in scopes.items():
+        if scope:
+            rows.append(f"namespace {scope} {{\n")
+        for symbol in symbols:
+            rows.append(f"using {symbol.symbol} = ::{schema.namespace}::detail::{symbol.detail};\n")
+        if scope:
+            rows.append(f"}} // namespace {scope}\n")
+    rows.append("} // namespace types\n")
     return "".join(rows)
 
 
@@ -167,7 +199,29 @@ def _endpoints(schema):
             arguments = f"{endpoint.id}, {q}, {r}, {schema.types[q]['wire']}, {schema.types[r]['wire']}"
         rows.append(f"inline constexpr endpoint::{signature} {endpoint.symbol}{{{arguments}}};\n")
         rows.append(f"}} // namespace {endpoint.group}::{category}\n")
+    if schema.groups is not None:
+        rows.append(_tree_endpoints(schema))
     rows.append(f"}} // namespace {schema.namespace}\n")
+    return "".join(rows)
+
+
+def _tree_endpoints(schema):
+    """A GroupTree descriptor: one namespace per group, its endpoints as constants in it.
+
+    The fields::/commands::/services:: constants above are the ones a flat model
+    with the same group names generates, so existing static code keeps compiling;
+    each endpoint is also a constant beside the group's subgroups, the path's form.
+    """
+    rows = ["\n// Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.\n"]
+    members = {}
+    for endpoint, symbol in zip(schema.endpoints, schema.tree_symbols):
+        members.setdefault(endpoint.catalog_index, []).append((endpoint, symbol))
+    for group in schema.groups:
+        rows.append(f"namespace {group.qualified} {{\n")
+        for endpoint, symbol in members.get(group.index, ()):
+            family = ("", "fields", "commands", "services")[endpoint.category]
+            rows.append(f"inline constexpr auto {symbol} = {family}::{endpoint.symbol};\n")
+        rows.append(f"}} // namespace {group.qualified}\n")
     return "".join(rows)
 
 
@@ -428,25 +482,56 @@ template<class Q, class R> [[nodiscard]] auto binding(endpoint::Service<Q, R> en
 """
 
 
+ATTRIBUTE_CLASSES = {"advisory": "SDK advisory", "application": "application"}
+
+
+def _bindings_refusal(schema):
+    """The descriptor carries attributes, which a native model cannot re-emit yet."""
+    first = {}
+    for attribute in schema.attributes:
+        first.setdefault(attribute["tag"], attribute)
+    from ..parser import attribute_tag_class
+    tags = ", ".join(
+        f"0x{tag:02x} ({ATTRIBUTE_CLASSES[attribute_tag_class(tag)]}, first on {item['record']} "
+        + (f"0x{item['id']:08x}" if item["record"] in ("field", "command", "service") else str(item["id"])) + ")"
+        for tag, item in sorted(first.items()))
+    return ("// Generated optional Telemetry Codec interoperability. SPDX-License-Identifier: MIT\n"
+            "#pragma once\n"
+            "// Refused: a native model built from these DTOs would emit a descriptor without the\n"
+            "// input's attribute area, so its bytes and fingerprint would differ from the device's.\n"
+            "// RpcBindings.hpp includes this file and is refused with it.\n"
+            f'#error "TelemetryBindings.hpp is refused: the descriptor carries attribute tag{"s" if len(first) > 1 else ""} '
+            f'{tags}, which a native model built from these DTOs cannot re-emit yet"\n')
+
+
 def _telemetry_bindings(schema, reachable):
+    if schema.attributes:
+        return _bindings_refusal(schema)
+    # v3.1: every enum and struct carries its exact wire name, or explicitly none,
+    # so a native model built from these DTOs re-emits the input descriptor.
+    names = schema.minor >= 1
     rows = ["// Generated optional Telemetry Codec interoperability. SPDX-License-Identifier: MIT\n",
-            "#pragma once\n#include \"Types.hpp\"\n#include <telemetry/reflection/Enum.hpp>\n\n",
+            "#pragma once\n#include \"Types.hpp\"\n#include <telemetry/reflection/Enum.hpp>\n" +
+            ("#include <telemetry/reflection/TypeName.hpp>\n" if names else "") + "\n",
             "// Include before using generated enums with Telemetry Codec.\n",
             "namespace telemetry::reflection {\n"]
     for index in reachable:
         item = schema.types[index]
-        if item["kind"] != 2:
-            continue
         name = "::" + schema.namespace + "::" + _type(index)
-        rows.append(f"template<> struct EnumReflection<{name}> {{\n")
-        if not item["entries"]:
-            rows.append(f"    inline static constexpr auto entries = enumEntries<{name}>();\n")
-        else:
-            rows.append("    inline static constexpr auto entries = enumEntries(\n")
-            entries = [f"        enumEntry({name}::{symbol}, {_string(label)})"
-                       for (_, label), symbol in zip(item["entries"], schema.enum_names[index])]
-            rows.append(",\n".join(entries) + ");\n")
-        rows.append("};\n")
+        if item["kind"] == 2:
+            rows.append(f"template<> struct EnumReflection<{name}> {{\n")
+            if not item["entries"]:
+                rows.append(f"    inline static constexpr auto entries = enumEntries<{name}>();\n")
+            else:
+                rows.append("    inline static constexpr auto entries = enumEntries(\n")
+                entries = [f"        enumEntry({name}::{symbol}, {_string(label)})"
+                           for (_, label), symbol in zip(item["entries"], schema.enum_names[index])]
+                rows.append(",\n".join(entries) + ");\n")
+            rows.append("};\n")
+        if names and item["kind"] in (2, 3):
+            label = f"typeName({_string(item['name'])})" if item.get("name") else "noTypeName()"
+            rows.append(f"template<> struct TypeReflection<{name}> {{\n"
+                        f"    static constexpr auto name = {label};\n}};\n")
     rows.append("} // namespace telemetry::reflection\n")
     return "".join(rows)
 

@@ -1,0 +1,362 @@
+{
+  "descriptor_fingerprint": "0xf652e8451aecab94",
+  "descriptor_sha256": "f244f765841ad74cce0b79fc2f06ca20fc605bf47a0e1f8b942e24e97a3d53e6",
+  "descriptor_wire_version": [
+    3,
+    1
+  ],
+  "format": "telemetry-codegen-owned-output-v1",
+  "generated_files": {
+    "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
+    "cpp/device_api/Codec.hpp": "cb5ab7c416b5b202b41cda50852030c7052a2814c5e251bdba03ce0f78985504",
+    "cpp/device_api/EncodedBindings.hpp": "5be7af06db65062179aac241aac91813341eb886601f74949e6eaa990a0bc394",
+    "cpp/device_api/Endpoints.hpp": "443d5987e5100d6c748b905c9298008eadae14146447bdad445df6d60fb75d42",
+    "cpp/device_api/Metadata.hpp": "82d591ecd86072693b971b3ddc2d108c49f25a7199643064e10e88797b608b27",
+    "cpp/device_api/RpcBindings.hpp": "efa67091e53c6b34ecd1ebc91f715ce61a34aacbd89219ca1582668344a7a7c6",
+    "cpp/device_api/Schema.hpp": "72f1fa124477a6cb47667ab26cc38da3bf54e879e4a6b2e134fba9ccb8d06dfa",
+    "cpp/device_api/TelemetryBindings.hpp": "29429a387e5b83c51a94b4e1d9b984a32c10b6f3bd362f8cd96ff23f23b8c526",
+    "cpp/device_api/Types.hpp": "339521adcd7a25fe5e7294591fe8dcbfc28bbeeb6eb1fab918d66143324c9af2",
+    "js/device.d.ts": "7599d0a043435216627f6d87f20c9cfb2f3f67ed40970f4c02c67b17456f60cf",
+    "js/device.js": "326a890f8e5a76c2dbef932a9ae2b14b4b370b89b3e00398e5c0c695c558eb6b",
+    "js/device.metadata.d.ts": "bd912d9e9a5faecd3e0ffcbfc3ed09433845c4a6888934f7e5cc2097015974e3",
+    "js/device.metadata.js": "625a03bd76a6ea8b3025d0a77ec90d2b3e8e1e9e9f6a5307798dd53a456c8d81",
+    "metadata/schema.json": "e3ba17ebc61b9ab53640ef7f973618f58cbc96d27df3d9e749835f65fa142c85",
+    "ts/device.metadata.ts": "4e6fc7a037990b4411844466209169cded4437603b0721bfeb1ece2448673bd6",
+    "ts/device.ts": "3e701cae4f4e9e0368719eca2352a3f0a4185fab2b0bccc20dfcb12f82082912"
+  },
+  "generated_symbol_mapping": {
+    "endpoints": [
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 0,
+        "name": "Enabled",
+        "path": "motor/Enabled",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Enabled",
+        "value_alias": "Enabled",
+        "value_type": 1
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 1,
+        "name": "RPM",
+        "path": "motor/RPM",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "RPM",
+        "value_alias": "RPM",
+        "value_type": 4
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 2,
+        "name": "Temperature",
+        "path": "motor/Temperature",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Temperature",
+        "value_alias": "Temperature",
+        "value_type": 10
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 3,
+        "name": "Precise",
+        "path": "motor/Precise",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Precise",
+        "value_alias": "Precise",
+        "value_type": 11
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 4,
+        "name": "Mode",
+        "path": "motor/Mode",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Mode",
+        "value_alias": "Mode",
+        "value_type": 12
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 5,
+        "name": "Samples",
+        "path": "motor/Samples",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Samples",
+        "value_alias": "Samples",
+        "value_type": 13
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 6,
+        "name": "State",
+        "path": "motor/State",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "State",
+        "value_alias": "State",
+        "value_type": 14
+      },
+      {
+        "capabilities": 3,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 1,
+        "group": "motor",
+        "id": 7,
+        "name": "Config",
+        "path": "motor/Config",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Config",
+        "value_alias": "Config",
+        "value_type": 15
+      },
+      {
+        "capabilities": 0,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 2,
+        "group": "motor",
+        "id": 0,
+        "name": "Configure",
+        "path": "motor/Configure",
+        "request_alias": "ConfigureRequest",
+        "request_type": 15,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Configure",
+        "value_alias": "",
+        "value_type": 0
+      },
+      {
+        "capabilities": 0,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 2,
+        "group": "motor",
+        "id": 1,
+        "name": "Reset",
+        "path": "motor/Reset",
+        "request_alias": "ResetRequest",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Reset",
+        "value_alias": "",
+        "value_type": 0
+      },
+      {
+        "capabilities": 0,
+        "catalog_index": 0,
+        "catalog_name": "motor",
+        "category": 3,
+        "group": "motor",
+        "id": 0,
+        "name": "Echo",
+        "path": "motor/Echo",
+        "request_alias": "EchoRequest",
+        "request_type": 15,
+        "response_alias": "EchoResponse",
+        "response_type": 15,
+        "symbol": "Echo",
+        "value_alias": "",
+        "value_type": 0
+      }
+    ],
+    "types": [
+      {
+        "canonical_name": "Type_0",
+        "type_id": 0
+      },
+      {
+        "canonical_name": "Type_1",
+        "type_id": 1
+      },
+      {
+        "canonical_name": "Type_2",
+        "type_id": 2
+      },
+      {
+        "canonical_name": "Type_3",
+        "type_id": 3
+      },
+      {
+        "canonical_name": "Type_4",
+        "type_id": 4
+      },
+      {
+        "canonical_name": "Type_5",
+        "type_id": 5
+      },
+      {
+        "canonical_name": "Type_6",
+        "type_id": 6
+      },
+      {
+        "canonical_name": "Type_7",
+        "type_id": 7
+      },
+      {
+        "canonical_name": "Type_8",
+        "type_id": 8
+      },
+      {
+        "canonical_name": "Type_9",
+        "type_id": 9
+      },
+      {
+        "canonical_name": "Type_10",
+        "type_id": 10
+      },
+      {
+        "canonical_name": "Type_11",
+        "type_id": 11
+      },
+      {
+        "canonical_name": "Type_12",
+        "cpp_symbol": "types::fixture::Mode",
+        "enum_entries": [
+          {
+            "code": "0",
+            "generated_name": "Off",
+            "index": 0,
+            "original_name": "Off"
+          },
+          {
+            "code": "1",
+            "generated_name": "Run",
+            "index": 1,
+            "original_name": "Run"
+          },
+          {
+            "code": "2",
+            "generated_name": "Fault",
+            "index": 2,
+            "original_name": "Fault"
+          }
+        ],
+        "js_symbol": "types.fixture.Mode",
+        "name": "fixture::Mode",
+        "type_id": 12
+      },
+      {
+        "canonical_name": "Type_13",
+        "type_id": 13
+      },
+      {
+        "canonical_name": "Type_14",
+        "cpp_symbol": "types::fixture::State",
+        "js_symbol": "types.fixture.State",
+        "members": [
+          {
+            "cpp_name": "volts",
+            "index": 0,
+            "js_name": "volts",
+            "original_name": "volts",
+            "type_id": 10
+          },
+          {
+            "cpp_name": "active",
+            "index": 1,
+            "js_name": "active",
+            "original_name": "active",
+            "type_id": 1
+          }
+        ],
+        "name": "fixture::State",
+        "type_id": 14
+      },
+      {
+        "canonical_name": "Type_15",
+        "cpp_symbol": "types::fixture::MotorConfig",
+        "js_symbol": "types.fixture.MotorConfig",
+        "members": [
+          {
+            "cpp_name": "target",
+            "index": 0,
+            "js_name": "target",
+            "original_name": "target",
+            "type_id": 10
+          },
+          {
+            "cpp_name": "rpm",
+            "index": 1,
+            "js_name": "rpm",
+            "original_name": "rpm",
+            "type_id": 4
+          },
+          {
+            "cpp_name": "enabled",
+            "index": 2,
+            "js_name": "enabled",
+            "original_name": "enabled",
+            "type_id": 1
+          }
+        ],
+        "name": "fixture::MotorConfig",
+        "type_id": 15
+      }
+    ]
+  },
+  "generator_version": "0.1.0",
+  "options": {
+    "namespace": "device_api",
+    "structural_metadata": true,
+    "targets": [
+      "cpp",
+      "js",
+      "ts"
+    ]
+  }
+}

@@ -169,6 +169,10 @@ def main():
             floor = 84
         elif name.startswith("wire-editing-"):
             floor = 250
+        elif name.startswith("names-parity-"):
+            floor = 40  # Every type name and endpoint path of the fixture.
+        elif name.startswith(("names-tree-", "names-aliases-")):
+            floor = 5  # One per endpoint; the fixtures have 5 to 7 endpoints.
         else:
             floor = next((count for fixture, count in
                 (("native", 1650), ("empty", 175), ("mixed", 850), ("edge", 1400), ("hostile", 600))
@@ -331,9 +335,14 @@ def main():
         from tools.telemetry_codegen.cli import publish, render
         from tools.telemetry_codegen.schema import load_schema
         from test_web import consumer_source, hostile_descriptor
+        import names
         fixtures = {"native": descriptor.read_bytes(), "hostile": hostile_descriptor()}
         for name in ("empty", "mixed", "edge"):
             fixtures[name] = bytes.fromhex((ROOT / "tests/structured/descriptor" / (name + ".hex")).read_text())
+        # Descriptor v3.1: type names (flat), the group tree with and without names,
+        # and attributes, which host outputs never read.
+        for name in ("named", "tree", "tree_unnamed", "attrs"):
+            fixtures[name] = names.fixture(name)
 
         # Compile the actual injected-transport example, then execute it in each
         # generated runtime's native Bridge session (IDs1..5 belong to that session).
@@ -383,6 +392,68 @@ def main():
                     if args.browser_python:
                         counted([args.browser_python, HERE / "Browser.py", "--module", module,
                                  "--fixtures", native], "browser-" + kind)
+
+        # Descriptor v3.1 names and group tree (tests/codegen/names.py): a native Model
+        # rebuilt from the generated DTOs re-emits its input byte for byte, named and
+        # unnamed; Dynamic (RuntimeSchema) and Static (metadata, typeName<T>()) agree
+        # on every name and path; flat-era code compiles against the tree's SDK.
+        from tools.telemetry_codegen.generators.cpp import _reachable
+        names_build = build / "names"
+        rebuild_inputs = {name: names.fixture(name) for name in
+                          ("named", "tree", "tree_unnamed", "flat_roots", "tree_flat_roots",
+                           "mixed", "edge", "empty")}
+        rebuild_inputs["native"] = descriptor.read_bytes()
+        for name, data in rebuild_inputs.items():
+            schema = load_schema(data)
+            target = names_build / name
+            publish(render(schema, ("cpp", "ts"), client_runtime=True, structural_metadata=True), target)
+            (names_build / (name + ".bin")).write_bytes(data)
+            source = names_build / (name + "-Rebuild.cpp")
+            source.write_text(names.rebuild_source(schema), encoding="utf-8")
+            program = compile_program(source, "names-rebuild-" + name, [abi], target)
+            emitted = names_build / (name + "-rebuilt.bin")
+            run([program, emitted], "names-rebuild-run-" + name)
+            if emitted.read_bytes() != data:
+                raise RuntimeError("native model rebuilt from generated DTOs changed the descriptor: " + name)
+            report["executions"].append(dict(name="names-rebuild-" + name, checks=1))
+            if schema.minor >= 1:
+                source = names_build / (name + "-Parity.cpp")
+                source.write_text(names.parity_source(schema, _reachable(schema)), encoding="utf-8")
+                program = compile_program(source, "names-parity-" + name, (), target)
+                counted([program, names_build / (name + ".bin")], "names-parity-" + name)
+            if schema.groups is not None:
+                source = names_build / (name + "-Tree.cpp")
+                source.write_text(names.tree_source(schema), encoding="utf-8")
+                program = compile_program(source, "names-tree-" + name, (), target)
+                counted([program], "names-tree-" + name)
+                (target / "Usage.ts").write_text(names.usage_typescript(schema), encoding="utf-8")
+                run([*tsc, "--strict", "--target", "ES2022", "--module", "ES2022", "--moduleResolution", "node",
+                     "--noEmit", target / "Usage.ts"], "type-names-usage-" + name)
+                report["executions"].append(dict(name="type-names-usage-" + name, checks=1))
+        flat_schema = load_schema(rebuild_inputs["flat_roots"])
+        alias_cpp = names_build / "FlatAliases.cpp"
+        alias_cpp.write_text(names.alias_source(flat_schema), encoding="utf-8")
+        for name in ("flat_roots", "tree_flat_roots"):
+            program = compile_program(alias_cpp, "names-aliases-" + name, (), names_build / name)
+            counted([program], "names-aliases-" + name)
+            (names_build / name / "Aliases.ts").write_text(names.alias_typescript(flat_schema), encoding="utf-8")
+            run([*tsc, "--strict", "--target", "ES2022", "--module", "ES2022", "--moduleResolution", "node",
+                 "--noEmit", names_build / name / "Aliases.ts"], "type-names-aliases-" + name)
+            report["executions"].append(dict(name="type-names-aliases-" + name, checks=1))
+        # Attributes: the codecs build; TelemetryBindings.hpp is refused, naming every tag.
+        attributed = names_build / "attrs"
+        publish(render(load_schema(names.fixture("attrs")), ("cpp",)), attributed)
+        for header, expect in (("Codec", True), ("TelemetryBindings", False), ("RpcBindings", False)):
+            probe = names_build / ("Attrs" + header + ".cpp")
+            probe.write_text(f"#include <device_api/{header}.hpp>\nint main() {{ return 0; }}\n")
+            command = [*flags, *includes, "-I" + str(attributed / "cpp"), "-fsyntax-only", probe]
+            if expect:
+                run(command, "compile-names-attrs-" + header)
+                report["executions"].append(dict(name="compile-names-attrs-" + header, checks=1))
+            else:
+                refused(command, "negative-names-attrs-" + header,
+                        r"TelemetryBindings\.hpp is refused: the descriptor carries attribute tags 0x3e "
+                        r"\(SDK advisory, first on type 13\), 0x3f .*0x40 \(application, first on type 15\)")
 
         # Wire editing is opt-in: isolated outputs leave the ordinary modules above
         # intact. Execute both JS and strict-compiled TS against native Descriptor.

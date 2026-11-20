@@ -1,0 +1,540 @@
+{
+  "catalogs": [
+    {
+      "category": 1,
+      "count": 2,
+      "firstInCategory": 0,
+      "group": 0,
+      "name": "adc",
+      "symbol": "adc"
+    },
+    {
+      "category": 1,
+      "count": 1,
+      "firstInCategory": 2,
+      "group": 1,
+      "name": "channel1",
+      "symbol": "adc::channel1"
+    },
+    {
+      "category": 1,
+      "count": 1,
+      "firstInCategory": 3,
+      "group": 2,
+      "name": "channel2",
+      "symbol": "adc::channel2"
+    },
+    {
+      "category": 1,
+      "count": 1,
+      "firstInCategory": 4,
+      "group": 3,
+      "name": "metrology",
+      "symbol": "metrology"
+    },
+    {
+      "category": 2,
+      "count": 1,
+      "firstInCategory": 0,
+      "group": 0,
+      "name": "adc",
+      "symbol": "adc"
+    },
+    {
+      "category": 2,
+      "count": 0,
+      "firstInCategory": 1,
+      "group": 1,
+      "name": "channel1",
+      "symbol": "adc::channel1"
+    },
+    {
+      "category": 2,
+      "count": 0,
+      "firstInCategory": 1,
+      "group": 2,
+      "name": "channel2",
+      "symbol": "adc::channel2"
+    },
+    {
+      "category": 2,
+      "count": 0,
+      "firstInCategory": 1,
+      "group": 3,
+      "name": "metrology",
+      "symbol": "metrology"
+    },
+    {
+      "category": 3,
+      "count": 1,
+      "firstInCategory": 0,
+      "group": 0,
+      "name": "adc",
+      "symbol": "adc"
+    },
+    {
+      "category": 3,
+      "count": 0,
+      "firstInCategory": 1,
+      "group": 1,
+      "name": "channel1",
+      "symbol": "adc::channel1"
+    },
+    {
+      "category": 3,
+      "count": 0,
+      "firstInCategory": 1,
+      "group": 2,
+      "name": "channel2",
+      "symbol": "adc::channel2"
+    },
+    {
+      "category": 3,
+      "count": 0,
+      "firstInCategory": 1,
+      "group": 3,
+      "name": "metrology",
+      "symbol": "metrology"
+    }
+  ],
+  "descriptorHeader": [
+    84,
+    68,
+    83,
+    51,
+    3,
+    0,
+    1,
+    0,
+    64,
+    0,
+    1,
+    0,
+    106,
+    4,
+    0,
+    0,
+    248,
+    106,
+    143,
+    71,
+    65,
+    188,
+    0,
+    231,
+    19,
+    0,
+    0,
+    0,
+    4,
+    0,
+    0,
+    0,
+    5,
+    0,
+    0,
+    0,
+    4,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    4,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    64,
+    0,
+    0,
+    0,
+    18,
+    3,
+    0,
+    0,
+    158,
+    3,
+    0,
+    0
+  ],
+  "descriptorSha256": "f8ebd8f588cc54580ba53d3e45c2d1cabe747d05d81d8733b2b8b3648c52092e",
+  "endpoints": [
+    {
+      "capabilities": 3,
+      "catalogIndex": 0,
+      "catalogName": "adc",
+      "category": 1,
+      "groupSymbol": "adc",
+      "id": 0,
+      "name": "Config",
+      "path": "adc/Config",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Config",
+      "treeSymbol": "Config",
+      "valueType": 12
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "adc",
+      "category": 1,
+      "groupSymbol": "adc",
+      "id": 1,
+      "name": "Status",
+      "path": "adc/Status",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Status_value",
+      "treeSymbol": "Status_value",
+      "valueType": 14
+    },
+    {
+      "capabilities": 3,
+      "catalogIndex": 1,
+      "catalogName": "channel1",
+      "category": 1,
+      "groupSymbol": "adc::channel1",
+      "id": 65536,
+      "name": "Gain",
+      "path": "adc/channel1/Gain",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Gain",
+      "treeSymbol": "Gain",
+      "valueType": 10
+    },
+    {
+      "capabilities": 3,
+      "catalogIndex": 2,
+      "catalogName": "channel2",
+      "category": 1,
+      "groupSymbol": "adc::channel2",
+      "id": 131072,
+      "name": "Gain",
+      "path": "adc/channel2/Gain",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Gain",
+      "treeSymbol": "Gain",
+      "valueType": 10
+    },
+    {
+      "capabilities": 3,
+      "catalogIndex": 3,
+      "catalogName": "metrology",
+      "category": 1,
+      "groupSymbol": "metrology",
+      "id": 196608,
+      "name": "Config",
+      "path": "metrology/Config",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Config",
+      "treeSymbol": "Config",
+      "valueType": 16
+    },
+    {
+      "capabilities": 0,
+      "catalogIndex": 0,
+      "catalogName": "adc",
+      "category": 2,
+      "groupSymbol": "adc",
+      "id": 0,
+      "name": "Reset",
+      "path": "adc/Reset",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Reset",
+      "treeSymbol": "Reset",
+      "valueType": 0
+    },
+    {
+      "capabilities": 0,
+      "catalogIndex": 0,
+      "catalogName": "adc",
+      "category": 3,
+      "groupSymbol": "adc",
+      "id": 0,
+      "name": "Calibrate",
+      "path": "adc/Calibrate",
+      "requestType": 17,
+      "responseType": 18,
+      "symbol": "Calibrate",
+      "treeSymbol": "Calibrate",
+      "valueType": 0
+    }
+  ],
+  "fingerprint": "0xe700bc41478f6af8",
+  "format": "telemetry-structural-metadata",
+  "groups": [
+    {
+      "cppName": "adc",
+      "depth": 0,
+      "index": 0,
+      "jsName": "adc",
+      "name": "adc",
+      "parent": null,
+      "path": "adc",
+      "symbol": "adc"
+    },
+    {
+      "cppName": "adc::channel1",
+      "depth": 1,
+      "index": 1,
+      "jsName": "adc.channel1",
+      "name": "channel1",
+      "parent": 0,
+      "path": "adc/channel1",
+      "symbol": "channel1"
+    },
+    {
+      "cppName": "adc::channel2",
+      "depth": 1,
+      "index": 2,
+      "jsName": "adc.channel2",
+      "name": "channel2",
+      "parent": 0,
+      "path": "adc/channel2",
+      "symbol": "channel2"
+    },
+    {
+      "cppName": "metrology",
+      "depth": 0,
+      "index": 3,
+      "jsName": "metrology",
+      "name": "metrology",
+      "parent": null,
+      "path": "metrology",
+      "symbol": "metrology"
+    }
+  ],
+  "namespace": "device_api",
+  "types": [
+    {
+      "id": 0,
+      "kind": 0,
+      "wireBytes": 0
+    },
+    {
+      "id": 1,
+      "kind": 1,
+      "scalarCode": 1,
+      "wireBytes": 1
+    },
+    {
+      "id": 2,
+      "kind": 1,
+      "scalarCode": 2,
+      "wireBytes": 1
+    },
+    {
+      "id": 3,
+      "kind": 1,
+      "scalarCode": 3,
+      "wireBytes": 1
+    },
+    {
+      "id": 4,
+      "kind": 1,
+      "scalarCode": 4,
+      "wireBytes": 2
+    },
+    {
+      "id": 5,
+      "kind": 1,
+      "scalarCode": 5,
+      "wireBytes": 2
+    },
+    {
+      "id": 6,
+      "kind": 1,
+      "scalarCode": 6,
+      "wireBytes": 4
+    },
+    {
+      "id": 7,
+      "kind": 1,
+      "scalarCode": 7,
+      "wireBytes": 4
+    },
+    {
+      "id": 8,
+      "kind": 1,
+      "scalarCode": 8,
+      "wireBytes": 8
+    },
+    {
+      "id": 9,
+      "kind": 1,
+      "scalarCode": 9,
+      "wireBytes": 8
+    },
+    {
+      "id": 10,
+      "kind": 1,
+      "scalarCode": 10,
+      "wireBytes": 4
+    },
+    {
+      "id": 11,
+      "kind": 1,
+      "scalarCode": 11,
+      "wireBytes": 8
+    },
+    {
+      "cppName": "types::adc::Config",
+      "id": 12,
+      "jsName": "types.adc.Config",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "gain",
+          "jsName": "gain",
+          "name": "gain",
+          "typeId": 10,
+          "wireOffset": 0
+        },
+        {
+          "cppName": "rateHz",
+          "jsName": "rateHz",
+          "name": "rateHz",
+          "typeId": 4,
+          "wireOffset": 4
+        },
+        {
+          "cppName": "enabled",
+          "jsName": "enabled",
+          "name": "enabled",
+          "typeId": 1,
+          "wireOffset": 6
+        }
+      ],
+      "name": "adc::Config",
+      "wireBytes": 7
+    },
+    {
+      "elementCount": 2,
+      "elementTypeId": 5,
+      "id": 13,
+      "kind": 4,
+      "wireBytes": 4
+    },
+    {
+      "cppName": "types::adc::Status",
+      "id": 14,
+      "jsName": "types.adc.Status",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "flags",
+          "jsName": "flags",
+          "name": "flags",
+          "typeId": 4,
+          "wireOffset": 0
+        },
+        {
+          "cppName": "raw",
+          "jsName": "raw",
+          "name": "raw",
+          "typeId": 13,
+          "wireOffset": 2
+        }
+      ],
+      "name": "adc::Status",
+      "wireBytes": 6
+    },
+    {
+      "cppName": "types::metrology::Window",
+      "entries": [
+        {
+          "code": "0",
+          "name": "Rectangular"
+        },
+        {
+          "code": "1",
+          "name": "Hann"
+        },
+        {
+          "code": "2",
+          "name": "FlatTop"
+        }
+      ],
+      "id": 15,
+      "jsName": "types.metrology.Window",
+      "kind": 2,
+      "name": "metrology::Window",
+      "underlyingTypeId": 2,
+      "wireBytes": 1
+    },
+    {
+      "cppName": "types::metrology::Config",
+      "id": 16,
+      "jsName": "types.metrology.Config",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "cycles",
+          "jsName": "cycles",
+          "name": "cycles",
+          "typeId": 6,
+          "wireOffset": 0
+        },
+        {
+          "cppName": "window",
+          "jsName": "window",
+          "name": "window",
+          "typeId": 15,
+          "wireOffset": 4
+        }
+      ],
+      "name": "metrology::Config",
+      "wireBytes": 5
+    },
+    {
+      "cppName": "types::adc::Reference",
+      "id": 17,
+      "jsName": "types.adc.Reference",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "volts",
+          "jsName": "volts",
+          "name": "volts",
+          "typeId": 10,
+          "wireOffset": 0
+        }
+      ],
+      "name": "adc::Reference",
+      "wireBytes": 4
+    },
+    {
+      "cppName": "types::adc::Offset",
+      "id": 18,
+      "jsName": "types.adc.Offset",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "counts",
+          "jsName": "counts",
+          "name": "counts",
+          "typeId": 10,
+          "wireOffset": 0
+        }
+      ],
+      "name": "adc::Offset",
+      "wireBytes": 4
+    }
+  ],
+  "version": 1,
+  "wireVersion": {
+    "major": 3,
+    "minor": 1
+  }
+}

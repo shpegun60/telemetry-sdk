@@ -64,8 +64,70 @@ def symbol_mapping(schema):
                 {"index": index, "code": str(code), "original_name": name,
                  "generated_name": schema.enum_names[item["id"]][index]}
                 for index, (code, name) in enumerate(item["entries"])]
+        symbol = schema.type_symbol(item["id"])
+        if symbol:
+            # v3.1: the wire name and its public symbols; Type_N stays the canonical name.
+            record.update(name=symbol.name, cpp_symbol=symbol.cpp, js_symbol=symbol.js)
         types.append(record)
-    return {"endpoints": [asdict(endpoint) for endpoint in schema.endpoints], "types": types}
+    endpoints = [asdict(endpoint) for endpoint in schema.endpoints]
+    if schema.minor >= 1:
+        for index, (record, endpoint) in enumerate(zip(endpoints, schema.endpoints)):
+            record["path"] = schema.endpoint_path(endpoint)
+            if schema.groups is not None:
+                record["tree_symbol"] = schema.tree_symbols[index]
+    result = {"endpoints": endpoints, "types": types}
+    if schema.groups is not None:
+        result["groups"] = [{"index": group.index, "name": group.name, "path": group.path,
+                             "depth": group.depth, "parent": group.parent, "symbol": group.symbol,
+                             "cpp_symbol": group.qualified, "js_symbol": group.js}
+                            for group in schema.groups]
+    return result
+
+
+SCALAR_LABELS = ("()", "bool", "u8", "i8", "u16", "i16", "u32", "i32", "u64", "i64", "f32", "f64")
+
+
+def type_text(schema, type_id):
+    """A type as inspect prints it: the wire name when named, else the generated symbol."""
+    item = schema.types[type_id]
+    if item["kind"] <= 1:
+        return SCALAR_LABELS[type_id]
+    if item["kind"] == 4:
+        return f"{type_text(schema, item['element'])}[{item['count']}]"
+    return item.get("name") or ("enum " if item["kind"] == 2 else "struct ") + f"Type_{type_id}"
+
+
+def endpoint_listing(schema):
+    """Every endpoint as `path -> kind, PackedId, type` in the section-15 path grammar."""
+    rows = []
+    for endpoint in schema.endpoints:
+        if endpoint.category == 1:
+            signature = type_text(schema, endpoint.value_type)
+        else:
+            request = "" if endpoint.request_type == 0 else type_text(schema, endpoint.request_type)
+            signature = f"({request})"
+            if endpoint.category == 3:
+                signature += " -> " + type_text(schema, endpoint.response_type)
+        kind = ("", "Field", "Command", "Service")[endpoint.category]
+        rows.append(f"{schema.endpoint_path(endpoint)} -> {kind}, 0x{endpoint.id:08x}, {signature}")
+    return rows
+
+
+def attribute_listing(schema):
+    """The raw attribute areas: record, tag and its class, value bytes in hex."""
+    from .parser import attribute_tag_class
+    rows = []
+    for item in schema.attributes:
+        record = item["record"]
+        if record in ("field", "command", "service"):
+            where = f"{record} 0x{item['id']:08x}"
+        elif record == "catalog":
+            where = f"catalog {item['category']} {item['id']}"
+        else:
+            where = f"{record} {item['id']}"
+        rows.append({"record": where, "tag": f"0x{item['tag']:02x}",
+                     "class": attribute_tag_class(item["tag"]), "value": item["value"].hex()})
+    return rows
 
 
 def _ux_extension():
@@ -416,6 +478,11 @@ def main(argv=None):
                              descriptor_fingerprint=f"0x{schema.fingerprint:016x}",
                              descriptor_wire_version=[3, schema.minor], bytes=schema.raw["total"],
                              type_count=len(schema.types), endpoint_count=len(schema.endpoints),
+                             group_tree=schema.groups is not None,
+                             endpoints=endpoint_listing(schema),
+                             type_names={str(item["id"]): item["name"] for item in schema.types
+                                         if item.get("name")},
+                             attributes=attribute_listing(schema),
                              symbols=symbol_mapping(schema))), end="")
         else:
             files = render(schema, _targets(args.targets), client_runtime=args.client_runtime,

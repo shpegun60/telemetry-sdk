@@ -260,11 +260,74 @@ for (const type of model.types.filter(t => t.kind === 2 && codec(t.id))) {
 	roundTrip(type, [ 8, 9 ].includes(base.scalarCode) ? 42n : 42);
 }
 
+// v3.1 type names: types.scope.Name is the codec (enum dictionary) of the type
+// the JS decoder names scope::Name; no named type is missing or extra.
+let namedCount = 0;
+for (const type of model.types.filter(type => type.name !== undefined && codec(type.id))) {
+	++namedCount;
+	const parts = type.name.split('::');
+	const holder = parts.length === 2 ? generated.types?.[parts[0]] : generated.types;
+	const source = type.kind === 2 ? generated.enums : generated.codecs;
+	check(holder !== undefined && Object.isFrozen(holder) &&
+	      holder[parts[parts.length - 1]] === source['Type_' + type.id]);
+}
+// A codec or an enum dictionary is one type; any other object is a scope of them.
+const isTypeLeaf = value => Object.hasOwn(value, 'wireBytes') ||
+                            Object.values(value).every(x => typeof x === 'number' || typeof x === 'bigint');
+if (namedCount === 0)
+	check(generated.types === undefined);
+else
+	equal(Object.values(generated.types)
+	          .reduce((total, child) => total + (isTypeLeaf(child) ? 1 : Object.keys(child).length), 0),
+	      namedCount);
+
+// A group tree nests group objects: subgroups and endpoints side by side, the
+// family objects kept. Each endpoint carries its path, which the JS decoder resolves.
+const familyNames = [ 'fields', 'commands', 'services' ];
+const isGroup = value => value && typeof value === 'object' && value.types && value.fields &&
+                         value.commands && value.services;
+let treeGroups = 0;
+function visitTree(value, depth)
+{
+	++treeGroups;
+	const family = new Set(familyNames.flatMap(name => Object.values(value[name])));
+	let direct = 0, prefix;
+	for (const [key, child] of Object.entries(value)) {
+		if (key === 'types' || familyNames.includes(key))
+			continue;
+		if (isGroup(child)) {
+			visitTree(child, depth + 1);
+			continue;
+		}
+		++direct;
+		check(family.has(child));
+	}
+	check(direct === family.size);
+	for (const endpoint of family) {
+		const segments = endpoint.path.split('/');
+		check(segments.length === depth + 2);
+		const group = segments.slice(0, -1).join('/');
+		check(prefix === undefined || prefix === group);
+		prefix = group;
+		const found = oracle.findEndpoint(model, endpoint.path);
+		check(found !== undefined && found.endpoint.id === endpoint.id &&
+		      found.category === endpoint.category - 1 && found.member === '');
+		equal(oracle.endpointPath(model, endpoint.category - 1, found.endpoint), endpoint.path);
+	}
+}
+
 let fieldCount = 0, commandCount = 0, serviceCount = 0;
-for (const value of Object.values(generated)) {
-	if (!value || typeof value !== 'object' || !value.types || !value.fields || !value.commands ||
-	    !value.services)
-		continue;
+const groupObjects = Object.values(generated).filter(isGroup);
+if (model.groupTree) {
+	for (const value of [...groupObjects ])
+		visitTree(value, 0);
+	for (let i = 0; i < groupObjects.length; ++i)
+		for (const [key, child] of Object.entries(groupObjects[i]))
+			if (key !== 'types' && isGroup(child))
+				groupObjects.push(child);
+	check(treeGroups === model.groups.length && groupObjects.length === model.groups.length);
+}
+for (const value of groupObjects) {
 	check(Object.isFrozen(value) && Object.isFrozen(value.types));
 	for (const alias of Object.values(value.types))
 		check(alias === undefined || Object.isFrozen(alias));

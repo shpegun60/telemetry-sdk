@@ -1,0 +1,89 @@
+// Generated from a validated Telemetry Descriptor v3. Do not edit.
+// Descriptor SHA-256: f8ebd8f588cc54580ba53d3e45c2d1cabe747d05d81d8733b2b8b3648c52092e
+// SPDX-License-Identifier: MIT
+#pragma once
+
+#include "Types.hpp"
+#include "Schema.hpp"
+#include <type_traits>
+
+namespace device_api {
+
+namespace endpoint {
+enum class Category : std::uint8_t { Field = 1, Command = 2, Service = 3 };
+enum class Operation : std::uint8_t { FieldWrite = 1, Command = 2, Service = 3, FieldRead = 4 };
+template<class T> struct Field {
+    static_assert(!std::is_void_v<T>);
+    using Value = T;
+    static constexpr Category category = Category::Field;
+    static constexpr Operation readOperation = Operation::FieldRead, writeOperation = Operation::FieldWrite;
+    std::uint32_t id, valueTypeId, valueBytes;
+    std::uint8_t capabilities;
+    std::uint64_t fingerprint = schema::fingerprint;
+    [[nodiscard]] constexpr bool readable() const noexcept { return (capabilities & 1) != 0; }
+    [[nodiscard]] constexpr bool writable() const noexcept { return (capabilities & 2) != 0; }
+};
+template<class Q = void> struct Command {
+    using Request = Q;
+    using Response = void;
+    static constexpr Category category = Category::Command;
+    static constexpr Operation operation = Operation::Command;
+    std::uint32_t id, requestTypeId, requestBytes;
+    static constexpr std::uint32_t responseBytes = 0;
+    std::uint64_t fingerprint = schema::fingerprint;
+};
+template<class Q, class R> struct Service {
+    using Request = Q;
+    using Response = R;
+    static constexpr Category category = Category::Service;
+    static constexpr Operation operation = Operation::Service;
+    std::uint32_t id, requestTypeId, responseTypeId, requestBytes, responseBytes;
+    std::uint64_t fingerprint = schema::fingerprint;
+};
+} // namespace endpoint
+
+namespace adc::fields {
+inline constexpr endpoint::Field<detail::Type_12> Config{0, 12, 7, 3};
+} // namespace adc::fields
+
+namespace adc::fields {
+inline constexpr endpoint::Field<detail::Type_14> Status_value{1, 14, 6, 1};
+} // namespace adc::fields
+
+namespace adc::channel1::fields {
+inline constexpr endpoint::Field<detail::Type_10> Gain{65536, 10, 4, 3};
+} // namespace adc::channel1::fields
+
+namespace adc::channel2::fields {
+inline constexpr endpoint::Field<detail::Type_10> Gain{131072, 10, 4, 3};
+} // namespace adc::channel2::fields
+
+namespace metrology::fields {
+inline constexpr endpoint::Field<detail::Type_16> Config{196608, 16, 5, 3};
+} // namespace metrology::fields
+
+namespace adc::commands {
+inline constexpr endpoint::Command<detail::Type_0> Reset{0, 0, 0};
+} // namespace adc::commands
+
+namespace adc::services {
+inline constexpr endpoint::Service<detail::Type_17, detail::Type_18> Calibrate{0, 17, 18, 4, 4};
+} // namespace adc::services
+
+// Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.
+namespace adc {
+inline constexpr auto Config = fields::Config;
+inline constexpr auto Status_value = fields::Status_value;
+inline constexpr auto Reset = commands::Reset;
+inline constexpr auto Calibrate = services::Calibrate;
+} // namespace adc
+namespace adc::channel1 {
+inline constexpr auto Gain = fields::Gain;
+} // namespace adc::channel1
+namespace adc::channel2 {
+inline constexpr auto Gain = fields::Gain;
+} // namespace adc::channel2
+namespace metrology {
+inline constexpr auto Config = fields::Config;
+} // namespace metrology
+} // namespace device_api

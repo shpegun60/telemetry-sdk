@@ -1,0 +1,103 @@
+// Generated telemetry v3.0 contract. SPDX-License-Identifier: MIT.
+export type ByteInput = ArrayBuffer | ArrayBufferView;
+export interface ValueCodec<T> {
+  readonly wireBytes: number;
+  encode(value: T): Uint8Array;
+  /** May write an aggregate prefix before a later member is rejected. */
+  encodeInto(value: T, output: ByteInput): void;
+  decode(input: ByteInput): T;
+}
+export type Type_0 = undefined;
+export type Type_1 = boolean;
+export type Type_2 = number;
+export type Type_4 = number;
+export type Type_10 = number;
+export type Type_11 = number;
+export type Type_12 = Type_2;
+export type Type_13 = ReadonlyArray<Type_4> & { readonly length: 3 };
+export interface Type_14 {
+  "volts": Type_10;
+  "active": Type_1;
+}
+export interface Type_15 {
+  "target": Type_10;
+  "rpm": Type_4;
+  "enabled": Type_1;
+}
+export declare class TelemetryCodecError extends Error { constructor(reason: string); }
+export declare const fingerprint: 17749504464922651540n;
+export declare const descriptorSha256: string;
+export declare const wireVersion: Readonly<{major: 3; minor: 1}>;
+export declare const Operation: Readonly<{FieldRead: 'FieldRead'; FieldWrite: 'FieldWrite'; Command: 'Command'; Service: 'Service'}>;
+export declare function assertCompatibleFingerprint(peer: bigint): void;
+export declare function matchesHeader(input: ByteInput): boolean;
+export declare const codecs: Readonly<{
+  Type_0: ValueCodec<Type_0>;
+  Type_1: ValueCodec<Type_1>;
+  Type_2: ValueCodec<Type_2>;
+  Type_4: ValueCodec<Type_4>;
+  Type_10: ValueCodec<Type_10>;
+  Type_11: ValueCodec<Type_11>;
+  Type_12: ValueCodec<Type_12>;
+  Type_13: ValueCodec<Type_13>;
+  Type_14: ValueCodec<Type_14>;
+  Type_15: ValueCodec<Type_15>;
+}>;
+export declare const enums: Readonly<{
+  Type_12: Readonly<{readonly "Off": 0; readonly "Run": 1; readonly "Fault": 2}>;
+}>;
+export declare namespace types {
+  namespace fixture {
+    type Mode = Type_12;
+    const Mode: typeof enums.Type_12;
+    type State = Type_14;
+    const State: typeof codecs.Type_14;
+    type MotorConfig = Type_15;
+    const MotorConfig: typeof codecs.Type_15;
+  }
+}
+export declare namespace motor {
+  namespace types {
+    type Enabled = Type_1;
+    const Enabled: typeof codecs.Type_1;
+    type RPM = Type_4;
+    const RPM: typeof codecs.Type_4;
+    type Temperature = Type_10;
+    const Temperature: typeof codecs.Type_10;
+    type Precise = Type_11;
+    const Precise: typeof codecs.Type_11;
+    type Mode = Type_12;
+    const Mode: typeof enums.Type_12;
+    type Samples = Type_13;
+    const Samples: typeof codecs.Type_13;
+    type State = Type_14;
+    const State: typeof codecs.Type_14;
+    type Config = Type_15;
+    const Config: typeof codecs.Type_15;
+    type ConfigureRequest = Type_15;
+    const ConfigureRequest: typeof codecs.Type_15;
+    type ResetRequest = Type_0;
+    const ResetRequest: typeof codecs.Type_0;
+    type EchoRequest = Type_15;
+    const EchoRequest: typeof codecs.Type_15;
+    type EchoResponse = Type_15;
+    const EchoResponse: typeof codecs.Type_15;
+  }
+  const fields: Readonly<{
+    readonly "Enabled": Readonly<{readonly id: 0; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 1; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 0; typeId: 1; requestBytes: 0; responseBytes: 1; readonly readManyScalar: 1; decode: ValueCodec<Type_1>['decode']}>}>;
+    readonly "RPM": Readonly<{readonly id: 1; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 4; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 1; typeId: 4; requestBytes: 0; responseBytes: 2; readonly readManyScalar: 4; decode: ValueCodec<Type_4>['decode']}>}>;
+    readonly "Temperature": Readonly<{readonly id: 2; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 10; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 2; typeId: 10; requestBytes: 0; responseBytes: 4; readonly readManyScalar: 10; decode: ValueCodec<Type_10>['decode']}>}>;
+    readonly "Precise": Readonly<{readonly id: 3; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 11; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 3; typeId: 11; requestBytes: 0; responseBytes: 8; readonly readManyScalar: 11; decode: ValueCodec<Type_11>['decode']}>}>;
+    readonly "Mode": Readonly<{readonly id: 4; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 12; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 4; typeId: 12; requestBytes: 0; responseBytes: 1; readonly readManyScalar: 2; decode: ValueCodec<Type_12>['decode']}>}>;
+    readonly "Samples": Readonly<{readonly id: 5; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 13; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 5; typeId: 13; requestBytes: 0; responseBytes: 6; decode: ValueCodec<Type_13>['decode']}>}>;
+    readonly "State": Readonly<{readonly id: 6; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 14; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 6; typeId: 14; requestBytes: 0; responseBytes: 5; decode: ValueCodec<Type_14>['decode']}>}>;
+    readonly "Config": Readonly<{readonly id: 7; readonly category: 1; readonly catalogName: string; readonly name: string; readonly valueTypeId: 15; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 7; typeId: 15; requestBytes: 0; responseBytes: 7; decode: ValueCodec<Type_15>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 7; typeId: 15; requestBytes: 7; responseBytes: 0; encode: ValueCodec<Type_15>['encode']; encodeInto: ValueCodec<Type_15>['encodeInto']}>}>;
+  }>;
+  const commands: Readonly<{
+    readonly "Configure": Readonly<{readonly id: 0; readonly category: 2; readonly catalogName: string; readonly name: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Command'; readonly requestTypeId: 15; readonly requestBytes: 7; readonly responseBytes: 0; readonly encode: ValueCodec<Type_15>['encode']; readonly encodeInto: ValueCodec<Type_15>['encodeInto']}>;
+    readonly "Reset": Readonly<{readonly id: 1; readonly category: 2; readonly catalogName: string; readonly name: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Command'; readonly requestTypeId: 0; readonly requestBytes: 0; readonly responseBytes: 0; readonly encode: ValueCodec<Type_0>['encode']; readonly encodeInto: ValueCodec<Type_0>['encodeInto']}>;
+  }>;
+  const services: Readonly<{
+    readonly "Echo": Readonly<{readonly id: 0; readonly category: 3; readonly catalogName: string; readonly name: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Service'; readonly requestTypeId: 15; readonly requestBytes: 7; readonly responseBytes: 7; readonly encode: ValueCodec<Type_15>['encode']; readonly encodeInto: ValueCodec<Type_15>['encodeInto']; readonly responseTypeId: 15; readonly decodeResponse: ValueCodec<Type_15>['decode']}>;
+  }>;
+}

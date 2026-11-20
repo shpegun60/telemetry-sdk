@@ -1,0 +1,398 @@
+{
+  "descriptor_fingerprint": "0xe700bc41478f6af8",
+  "descriptor_sha256": "f8ebd8f588cc54580ba53d3e45c2d1cabe747d05d81d8733b2b8b3648c52092e",
+  "descriptor_wire_version": [
+    3,
+    1
+  ],
+  "format": "telemetry-codegen-owned-output-v1",
+  "generated_files": {
+    "cpp/device_api/ClientBindings.hpp": "d78b0c33d9af2d40983894109e13503c4ece29b2625a378cc1c24ff9250d069b",
+    "cpp/device_api/Codec.hpp": "5211abb6cfe641b3743035a8735562b0cc42b792d59fac5d8b02ed5189e9ce83",
+    "cpp/device_api/EncodedBindings.hpp": "e686a70066c99246379b0e9344a1b4396c102503a9757f72324d088a85716f7d",
+    "cpp/device_api/Endpoints.hpp": "19b9b66ccde13669ba4c7d0970591c843c08a65e22bc2a902be2e5b5eb28659a",
+    "cpp/device_api/Metadata.hpp": "41d9a8f878e8fb50ce202c74d0de6cb12f42668a49e08f823b5d76069a2d5fca",
+    "cpp/device_api/RpcBindings.hpp": "e15ac37f241d9295c38ddd33c0eea0cc587a4cd1db5bef50faa323acd3854529",
+    "cpp/device_api/Schema.hpp": "478484414fdadf3e66fb43b1bc4526e989f6cac885c2aacf91801a0a8989052e",
+    "cpp/device_api/TelemetryBindings.hpp": "4ff47cf9b1157ef1fff448299df06207c971d762c5541e107f3d110d35e35bba",
+    "cpp/device_api/Types.hpp": "9296c450ad69d2aa5acbcf2aec5bf6523c402bc44cecba2471bc4d52672ee070",
+    "js/device.d.ts": "01f6d3fec6e35b1f92968861613bf23bbbd56cd5784eec612f45b525caee21fa",
+    "js/device.js": "3e102f0519cc64e4f2299c10663a24a03e165ea82e107f1b12048114757eb7db",
+    "js/device.metadata.d.ts": "6d43224c3c982067571d0ffd0e5cc8084ccf426422e65d6e803b6929f08adf7d",
+    "js/device.metadata.js": "23df17b554b816b3409f8b12381ee25a74025f8ece31c45508deff7dbfa2fdb2",
+    "metadata/schema.json": "b05869440d0e7a5c5aa1c4a97c1263adbfbfe1e0ce2bc1d71d8bb5316114f2cf",
+    "ts/device.metadata.ts": "3810762e8b3b3731395a91f774f30ce36637ff092784448c3d91501832991d11",
+    "ts/device.ts": "ba45bbe33d2596629f38e08deda0398e4dae3c2e8448309b88b433bdc86ed2ab"
+  },
+  "generated_symbol_mapping": {
+    "endpoints": [
+      {
+        "capabilities": 3,
+        "catalog_index": 0,
+        "catalog_name": "adc",
+        "category": 1,
+        "group": "adc",
+        "id": 0,
+        "name": "Config",
+        "path": "adc/Config",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Config",
+        "tree_symbol": "Config",
+        "value_alias": "Config",
+        "value_type": 12
+      },
+      {
+        "capabilities": 1,
+        "catalog_index": 0,
+        "catalog_name": "adc",
+        "category": 1,
+        "group": "adc",
+        "id": 1,
+        "name": "Status",
+        "path": "adc/Status",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Status_value",
+        "tree_symbol": "Status_value",
+        "value_alias": "Status_value",
+        "value_type": 14
+      },
+      {
+        "capabilities": 3,
+        "catalog_index": 1,
+        "catalog_name": "channel1",
+        "category": 1,
+        "group": "adc::channel1",
+        "id": 65536,
+        "name": "Gain",
+        "path": "adc/channel1/Gain",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Gain",
+        "tree_symbol": "Gain",
+        "value_alias": "Gain",
+        "value_type": 10
+      },
+      {
+        "capabilities": 3,
+        "catalog_index": 2,
+        "catalog_name": "channel2",
+        "category": 1,
+        "group": "adc::channel2",
+        "id": 131072,
+        "name": "Gain",
+        "path": "adc/channel2/Gain",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Gain",
+        "tree_symbol": "Gain",
+        "value_alias": "Gain",
+        "value_type": 10
+      },
+      {
+        "capabilities": 3,
+        "catalog_index": 3,
+        "catalog_name": "metrology",
+        "category": 1,
+        "group": "metrology",
+        "id": 196608,
+        "name": "Config",
+        "path": "metrology/Config",
+        "request_alias": "",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Config",
+        "tree_symbol": "Config",
+        "value_alias": "Config",
+        "value_type": 16
+      },
+      {
+        "capabilities": 0,
+        "catalog_index": 0,
+        "catalog_name": "adc",
+        "category": 2,
+        "group": "adc",
+        "id": 0,
+        "name": "Reset",
+        "path": "adc/Reset",
+        "request_alias": "ResetRequest",
+        "request_type": 0,
+        "response_alias": "",
+        "response_type": 0,
+        "symbol": "Reset",
+        "tree_symbol": "Reset",
+        "value_alias": "",
+        "value_type": 0
+      },
+      {
+        "capabilities": 0,
+        "catalog_index": 0,
+        "catalog_name": "adc",
+        "category": 3,
+        "group": "adc",
+        "id": 0,
+        "name": "Calibrate",
+        "path": "adc/Calibrate",
+        "request_alias": "CalibrateRequest",
+        "request_type": 17,
+        "response_alias": "CalibrateResponse",
+        "response_type": 18,
+        "symbol": "Calibrate",
+        "tree_symbol": "Calibrate",
+        "value_alias": "",
+        "value_type": 0
+      }
+    ],
+    "groups": [
+      {
+        "cpp_symbol": "adc",
+        "depth": 0,
+        "index": 0,
+        "js_symbol": "adc",
+        "name": "adc",
+        "parent": null,
+        "path": "adc",
+        "symbol": "adc"
+      },
+      {
+        "cpp_symbol": "adc::channel1",
+        "depth": 1,
+        "index": 1,
+        "js_symbol": "adc.channel1",
+        "name": "channel1",
+        "parent": 0,
+        "path": "adc/channel1",
+        "symbol": "channel1"
+      },
+      {
+        "cpp_symbol": "adc::channel2",
+        "depth": 1,
+        "index": 2,
+        "js_symbol": "adc.channel2",
+        "name": "channel2",
+        "parent": 0,
+        "path": "adc/channel2",
+        "symbol": "channel2"
+      },
+      {
+        "cpp_symbol": "metrology",
+        "depth": 0,
+        "index": 3,
+        "js_symbol": "metrology",
+        "name": "metrology",
+        "parent": null,
+        "path": "metrology",
+        "symbol": "metrology"
+      }
+    ],
+    "types": [
+      {
+        "canonical_name": "Type_0",
+        "type_id": 0
+      },
+      {
+        "canonical_name": "Type_1",
+        "type_id": 1
+      },
+      {
+        "canonical_name": "Type_2",
+        "type_id": 2
+      },
+      {
+        "canonical_name": "Type_3",
+        "type_id": 3
+      },
+      {
+        "canonical_name": "Type_4",
+        "type_id": 4
+      },
+      {
+        "canonical_name": "Type_5",
+        "type_id": 5
+      },
+      {
+        "canonical_name": "Type_6",
+        "type_id": 6
+      },
+      {
+        "canonical_name": "Type_7",
+        "type_id": 7
+      },
+      {
+        "canonical_name": "Type_8",
+        "type_id": 8
+      },
+      {
+        "canonical_name": "Type_9",
+        "type_id": 9
+      },
+      {
+        "canonical_name": "Type_10",
+        "type_id": 10
+      },
+      {
+        "canonical_name": "Type_11",
+        "type_id": 11
+      },
+      {
+        "canonical_name": "Type_12",
+        "cpp_symbol": "types::adc::Config",
+        "js_symbol": "types.adc.Config",
+        "members": [
+          {
+            "cpp_name": "gain",
+            "index": 0,
+            "js_name": "gain",
+            "original_name": "gain",
+            "type_id": 10
+          },
+          {
+            "cpp_name": "rateHz",
+            "index": 1,
+            "js_name": "rateHz",
+            "original_name": "rateHz",
+            "type_id": 4
+          },
+          {
+            "cpp_name": "enabled",
+            "index": 2,
+            "js_name": "enabled",
+            "original_name": "enabled",
+            "type_id": 1
+          }
+        ],
+        "name": "adc::Config",
+        "type_id": 12
+      },
+      {
+        "canonical_name": "Type_13",
+        "type_id": 13
+      },
+      {
+        "canonical_name": "Type_14",
+        "cpp_symbol": "types::adc::Status",
+        "js_symbol": "types.adc.Status",
+        "members": [
+          {
+            "cpp_name": "flags",
+            "index": 0,
+            "js_name": "flags",
+            "original_name": "flags",
+            "type_id": 4
+          },
+          {
+            "cpp_name": "raw",
+            "index": 1,
+            "js_name": "raw",
+            "original_name": "raw",
+            "type_id": 13
+          }
+        ],
+        "name": "adc::Status",
+        "type_id": 14
+      },
+      {
+        "canonical_name": "Type_15",
+        "cpp_symbol": "types::metrology::Window",
+        "enum_entries": [
+          {
+            "code": "0",
+            "generated_name": "Rectangular",
+            "index": 0,
+            "original_name": "Rectangular"
+          },
+          {
+            "code": "1",
+            "generated_name": "Hann",
+            "index": 1,
+            "original_name": "Hann"
+          },
+          {
+            "code": "2",
+            "generated_name": "FlatTop",
+            "index": 2,
+            "original_name": "FlatTop"
+          }
+        ],
+        "js_symbol": "types.metrology.Window",
+        "name": "metrology::Window",
+        "type_id": 15
+      },
+      {
+        "canonical_name": "Type_16",
+        "cpp_symbol": "types::metrology::Config",
+        "js_symbol": "types.metrology.Config",
+        "members": [
+          {
+            "cpp_name": "cycles",
+            "index": 0,
+            "js_name": "cycles",
+            "original_name": "cycles",
+            "type_id": 6
+          },
+          {
+            "cpp_name": "window",
+            "index": 1,
+            "js_name": "window",
+            "original_name": "window",
+            "type_id": 15
+          }
+        ],
+        "name": "metrology::Config",
+        "type_id": 16
+      },
+      {
+        "canonical_name": "Type_17",
+        "cpp_symbol": "types::adc::Reference",
+        "js_symbol": "types.adc.Reference",
+        "members": [
+          {
+            "cpp_name": "volts",
+            "index": 0,
+            "js_name": "volts",
+            "original_name": "volts",
+            "type_id": 10
+          }
+        ],
+        "name": "adc::Reference",
+        "type_id": 17
+      },
+      {
+        "canonical_name": "Type_18",
+        "cpp_symbol": "types::adc::Offset",
+        "js_symbol": "types.adc.Offset",
+        "members": [
+          {
+            "cpp_name": "counts",
+            "index": 0,
+            "js_name": "counts",
+            "original_name": "counts",
+            "type_id": 10
+          }
+        ],
+        "name": "adc::Offset",
+        "type_id": 18
+      }
+    ]
+  },
+  "generator_version": "0.1.0",
+  "options": {
+    "namespace": "device_api",
+    "structural_metadata": true,
+    "targets": [
+      "cpp",
+      "js",
+      "ts"
+    ]
+  }
+}

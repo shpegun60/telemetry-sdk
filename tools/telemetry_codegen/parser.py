@@ -5,8 +5,9 @@ C++ producer goldens and the independent JS consumer validate this parser.
 v3.1 adds an optional unique type name on Enum/Struct records, a skippable
 attribute area after any record payload, and the GroupTree mode: one shared
 tree of group records in pre-order replaces the three family catalogs.
-Attributes are validated and skipped, so a descriptor with attributes yields
-the model of the same bytes without them.
+Attributes are validated and kept raw beside the model, as (record, tag,
+bytes): a descriptor with attributes yields the model of the same bytes
+without them, plus its `attributes` list, which no host output reads.
 """
 from dataclasses import dataclass
 import struct
@@ -188,6 +189,7 @@ class Reader:
     def __init__(self, data, begin, end, limits, minor=0):
         self.data, self.pos, self.end, self.limits, self.minor = data, begin, end, limits, minor
         self.attributes = False
+        self.items = ()  # (tag, value bytes) of a record's attribute area, kept raw
 
     def take(self, count):
         require(0 <= count <= self.end - self.pos, 'truncated record')
@@ -239,11 +241,13 @@ class Reader:
             return
         require(self.pos < self.end, 'attribute area: flag without attribute')
         previous = None
+        items = []
         while self.pos < self.end:
             require(self.end - self.pos >= ATTRIBUTE_HEADER_BYTES, 'attribute area: header cut short')
             tag, length = struct.unpack_from('<BI', self.data, self.pos)
             self.pos += ATTRIBUTE_HEADER_BYTES
             require(length <= self.end - self.pos, 'attribute area: value past the record')
+            items.append((tag, bytes(self.data[self.pos:self.pos + length])))
             self.pos += length
             require(previous is None or previous < tag, 'attribute area: tag out of order or repeated')
             previous = tag
@@ -251,6 +255,7 @@ class Reader:
             require(category != 'reserved', 'reserved attribute tag')
             # No SDK tag is defined in v3.1: every critical tag is unknown here.
             require(category != 'critical', 'unknown critical attribute tag')
+        self.items = tuple(items)
 
 
 def parse(data, limits=Limits()):
@@ -284,6 +289,19 @@ def parse(data, limits=Limits()):
     require(records * 29 <= ep_start - cat_start, 'catalog count/bytes')
     require(sum(ep_counts) * 21 <= total - ep_start, 'endpoint count/bytes')
     require(stored_hash == fingerprint(data), 'fingerprint')
+
+    attributes = []
+
+    def keep(row, item, record, ident, category=None):
+        """Keep one record's attribute area raw, as (record, tag, bytes).
+
+        Host outputs (types, codecs, metadata) never read it; inspect lists it
+        and the C++ bindings refuse a model that carries one.
+        """
+        if row.items:
+            item['attributes'] = row.items
+            attributes.extend(dict(record=record, id=ident, category=category, offset=row.offset,
+                                   tag=tag, value=value) for tag, value in row.items)
 
     reader = Reader(data, type_start, cat_start, limits, minor)
     types = []
@@ -374,6 +392,7 @@ def parse(data, limits=Limits()):
         require(item['depth'] <= limits.depth, 'type depth budget')
         require(item['nodes'] <= limits.expanded_nodes, 'expanded node budget')
         row.done()
+        keep(row, item, 'type', index)
         types.append(item)
     reader.done()
 
@@ -410,6 +429,7 @@ def parse(data, limits=Limits()):
                                            name=name, offset=row.offset))
             firsts[category] += counts[category]
         row.done()
+        keep(row, item, 'group', index)
     if tree:
         require(tuple(firsts) == ep_counts, 'catalog total entries')
     for category, count in enumerate(() if tree else cat_counts):
@@ -429,6 +449,7 @@ def parse(data, limits=Limits()):
             catalogs[category].append(dict(group=group, first=first, count=entries, name=name, offset=row.offset))
             first += entries
             row.done()
+            keep(row, catalogs[category][-1], 'catalog', group, category + 1)
         require(first == ep_counts[category], 'catalog total entries')
     reader.done()
 
@@ -468,6 +489,7 @@ def parse(data, limits=Limits()):
                 names.add(name)
                 item['name'] = name
                 row.done()  # only a flagged, skippable attribute area may follow the name
+                keep(row, item, ('field', 'command', 'service')[category], packed)
                 endpoints[category].append(item)
     reader.done()
     if tree:
@@ -484,5 +506,6 @@ def parse(data, limits=Limits()):
     # One canonical encoding per model: a descriptor without names, attributes
     # and a tree is v3.0, so minor 1 must carry at least one of them.
     require(minor == 0 or extended or tree, 'header version: minor 1 without a type name or attribute')
-    return dict(fingerprint=stored_hash, total=total, minor=minor, types=types, catalogs=catalogs,
-                endpoints=endpoints, groups=groups, offsets=(type_start, cat_start, ep_start))
+    return dict(fingerprint=stored_hash, total=total, minor=minor, flags=flags, types=types,
+                catalogs=catalogs, endpoints=endpoints, groups=groups,
+                offsets=(type_start, cat_start, ep_start), attributes=tuple(attributes))
