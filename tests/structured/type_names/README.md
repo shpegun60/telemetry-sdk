@@ -123,11 +123,15 @@ linked alone, against `lib/telemetry` of the base `3469202`:
 
 | Optimization | Base | v3.1 decoder | Delta |
 | --- | ---: | ---: | ---: |
-| O2 | 10548 B | 11744 B | +1196 B |
-| Os | 5880 B | 6964 B | +1084 B |
+| O2 | 10548 B | 14472 B | +3924 B |
+| Os | 5880 B | 8800 B | +2920 B |
 
-The delta is reading and checking type names (`typePrefix` with the
-`[scope "::"] name` shape check, about 105 B of it; one heapsort
-instantiation for uniqueness) and validating compact attribute areas (`done`:
-5-byte headers, ascending tags). These are offline object sizes; no device
+Of the delta, type names and compact attribute areas take +1196 B (O2) and
++1084 B (Os): `typePrefix` with the `[scope "::"] name` shape check (about
+105 B of it), one heapsort instantiation for uniqueness, and `done` (5-byte
+headers, ascending tags). The group tree takes the rest, +2728 B and
++1836 B: group records with their outline, parents and prefix-sum ranges,
+the name and path ceilings, and sibling uniqueness (a second heapsort
+instantiation over group rows). The path lookups (`findEndpoint(path)`,
+`resolvePath`) are not linked unless a client calls them. These are offline object sizes; no device
 was run.
