@@ -26,6 +26,12 @@
  * non-struct or an element past an array is a build error whose trace shows
  * the path as an EndpointPath<N>{"..."} template argument.
  *
+ * A named handle resolves the path once, where it is declared, and is used
+ * with the dotted form:
+ *   inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;
+ *   gain1.read(); gain1.write(2.5f);
+ * It is an empty object carrying the PackedId and the value type in its type.
+ *
  * Included by GroupTree.hpp; it needs only IDs and aggregate reflection.
  */
 
@@ -35,6 +41,7 @@
 
 #include "../core/Id.hpp"
 #include "../reflection/Aggregate.hpp"
+#include "../reflection/Callable.hpp"
 #include "../result/EndpointStatus.hpp"
 
 #include <array>
@@ -175,8 +182,9 @@ struct PathCategory {
 
 template<EndpointPath P, bool Whole>
 struct PathWhole {
-	static_assert(Whole, "write<>, call<> and idOf<> take a whole endpoint: a member write would "
-	                     "be a hidden read-modify-write, and the wire writes whole Fields");
+	static_assert(Whole, "write<>, call<>, idOf<> and Command or Service handles take a whole "
+	                     "endpoint: a member write would be a hidden read-modify-write, and the "
+	                     "wire writes whole Fields");
 	static constexpr bool value = Whole;
 };
 
@@ -432,6 +440,175 @@ template<const auto& M, EndpointPath P, class... Args>
 	else
 		return M.services().template call<id>(std::forward<Args>(args)...);
 }
+
+namespace detail {
+
+// The selector of a whole Field: the value itself.
+template<class T>
+struct WholeValue {
+	using Type = T;
+
+	static constexpr const T& select(const T& value) noexcept
+	{
+		return value;
+	}
+};
+
+template<class Select>
+struct HandleValue {
+	using type = typename Select::Type;
+};
+
+template<>
+struct HandleValue<void> {
+	using type = void;
+};
+
+// A member or element selector, as opposed to a whole endpoint.
+template<class Select>
+inline constexpr bool memberSelect = false;
+
+template<class T, EndpointPath P, std::size_t Pos, PathStep Step>
+inline constexpr bool memberSelect<PathMember<T, P, Pos, Step>> = true;
+
+// The concrete definition behind a handle: its Value, Request and Response.
+template<const auto& M, PackedId Id, reflection::EndpointKind Kind>
+constexpr const auto& handleDefinition() noexcept
+{
+	if constexpr (Kind == reflection::EndpointKind::Field)
+		return M.fields().template get<Id>();
+	else if constexpr (Kind == reflection::EndpointKind::Command)
+		return M.commands().template get<Id>();
+	else
+		return M.services().template get<Id>();
+}
+
+} // namespace detail
+
+// A named endpoint of a group-tree Model, resolved once from a path:
+//   inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;
+//   gain1.read(); gain1.write(2.5f); reset.call(); calibrate.call(request);
+// The path is checked where the handle is declared; a path that names
+// nothing is a build error whose trace shows it. The handle is an empty
+// object: its PackedId, family and value type are part of its type, so a
+// call compiles to the same typed call as read<model, path>() or as
+// model.fields().read<id>(), and no path text reaches the image. A handle to
+// a member or element of a Field reads only; write() takes whole Fields and
+// call() Commands and Services, with the arguments they take natively.
+template<const auto& M, PackedId Id, reflection::EndpointKind Kind, class Select = void>
+class EndpointHandle {
+public:
+	static constexpr PackedId id = Id;
+	static constexpr reflection::EndpointKind kind = Kind;
+	// True for a handle to a member or element of a Field.
+	static constexpr bool member = detail::memberSelect<Select>;
+	// The FieldDefinition, CommandDefinition or ServiceDefinition it names.
+	using Definition = std::remove_cvref_t<decltype(detail::handleDefinition<M, Id, Kind>())>;
+	// What read() selects from a Field: the whole value or the member; void
+	// for a Command or Service.
+	using Value = typename detail::HandleValue<Select>::type;
+
+	// Read the Field, or the member or element the handle names: the whole
+	// Field's getter runs, and a member's result is empty when it is unavailable.
+	[[nodiscard]] auto read() const noexcept
+	{
+		static_assert(Kind == reflection::EndpointKind::Field,
+		              "read() takes a Field handle; this handle names a Command or Service");
+		if constexpr (Kind != reflection::EndpointKind::Field) {
+			return;
+		} else if constexpr (!member) {
+			return M.fields().template read<Id>();
+		} else {
+			const auto whole = M.fields().template read<Id>();
+			using Part = std::remove_cvref_t<Value>;
+			if (!whole)
+				return std::optional<Part>{};
+			return std::optional<Part>{Select::select(*whole)};
+		}
+	}
+
+	// Write the whole Field; the value type is checked as for fields().write<id>().
+	template<class Argument>
+	[[nodiscard]] WriteResult write(Argument&& value) const noexcept
+	{
+		static_assert(Kind == reflection::EndpointKind::Field,
+		              "write() takes a Field handle; this handle names a Command or Service");
+		static_assert(!member, "A member handle reads only: write() takes a whole Field, because "
+		                       "a member write would be a hidden read-modify-write");
+		if constexpr (Kind != reflection::EndpointKind::Field || member)
+			return WriteResult::NotFound;
+		else
+			return M.fields().template write<Id>(std::forward<Argument>(value));
+	}
+
+	// Call the Command or Service with its native arguments.
+	template<class... Args>
+	[[nodiscard]] decltype(auto) call(Args&&... args) const noexcept
+	{
+		static_assert(Kind != reflection::EndpointKind::Field,
+		              "call() takes a Command or Service handle; this handle names a Field");
+		if constexpr (Kind == reflection::EndpointKind::Command)
+			return M.commands().template call<Id>(std::forward<Args>(args)...);
+		else if constexpr (Kind == reflection::EndpointKind::Service)
+			return M.services().template call<Id>(std::forward<Args>(args)...);
+	}
+};
+
+namespace detail {
+
+template<std::uint8_t Category>
+inline constexpr auto handleKind = Category == 1   ? reflection::EndpointKind::Field
+                                   : Category == 2 ? reflection::EndpointKind::Command
+                                                   : reflection::EndpointKind::Service;
+
+// Resolves the path once, where the handle is declared; every refusal shows
+// P in the trace, and nothing past a refusal is instantiated.
+template<const auto& M, EndpointPath P>
+consteval auto makeTreeEndpoint() noexcept
+{
+	constexpr auto at = locatePath(M, P.view());
+	constexpr auto id = makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	constexpr auto kind = handleKind<at.category>;
+	constexpr bool whole = at.memberStart == P.view().size();
+	if constexpr (!PathFound<P, at.error>::value) {
+		return false;
+	} else if constexpr (kind != reflection::EndpointKind::Field) {
+		if constexpr (!PathWhole<P, whole>::value)
+			return false;
+		else
+			return EndpointHandle<M, id, kind>{};
+	} else {
+		using Value = typename std::remove_cvref_t<
+		    decltype(handleDefinition<M, id, reflection::EndpointKind::Field>())>::Value;
+		if constexpr (whole) {
+			return EndpointHandle<M, id, kind, WholeValue<Value>>{};
+		} else {
+			// Instantiated here, so a wrong member or element fails at the declaration.
+			using Selected = PathMember<Value, P, at.memberStart>;
+			static_assert(!std::is_void_v<typename Selected::Type>);
+			return EndpointHandle<M, id, kind, Selected>{};
+		}
+	}
+}
+
+// A handle of a group-tree Model only.
+template<const auto& M, EndpointPath P>
+consteval auto makeEndpoint() noexcept
+{
+	using Tree = std::remove_cvref_t<decltype(M)>;
+	static_assert(groupTreeModel<Tree>, "endpoint<model, path> takes a group-tree Model");
+	if constexpr (!groupTreeModel<Tree>)
+		return false;
+	else
+		return makeTreeEndpoint<M, P>();
+}
+
+} // namespace detail
+
+// The handle of the endpoint at path in a constexpr group-tree Model, with
+// static storage: inline constexpr auto gain1 = endpoint<model, "adc/channel1/Gain">;
+template<const auto& M, EndpointPath P>
+inline constexpr auto endpoint = detail::makeEndpoint<M, P>();
 
 } // namespace telemetry
 

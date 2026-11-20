@@ -1,6 +1,6 @@
 /*
  * @file Negative.cpp
- * @brief Compile-time refusals and controls for group trees, their ceilings and path access.
+ * @brief Compile-time refusals and controls for group trees, ceilings, paths and handles.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  *
@@ -164,6 +164,45 @@ inline constexpr auto id = model.idOf<"adc/nope">();
 inline const auto value = ts::call<model, "adc/Config">();
 #elif CASE == 22
 inline const auto value = ts::read<model, "adc//Config">();
+// Named handles: the path is checked where the handle is declared.
+#elif CASE == 23
+inline constexpr auto handle = ts::endpoint<model, "adc/channel3/Gain">;
+#elif CASE == 24
+inline constexpr auto handle = ts::endpoint<model, "adc/Nope">;
+#elif CASE == 25
+inline constexpr auto handle = ts::endpoint<model, "adc/channel1">;
+#elif CASE == 26
+inline constexpr auto handle = ts::endpoint<model, "adc/Config.nope">;
+#elif CASE == 27
+inline constexpr auto handle = ts::endpoint<model, "adc/Status.raw[2]">;
+#elif CASE == 28
+inline constexpr auto handle = ts::endpoint<model, "adc/Reset.x">;
+#elif CASE == 29
+inline constexpr auto handle = ts::endpoint<model, "adc//Config">;
+#elif CASE == 30
+// A member handle reads only.
+inline constexpr auto handle = ts::endpoint<model, "adc/Config.gain">;
+inline const auto value = handle.write(1.0f);
+#elif CASE == 31
+inline constexpr auto handle = ts::endpoint<model, "adc/Reset">;
+inline const auto value = handle.read();
+#elif CASE == 32
+inline constexpr auto handle = ts::endpoint<model, "adc/Calibrate">;
+inline const auto value = handle.write(adc::Reference{});
+#elif CASE == 33
+inline constexpr auto handle = ts::endpoint<model, "adc/Config">;
+inline const auto value = handle.call();
+#elif CASE == 34
+// A whole Field of another type.
+inline constexpr auto handle = ts::endpoint<model, "adc/channel1/Gain">;
+inline const auto value = handle.write(adc::Config{});
+#elif CASE == 35
+// Paths address the group-tree form only.
+inline constexpr ts::FieldTable rows{ts::field<&read<float>>("x")};
+inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", rows)};
+inline constexpr ts::ServiceCatalogTable<> noServices{};
+inline constexpr ts::Model flat{catalogs, ts::emptyCommands, noServices};
+inline constexpr auto handle = ts::endpoint<flat, "g/x">;
 #elif CASE == 104
 // The flat form keeps any UTF-8: path characters and names past 64 bytes.
 inline constexpr ts::FieldTable rows{ts::field<&read<float>>("a.b[0]/" NAME65)};
@@ -176,6 +215,13 @@ static_assert(descriptor.valid());
 // One endpoint name in two groups, and two branches with a Config each.
 static_assert(ts::idOf<model, "adc/channel1/Gain">() != ts::idOf<model, "adc/channel2/Gain">());
 static_assert(ts::idOf<model, "adc/Config">() != ts::idOf<model, "metrology/Config">());
+#elif CASE == 106
+// Handles in a branch file's own namespace, usable in constant expressions,
+// and a read-only Field's handle compiles a write that returns ReadOnly.
+inline constexpr auto status = ts::endpoint<model, "adc/Status">;
+inline constexpr auto copy = status;
+static_assert(copy.id == ts::makeId(0, 1) && !copy.member);
+inline const auto refused = copy.write(adc::Status{});
 #else
 #error Unknown CASE
 #endif

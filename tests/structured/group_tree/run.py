@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Group-tree checks: tree.hex from the producer, refusals, path access, ARM sizes.
+"""Group-tree checks: tree.hex from the producer, refusals, paths, handles, ARM sizes.
 
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 Builds the two-branch fixture (AdcBranch.hpp, MetrologyBranch.hpp) with the
 host compiler and every --cross compiler and compares the written descriptor
 with tree.hex; with TELEMETRY_TYPE_NAMES=0 with the same tree without type
 names. Compiles every case of Negative.cpp (refusals with their diagnostic,
-controls that must build). With --arm-cxx: the ARM descriptor bytes and the
-size of encoded dispatch, group tree against flat catalogs. Nothing touches a
-device.
+controls that must build). With --arm-cxx: the ARM descriptor bytes, the
+size of encoded dispatch, group tree against flat catalogs, and the code of a
+named handle against the free path function and makeId access, with a linked
+image that holds no path text. Nothing touches a device.
 """
 import argparse
 import importlib.util
@@ -45,11 +46,41 @@ COMPILE_FAILURES = {
     17: r'element past the end of the array', 18: r'take a whole endpoint',
     19: r'ExactFieldWriteArgumentUse_writeAs_for_conversion', 20: r'noEndpointAtPath',
     21: r'another kind of endpoint', 22: r'Malformed path',
+    23: r'No group has this path', 24: r'No endpoint has this path',
+    25: r'names a group, not an endpoint', 26: r'No member of this struct has this name',
+    27: r'element past the end of the array', 28: r'take a whole endpoint', 29: r'Malformed path',
+    30: r'A member handle reads only', 31: r'read\(\) takes a Field handle',
+    32: r'write\(\) takes a Field handle', 33: r'call\(\) takes a Command or Service handle',
+    34: r'ExactFieldWriteArgumentUse_writeAs_for_conversion',
+    35: r'endpoint<model, path> takes a group-tree Model',
 }
-COMPILE_CONTROLS = (101, 102, 103, 104, 105)
+COMPILE_CONTROLS = (101, 102, 103, 104, 105, 106)
 # What each diagnostic names besides its message: the path or the bad name.
 NAMED_IN_TRACE = {1: 'adc/x', 2: 'Gain.x', 11: 'adc/channel3/Gain', 17: 'adc/Status.raw[2]',
-                  19: 'adc/channel1/Gain', 20: 'adc/nope'}
+                  19: 'adc/channel1/Gain', 20: 'adc/nope', 23: 'adc/channel3/Gain',
+                  26: 'adc/Config.nope', 27: 'adc/Status.raw[2]', 28: 'adc/Reset.x',
+                  30: 'adc/Config.gain'}
+# Every operation of HandleSize.cpp, each written three ways.
+HANDLE_OPERATIONS = ('read', 'member', 'write', 'command', 'service')
+HANDLE_FORMS = ('handle', 'path', 'id')
+# Path text that must not reach a linked image.
+HANDLE_PATHS = (b'adc/channel1/Gain', b'adc/Config.rateHz', b'adc/Reset', b'adc/Calibrate')
+
+
+def function_code(disassembly, name):
+    """The instructions and relocations of one function of an objdump -dr listing."""
+    match = re.search(rf'^[0-9a-f]+ <{re.escape(name)}>:\n(.*?)(?=^[0-9a-f]+ <|^Disassembly of|\Z)',
+                      disassembly, re.M | re.S)
+    if match is None:
+        raise RuntimeError('Missing ARM probe ' + name)
+    code = []
+    for line in match[1].splitlines():
+        line = re.sub(r'<' + re.escape(name) + r'(\+0x[0-9a-f]+)?>', r'<self\1>', line.strip())
+        if line:
+            code.append(line)
+    return code
+
+
 ARM_FLAGS = ['-mcpu=cortex-m7', '-mthumb', '-mfpu=fpv5-d16', '-mfloat-abi=hard', '-fno-exceptions',
              '-fno-rtti', '-ffunction-sections', '-fdata-sections']
 
@@ -168,6 +199,44 @@ def main():
                 sections = {name: int(size) for name, size in re.findall(r'^(\.\w+)\s+(\d+)', text, re.M)}
                 sizes[f'{form}-{opt}'] = {name: sections.get(name, 0) for name in ('.text', '.rodata', '.data')}
         summary['dispatch_arm_size'] = dict(compiler=arm.command, sections=sizes)
+
+        # A named handle compiles to the free function's code and to makeId's.
+        handles = {}
+        for opt in ('O2', 'Os'):
+            obj = out / f'handles-{opt}.o'
+            run(arm.argv([*arm_flags, '-' + opt, '-fno-ipa-icf', '-c', HERE / 'HandleSize.cpp', '-o', obj]),
+                f'handles-{opt}')
+            listing = run([arm.tool('objdump'), '-dr', obj], f'handles-objdump-{opt}')
+            symbols = run([arm.tool('nm'), '-S', obj], f'handles-nm-{opt}')
+            size_of = {name: int(size, 16) for size, name in
+                       re.findall(r'^[0-9a-f]+ ([0-9a-f]+) T (\w+)$', symbols, re.M)}
+            rows = {}
+            for operation in HANDLE_OPERATIONS:
+                code = {form: function_code(listing, f'{operation}_{form}') for form in HANDLE_FORMS}
+                for form in ('path', 'id'):
+                    if code[form] != code['handle']:
+                        raise RuntimeError(f'{opt} {operation}: the handle differs from the {form} form\n'
+                                           + '\n'.join(code['handle']) + '\n--\n' + '\n'.join(code[form]))
+                rows[operation] = {form: size_of[f'{operation}_{form}'] for form in HANDLE_FORMS}
+            # Control: the comparison tells two different operations apart.
+            if function_code(listing, 'read_handle') == function_code(listing, 'write_handle'):
+                raise RuntimeError(f'{opt}: the code comparison cannot tell read from write')
+            handles[opt] = rows
+        image = out / 'handles.elf'
+        run(arm.argv([*arm_flags, '-O2', HERE / 'HandleSize.cpp', '-nostdlib', '-Wl,-e,handle_root',
+                      '-Wl,--gc-sections', '-lc', '-lgcc', '-o', image]), 'handles-image')
+        loaded = out / 'handles.bin'
+        run([arm.tool('objcopy'), '-O', 'binary', image, loaded], 'handles-image-binary')
+        found = [path.decode() for path in HANDLE_PATHS if path in loaded.read_bytes()]
+        if found:
+            raise RuntimeError('Path text reached the linked image: ' + ', '.join(found))
+        summary['handles_arm'] = dict(compiler=arm.command, bytes=handles, image_bytes=loaded.stat().st_size,
+                                      path_text_in_image=False)
+        for opt in ('O2', 'Os'):
+            print(f'handles {opt}: ' + ', '.join(
+                f'{operation} {row["handle"]} B (path {row["path"]} B, makeId {row["id"]} B)'
+                for operation, row in handles[opt].items()) + '; identical code', flush=True)
+        print(f'handle image {loaded.stat().st_size} B holds no path text', flush=True)
         print('ARM tree bytes equal tree.hex', flush=True)
         for opt in ('O2', 'Os'):
             flat, grown = sizes[f'flat-{opt}'], sizes[f'tree-{opt}']

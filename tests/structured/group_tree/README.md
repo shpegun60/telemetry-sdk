@@ -1,11 +1,11 @@
 # Group tree: a Model from branch files
 
-This suite qualifies the descriptor v3.1 GroupTree mode and compile-time path
-access: a Model mounted from two branch files that know nothing of each other,
+This suite qualifies the descriptor v3.1 GroupTree mode, compile-time path
+access and named endpoint handles: a Model mounted from two branch files that know nothing of each other,
 [AdcBranch.hpp](AdcBranch.hpp) and [MetrologyBranch.hpp](MetrologyBranch.hpp),
 each with its own `Config`. The format is in
 [WireV3](../../../doc/WireV3.md#group-tree), the device author's side in
-[Model](../../../doc/user/Model.md#group-tree-a-model-from-branch-files).
+[Model](../../../doc/user/Model.md#group-tree-модель-із-файлів-гілок).
 
 ## Reproduce
 
@@ -39,7 +39,13 @@ directory must be outside the checkout. Nothing touches a device.
    has none of a family, the registry's two `Config` names, a flat Model over
    the same tables, ABI revision 6, and typed access by path: `read<>` of a
    Field, a member and an array element, `write<>` of a whole Field in each
-   branch, `call<>` of a Command and a Service.
+   branch, `call<>` of a Command and a Service. Named handles
+   (`endpoint<model, "adc/channel1/Gain">`) for a Field, a member, an element,
+   a struct Field of each branch, a Command and a Service: their PackedId,
+   kind, value type and definition, an empty trivially copyable type that is
+   the same for the same path, the same result types as the free functions,
+   and reads, writes and calls (one through a stored copy) that agree with the
+   path forms.
 3. **Refusals.** `Negative.cpp`, one case at a time: a group or endpoint name
    with a path character, a Field and a Command of one name, a subgroup and a
    Field of one name, two root branches of one name, nine levels against the
@@ -48,15 +54,26 @@ directory must be outside the checkout. Nothing touches a device.
    no endpoint, a group, the wrong kind of endpoint, no member, a member of a
    non-struct, an element past an array, a member write, a Field of another
    type, an unknown path in `model.idOf<>()`, a Command path to `read<>` and an
-   empty segment. Five controls build: eight levels, a deeper or wider
-   profile, the flat form with path characters and 65-byte names, and one
-   endpoint name in two groups.
+   empty segment. A handle refuses at its declaration a path to no group, no
+   endpoint, a group, no member, an element past an array, a member of a
+   Command and an empty segment, and a flat model; at its use a write through a
+   member handle, `read()` of a Command, `write()` of a Service, `call()` of a
+   Field and a write of another type. Six controls build: eight levels, a
+   deeper or wider profile, the flat form with path characters and 65-byte
+   names, one endpoint name in two groups, and a handle used in constant
+   expressions whose write of a read-only Field compiles (it returns
+   `ReadOnly` at run time, as `fields().write<id>()` does).
 4. **ARM.** With `--arm-cxx`, the tree descriptor from ARM GCC must equal
    `tree.hex`, and `DispatchSize.cpp` links `dispatch_root` alone over the same
-   endpoints as a tree and as today's flat catalogs.
+   endpoints as a tree and as today's flat catalogs. `HandleSize.cpp` writes
+   each operation three ways (a handle, the free path function, typed access by
+   a `makeId` ID) and is compiled with `-fno-ipa-icf`: every handle function
+   must have exactly the instructions and relocations of the other two, at O2
+   and Os, with a control that the comparison tells read from write. Its
+   linked image must hold no path text.
 
 `summary.json` records the producers, which diagnostics show the offending
-path or name, and the ARM sizes.
+path or name, the ARM sizes and the handle comparison.
 
 ## Measured on 20 November 2026
 
@@ -76,6 +93,11 @@ What a diagnostic names, besides its message:
 Ceiling errors come from runtime-valued names checked in a constant
 expression; C++20 shows the failing function, not its argument.
 
+A handle's path errors show the path the same way, at the handle's
+declaration; an error at its use (a member write, a Command read) shows the
+path only for a member handle, whose type carries it, and otherwise the
+handle's name at the call.
+
 ARM encoded dispatch, `dispatch_root` linked alone with `--gc-sections`
 (arm-none-eabi-g++ 14.3.1, Cortex-M7):
 
@@ -85,6 +107,20 @@ ARM encoded dispatch, `dispatch_root` linked alone with `--gc-sections`
 | `.rodata` O2 | 360 B | 640 B | +280 B |
 | `.text` Os | 568 B | 704 B | +136 B |
 | `.rodata` Os | 1678 B | 1886 B | +208 B |
+
+A named handle (arm-none-eabi-g++ 14.3.1, 20 November 2026) compiles to the
+same instructions as the free function and as `makeId` access in every
+operation; function bytes:
+
+| Operation | O2 handle / path / makeId | Os handle / path / makeId |
+| --- | ---: | ---: |
+| read a Field | 12 / 12 / 12 | 12 / 12 / 12 |
+| read a member | 12 / 12 / 12 | 12 / 12 / 12 |
+| write a Field | 20 / 20 / 20 | 20 / 20 / 20 |
+| call a Command | 16 / 16 / 16 | 16 / 16 / 16 |
+| call a Service | 20 / 20 / 20 | 40 / 40 / 40 |
+
+The image linking all fifteen holds no path text.
 
 The dispatch code is the same O(1) lookup; the flat build's Command and
 Service catalogs hold one group, which GCC folds into constants, while the

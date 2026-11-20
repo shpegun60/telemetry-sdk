@@ -79,6 +79,44 @@ static_assert(
 static_assert(std::is_same_v<decltype(ts::read<model, "metrology/Config.window">()),
                              std::optional<metrology::Window>>);
 
+// Named handles: the path resolved once, the PackedId and value type in the type.
+inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;
+inline constexpr auto gain2 = ts::endpoint<model, "adc/channel2/Gain">;
+inline constexpr auto config = ts::endpoint<model, "adc/Config">;
+inline constexpr auto rate = ts::endpoint<model, "adc/Config.rateHz">;
+inline constexpr auto raw1 = ts::endpoint<model, "adc/Status.raw[1]">;
+inline constexpr auto meterConfig = ts::endpoint<model, "metrology/Config">;
+inline constexpr auto reset = ts::endpoint<model, "adc/Reset">;
+inline constexpr auto calibrate = ts::endpoint<model, "adc/Calibrate">;
+using Kind = ts::reflection::EndpointKind;
+static_assert(gain1.id == ts::idOf<model, "adc/channel1/Gain">() && gain2.id == ts::makeId(2, 0));
+static_assert(config.id == ts::makeId(0, 0) && rate.id == config.id && raw1.id == ts::makeId(0, 1));
+static_assert(meterConfig.id == ts::makeId(3, 0) && reset.id == ts::makeId(0, 0) &&
+              calibrate.id == ts::makeId(0, 0));
+static_assert(gain1.kind == Kind::Field && reset.kind == Kind::Command &&
+              calibrate.kind == Kind::Service);
+static_assert(!gain1.member && !config.member && rate.member && raw1.member && !reset.member);
+static_assert(std::is_same_v<decltype(gain1)::Value, float> &&
+              std::is_same_v<decltype(config)::Value, adc::Config> &&
+              std::is_same_v<decltype(rate)::Value, std::uint16_t> &&
+              std::is_same_v<decltype(raw1)::Value, std::int16_t> &&
+              std::is_same_v<decltype(reset)::Value, void>);
+static_assert(std::is_same_v<decltype(calibrate)::Definition::Request, adc::Reference> &&
+              std::is_same_v<decltype(calibrate)::Definition::Response, adc::Offset>);
+// Empty and trivially copyable: a handle is its type, nothing at run time.
+static_assert(std::is_empty_v<decltype(gain1)> && std::is_trivially_copyable_v<decltype(rate)>);
+// The same endpoint by another declaration is the same handle type.
+static_assert(std::is_same_v<decltype(gain1), decltype(ts::endpoint<model, "adc/channel1/Gain">)>);
+static_assert(!std::is_same_v<decltype(gain1), decltype(gain2)>);
+// A handle returns what the free functions return.
+static_assert(
+    std::is_same_v<decltype(gain1.read()), decltype(ts::read<model, "adc/channel1/Gain">())>);
+static_assert(
+    std::is_same_v<decltype(rate.read()), decltype(ts::read<model, "adc/Config.rateHz">())>);
+static_assert(std::is_same_v<decltype(reset.call()), decltype(ts::call<model, "adc/Reset">())>);
+static_assert(std::is_same_v<decltype(calibrate.call(adc::Reference{})),
+                             decltype(ts::call<model, "adc/Calibrate">(adc::Reference{}))>);
+
 } // namespace tree_fixture
 
 namespace {
@@ -147,6 +185,27 @@ int main(int argc, char** argv)
 	check(offset.hasValue() && offset.value().counts == 2.5f &&
 	          adc::tlm::instance.calibrations == 1,
 	      "call a Service by path");
+
+	// The same endpoints through named handles, and a stored copy of one.
+	check(tf::gain1.read() == 1.5f, "read a Field through its handle");
+	const auto stored = tf::gain2;
+	check(stored.write(5.0f) == ts::WriteResult::Applied && tf::gain2.read() == 5.0f &&
+	          ts::read<tf::model, "adc/channel2/Gain">() == 5.0f,
+	      "write through a stored handle, read back by path");
+	check(tf::rate.read() == std::uint16_t{1000} && tf::raw1.read() == std::int16_t{7},
+	      "read a member and an element through their handles");
+	check(tf::config.write(adc::Config{0.5f, 2000, false}) == ts::WriteResult::Applied &&
+	          tf::rate.read() == std::uint16_t{2000} &&
+	          ts::read<tf::model, "adc/Config.enabled">() == false,
+	      "write a struct Field through its handle, read its members");
+	check(tf::meterConfig.read()->window == metrology::Window::FlatTop,
+	      "the other branch's Config through its handle");
+	check(tf::reset.call() == ts::CommandResult::Executed && adc::tlm::instance.resets == 2,
+	      "call a Command through its handle");
+	const auto doubled = tf::calibrate.call(adc::Reference{3.0f});
+	check(doubled.hasValue() && doubled.value().counts == 6.0f &&
+	          adc::tlm::instance.calibrations == 2,
+	      "call a Service through its handle with its argument");
 
 	// The flat Model over the same tables writes v3.0 bytes with the same counts.
 	check(tf::flatDescriptor.view().size() > 0, "flat descriptor of the same tables");
