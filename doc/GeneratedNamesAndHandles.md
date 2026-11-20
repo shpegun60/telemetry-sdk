@@ -121,7 +121,8 @@ device.call<"adc/Calibrate">(device_api::types::adc::Reference{2.0f}, callback);
 Results arrive through the client's callbacks, as for `client.read(endpoint,
 callback)`; `write(value)` and `call()` without a callback ignore the result. The
 path resolves at compile time against a generated table used only in constant
-evaluation, so no path text reaches the image (`tests/client_handles` scans one). A
+evaluation, so no path text reaches the image (`tests/client_handles` scans one built
+without debug information, which spells template arguments). A
 wrong path or value type is a build error whose instantiation note shows the path,
 for example `P = Path<18>{"adc/channel9/Gain"}` with "No endpoint at path P in this
 device"; `read<P>()` of a Command and `call<P>()` of a Field are refused the same way.

@@ -163,7 +163,8 @@ def main():
         paths = build / "Paths.cpp"
         paths.write_text(PATHS)
         image = build / ("paths" + EXE)
-        run([*flags, *includes, sdk_include, paths, *native, "-o", image], "compile-path-free-image")
+        # Without debug information: DWARF spells every template argument, paths included.
+        run([*flags, "-g0", *includes, sdk_include, paths, *native, "-o", image], "compile-path-free-image")
         run([image], "run-path-free-image")
         content = image.read_bytes()
         if b"path-free image probe" not in content:

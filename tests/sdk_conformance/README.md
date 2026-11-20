@@ -85,7 +85,8 @@ object shapes or failure vocabulary.
 Generation explicitly requests `--structural-metadata`. JSON, generated JS metadata and
 freshly compiled TS metadata must match; every module object/array is frozen. The full
 wire type graph, enum code decimal strings, member offsets, catalog ranges and categorized
-endpoints are independently reconstructed from the existing runtime Descriptor parser.
+endpoints are independently reconstructed from the existing runtime Descriptor parser;
+for a v3.1 descriptor so are the type names and endpoint paths (Dynamic/Static parity).
 C++ versus JS member spelling is checked explicitly (`number_value` versus `number`).
 
 `../sdk_metadata` separately checks edge-case metadata, default-output compatibility,

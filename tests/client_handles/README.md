@@ -25,7 +25,8 @@ whose descriptor is `tests/structured/descriptor/tree.hex` (the runner checks it
 - The runner's C++ probes must fail for their reason: an unknown path (the diagnostic
   shows `Path<18>{"adc/channel9/Gain"}`), `read<P>()` of a Command, `call<P>()` of a
   Field, and a wrong value type (the note shows the path). A program using only the
-  path forms must keep no path text in its image.
+  path forms, built without debug information (which spells every template argument),
+  must keep no path text in its image.
 
 ```sh
 python3 -B tests/client_handles/run.py --build-dir /external/handles \
