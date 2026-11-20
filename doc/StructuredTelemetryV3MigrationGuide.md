@@ -156,7 +156,7 @@ struct після перезбірки надсилає v3.1 з новим finge
 | Host зібраний з цим SDK (Dynamic client, UX, Inspector) | Нічого: hosts читають v3.0 і v3.1 |
 | Host старший за цей SDK | Він відмовляє descriptor v3.1: перезберіть host, або вимкніть імена на пристрої |
 | Static SDK, згенерований зі старого descriptor | Перегенеруйте його один раз; ваш код компілюється без змін, generated symbols лише додаються |
-| Потрібні точні байти v3.0 | `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp` пристрою на include path, або `-DTELEMETRY_TYPE_NAMES=0` для кожного translation unit |
+| Потрібні точні байти v3.0 (плоска модель; дерево груп завжди v3.1) | `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp` пристрою на include path, або `-DTELEMETRY_TYPE_NAMES=0` для кожного translation unit |
 | Два типи з однаковим ім'ям (`DuplicateName`) | `TypeReflection<T>` з `typeName("...")` для одного з них або `noTypeName()` |
 | Записані сесії, прив'язані до fingerprint | Новий fingerprint відкриває нову сесію; старі записи відкриваються як раніше |
 

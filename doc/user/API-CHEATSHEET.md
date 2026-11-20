@@ -88,7 +88,7 @@ struct telemetry::reflection::TypeReflection<Spectrum<4>> {
     // або noTypeName(): прибрати ім'я
 };
 
-// telemetry_config.hpp проєкту: без імен, descriptor побайтово v3.0.
+// telemetry_config.hpp проєкту: без імен; плоска модель дає побайтово v3.0.
 #define TELEMETRY_TYPE_NAMES 0
 ```
 

@@ -36,7 +36,7 @@ v3.1 як адитивний контракт поверх заморожено�
 ### Сумісність: старі hosts і новий пристрій
 
 Пристрій, перезібраний з цим SDK, надсилає descriptor v3.1, щойно в ньому є
-enum або struct. **Hosts, старші за цей SDK, відмовляють такому пристрою**
+enum або struct (дерево груп - завжди). **Hosts, старші за цей SDK, відмовляють такому пристрою**
 (descriptor minor 1). Виберіть одне:
 
 1. перезберіть host із цим SDK;
@@ -44,8 +44,8 @@ enum або struct. **Hosts, старші за цей SDK, відмовляют�
    компілюється без змін, бо кожен наявний generated symbol зберігає ім'я та
    signature;
 3. поставте `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp`
-   пристрою: descriptor тоді побайтово дорівнює v3.0, fingerprint не
-   змінюється.
+   пристрою: descriptor плоскої моделі тоді побайтово дорівнює v3.0,
+   fingerprint не змінюється.
 
 Без змін лишаються `Model{fields, commands, services}`, tables,
 `ts::group(name, table)`, `makeId`, typed `fields.read<id>()` і generated

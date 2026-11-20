@@ -605,8 +605,9 @@ struct telemetry::reflection::TypeReflection<app::Internal> {
 #define TELEMETRY_TYPE_NAMES 0
 ```
 
-З 0 жоден рядок імені не потрапляє в image, а descriptor побайтово
-дорівнює v3.0. Ім'я коштує 4 байти довжини плюс свої байти: у
+З 0 жоден рядок імені не потрапляє в image, а descriptor плоскої моделі
+`Model{fields, commands, services}` побайтово дорівнює v3.0 (дерево груп
+лишається v3.1). Ім'я коштує 4 байти довжини плюс свої байти: у
 [NUCLEO demo](../../examples/nucleo_h7s3l8/README.md#type-names) чотири імена
 займають 90 B packed descriptor. Значення має бути однаковим у кожному
 translation unit; compiled SDK sources перетворюють розбіжність на link error.

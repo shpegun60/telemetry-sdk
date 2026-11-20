@@ -258,7 +258,7 @@ the innermost scope and the type's own name (`adc::Config`). A
 first descriptor containing `T`, like `EnumReflection`. The project switch
 `TELEMETRY_TYPE_NAMES` (default 1, in [Config.hpp](Config.hpp), set in the
 project's own `telemetry_config.hpp`) at 0 leaves every name out and the
-descriptor is byte for byte v3.0, which hosts built before descriptor v3.1
+descriptor of a flat Model is byte for byte v3.0, which hosts built before descriptor v3.1
 need. See [Fields](../../doc/user/Fields.md#8-імена-типів-у-descriptor).
 
 ## Encoded access and storage
