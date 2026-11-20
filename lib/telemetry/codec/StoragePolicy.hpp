@@ -18,15 +18,13 @@
 #define TELEMETRY_CODEC_STORAGE_POLICY_HPP
 #pragma once
 
+#include "../Config.hpp"
+
 #include <cstddef>
 #include <type_traits>
 
-// One setting for every translation unit in an executable. Zero forces all
-// value/request/result payload objects through caller-owned Workspace.
-// This is a payload-object budget, not the total call-chain stack bound.
-#ifndef TELEMETRY_STRUCTURED_LOCAL_BYTES
-#define TELEMETRY_STRUCTURED_LOCAL_BYTES 32
-#endif
+// TELEMETRY_STRUCTURED_LOCAL_BYTES and its default live in Config.hpp with
+// every other project switch; a project sets it in telemetry_config.hpp.
 
 namespace telemetry {
 

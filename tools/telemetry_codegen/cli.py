@@ -165,7 +165,7 @@ def render(schema, targets, client_runtime=False, structural_metadata=False, ux_
     hashes = {name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())}
     manifest = dict(format=FORMAT, descriptor_sha256=schema.descriptor_sha256,
                     descriptor_fingerprint=f"0x{schema.fingerprint:016x}",
-                    descriptor_wire_version=[3, 0], generator_version=__version__,
+                    descriptor_wire_version=[3, schema.minor], generator_version=__version__,
                     options={"namespace": schema.namespace, "targets": list(targets)},
                     generated_files=hashes, generated_symbol_mapping=symbol_mapping(schema))
     if client_runtime:
@@ -414,7 +414,7 @@ def main(argv=None):
         if args.command == "inspect":
             print(_json(dict(descriptor_sha256=schema.descriptor_sha256,
                              descriptor_fingerprint=f"0x{schema.fingerprint:016x}",
-                             descriptor_wire_version=[3, 0], bytes=schema.raw["total"],
+                             descriptor_wire_version=[3, schema.minor], bytes=schema.raw["total"],
                              type_count=len(schema.types), endpoint_count=len(schema.endpoints),
                              symbols=symbol_mapping(schema))), end="")
         else:

@@ -1,9 +1,11 @@
 /*
- * Validate structural telemetry v3.0 descriptors and encode their exact payload types.
+ * Validate structural telemetry v3.0/v3.1 descriptors and encode their exact payload types.
  *
  * One checked model supplies immutable shapes and private endpoint indexes to all
  * payload operations. Descriptor input is copied; decoded values own their data,
  * U64/S64 stay BigInt, and callers own framing, status envelopes and session policy.
+ * v3.1 type names appear as type.name on Enum/Struct; attribute areas are validated
+ * and skipped, so they never change the model.
  *
  * Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
  */
@@ -44,6 +46,8 @@ const schemas = new WeakMap();
 const scalarWidths = [ 0, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8 ];
 const signedCodes = new Set([ 3, 5, 7, 9 ]);
 const u32Max = 0xffffffff;
+const typeNamed = 1;        // v3.1 Type prefix typeFlags bit 0
+const recordAttributes = 1; // v3.1 record header flags bit 0
 
 // Preserve a view's byte offset/length. The result borrows input unless the
 // public operation explicitly snapshots it before retaining descriptor data.
@@ -103,15 +107,17 @@ export function descriptorFingerprint(input)
 // - zeros(): Check reserved bytes.
 // - text(): Decode bounded UTF8.
 // - record(): Borrow bounded record.
-// - done(): Check exact consumption.
+// - done(): Check exact consumption or skip a validated attribute area.
 class Reader {
-	constructor(bytes, begin, end, limits)
+	constructor(bytes, begin, end, limits, minor = 0)
 	{
 		this.bytes = bytes;
 		this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 		this.pos = begin;
 		this.end = end;
 		this.limits = limits;
+		this.minor = minor;
+		this.attributes = false;
 	}
 
 	take(count)
@@ -168,18 +174,59 @@ class Reader {
 		const offset = this.pos;
 		require(this.u8() === kind, 'Record kind/order');
 		require(this.u8() === 1, 'Record version');
-		this.zeros(2);
+		// v3.0 reserves the record flags; v3.1 defines bit 0 (attribute area) only.
+		const flags = this.u16();
+		require(flags === 0 || (this.minor >= 1 && flags === recordAttributes),
+		        'Nonzero reserved bytes');
 		const count = this.u32();
 		const start = this.take(count);
-		const row = new Reader(this.bytes, start, start + count, this.limits);
+		const row = new Reader(this.bytes, start, start + count, this.limits, this.minor);
 		row.offset = offset;
+		row.attributes = flags === recordAttributes;
 		return row;
 	}
 
-	done()
+	// Without an attribute area the payload ends exactly here. With one, it runs
+	// to the record end as {u16 tag, u16 target, u32 length, value} sorted by
+	// (target, tag); members > 0 only for a Struct Type record (target k names
+	// member k-1). Advisory/application tags are validated and skipped.
+	done(members = 0)
 	{
-		require(this.pos === this.end, 'Extra or missing payload bytes');
+		if (!this.attributes) {
+			require(this.pos === this.end, 'Extra or missing payload bytes');
+			return;
+		}
+		require(this.pos < this.end, 'Attribute flag without attribute');
+		let previous = -1;
+		while (this.pos < this.end) {
+			require(this.end - this.pos >= 8, 'Truncated attribute header');
+			const tag = this.u16();
+			const target = this.u16();
+			const length = this.u32();
+			require(length <= this.end - this.pos, 'Attribute value past the record');
+			this.pos += length;
+			require(target <= members, 'Attribute target outside the record');
+			const key = target * 65536 + tag;
+			require(key > previous, 'Unsorted or repeated attribute (target, tag)');
+			previous = key;
+			const category = attributeTagClass(tag);
+			require(category !== 'reserved', 'Reserved attribute tag');
+			// v3.1 defines no critical tag, so every critical tag is unknown here.
+			require(category !== 'critical', 'Unknown critical attribute tag');
+		}
 	}
+}
+
+// v3.1 attribute tag ranges: SDK advisory, application, critical; the rest reserved.
+function attributeTagClass(tag)
+{
+	if (tag >= 0x0001 && tag <= 0x3fff)
+		return 'advisory';
+	if (tag >= 0x4000 && tag <= 0x7fff)
+		return 'application';
+	if (tag >= 0x8001 && tag <= 0xbfff)
+		return 'critical';
+	return 'reserved';
 }
 
 // Only this parser creates a model accepted by the codecs. Arrays and rows
@@ -193,7 +240,9 @@ export function parseDescriptor(input, overrides = {})
 	const bytes = source.slice();
 	const header = new Reader(bytes, 0, 64, limits);
 	require(header.u32() === 0x33534454, 'Descriptor magic'); // TDS3, LE
-	require(header.u16() === 3 && header.u16() === 0, 'Descriptor version');
+	require(header.u16() === 3, 'Descriptor version');
+	const minor = header.u16(); // 0: v3.0; 1: v3.1 type names and attribute areas
+	require(minor === 0 || minor === 1, 'Descriptor version');
 	require(header.u16() === 64 && header.u16() === 0, 'Header size/flags');
 	const total = header.u32();
 	const fingerprint = header.u64();
@@ -221,23 +270,38 @@ export function parseDescriptor(input, overrides = {})
 	require(fingerprint === descriptorFingerprint(bytes), 'Descriptor fingerprint');
 
 	const types = [];
+	const typeNames = new Set();
+	let extended = false; // minor 1 must carry a type name or an attribute area
 	let enumCount = 0;
 	const reference = (id, current) => {
 		require(id > 0 && id < current, 'Backward non-Void type reference');
 		return types[id];
 	};
-	let reader = new Reader(bytes, typesOffset, catalogsOffset, limits);
+	let reader = new Reader(bytes, typesOffset, catalogsOffset, limits, minor);
 	for (let i = 0; i < typeCount; ++i) {
 		const row = reader.record(1);
+		extended ||= row.attributes;
 		require(row.u32() === i, 'Positional type ID');
 		const kind = row.u8();
-		row.zeros(3);
+		const typeFlags = row.u8();
+		require(typeFlags === 0 || (minor >= 1 && typeFlags === typeNamed),
+		        'Nonzero reserved bytes');
+		row.zeros(2);
 		const wireBytes = row.u32();
 		require(wireBytes <= limits.valueWireBytes, 'Value wire budget');
 		require((i === 0 && kind === 0) || (i > 0 && i < 12 && kind === 1) ||
 		            (i >= 12 && kind >= 2 && kind <= 4),
 		        'Type kind/builtin position');
+		require(!row.attributes || kind >= 2, 'Attributes on Void/Scalar type record');
 		const type = {id : i, kind, wireBytes, depth : 0, nodes : 0, offset : row.offset};
+		if (typeFlags === typeNamed) {
+			require(kind === TypeKind.Enum || kind === TypeKind.Struct,
+			        'Type name on a type other than Enum/Struct');
+			type.name = row.text();
+			require(!typeNames.has(type.name), 'Duplicate type name');
+			typeNames.add(type.name);
+			extended = true;
+		}
 		let expectedBytes = 0;
 		if (kind === TypeKind.Scalar) {
 			type.scalarCode = row.u8();
@@ -292,18 +356,19 @@ export function parseDescriptor(input, overrides = {})
 		require(wireBytes === expectedBytes, 'Wire size mismatch');
 		require(type.depth <= limits.typeDepth, 'Type depth budget');
 		require(type.nodes <= limits.expandedValueNodes, 'Expanded value node budget');
-		row.done();
+		row.done(kind === TypeKind.Struct ? type.members.length : 0);
 		types.push(type);
 	}
 	reader.done();
 
 	const catalogs = [ [], [], [] ];
-	reader = new Reader(bytes, catalogsOffset, endpointsOffset, limits);
+	reader = new Reader(bytes, catalogsOffset, endpointsOffset, limits, minor);
 	for (let category = 0; category < 3; ++category) {
 		let first = 0;
 		const names = new Set();
 		for (let group = 0; group < catalogsCount[category]; ++group) {
 			const row = reader.record(2);
+			extended ||= row.attributes;
 			require(row.u8() === category + 1, 'Catalog category/order');
 			row.zeros(3);
 			require(row.u32() === group && row.u32() === first, 'Catalog positional range');
@@ -322,12 +387,13 @@ export function parseDescriptor(input, overrides = {})
 	reader.done();
 
 	const endpoints = [ [], [], [] ];
-	reader = new Reader(bytes, endpointsOffset, total, limits);
+	reader = new Reader(bytes, endpointsOffset, total, limits, minor);
 	for (let category = 0; category < 3; ++category) {
 		for (const catalog of catalogs[category]) {
 			const names = new Set();
 			for (let local = 0; local < catalog.count; ++local) {
 				const row = reader.record(category + 3);
+				extended ||= row.attributes;
 				const id = row.u32();
 				require(id === catalog.group * 65536 + local, 'Endpoint positional ID');
 				const typeId = row.u32();
@@ -352,15 +418,20 @@ export function parseDescriptor(input, overrides = {})
 				endpoint.name = row.text();
 				require(!names.has(endpoint.name), 'Duplicate endpoint name');
 				names.add(endpoint.name);
-				row.done(); // No semantic metadata or unrecognized record tails.
+				row.done(); // Only a flagged, skippable attribute area may follow the name.
 				endpoints[category].push(endpoint);
 			}
 		}
 	}
 	reader.done();
+	// One canonical encoding per model: without names and attributes a
+	// descriptor is v3.0, so minor 1 must carry at least one of them.
+	require(minor === 0 || extended,
+	        'Descriptor version: minor 1 without a type name or attribute');
 	const model = freezeShape({
 		fingerprint,
 		byteLength : total,
+		minor,
 		types,
 		fieldCatalogs : catalogs[0],
 		commandCatalogs : catalogs[1],
@@ -374,6 +445,16 @@ export function parseDescriptor(input, overrides = {})
 		header : bytes.slice(0, 64)
 	});
 	return model;
+}
+
+// Type names are unique in a descriptor, so a name is a key. An unnamed type
+// (and every array, scalar and Void) has no name and is never found.
+export function findType(model, name)
+{
+	require(schemas.has(model), 'Expected a validated descriptor model');
+	if (typeof name !== 'string' || name.length === 0)
+		return undefined;
+	return model.types.find(type => type.name === name);
 }
 
 // Compare the full admitted header with the parser-owned bytes. A fingerprint

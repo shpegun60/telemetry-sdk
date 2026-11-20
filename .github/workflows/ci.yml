@@ -94,7 +94,7 @@ jobs:
   modules-windows:
     name: Windows installed client and junction containment
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 25
     defaults:
       run:
         shell: pwsh
@@ -142,6 +142,11 @@ jobs:
           & $env:TELEMETRY_WINDOWS_PYTHON -B tests/modules/run.py --modules client --cxx "$env:TELEMETRY_WINDOWS_CXX" `
             --cmake "$env:TELEMETRY_WINDOWS_CMAKE" --build-dir "$env:RUNNER_TEMP/modules-windows"
           if ($LASTEXITCODE -ne 0) { throw 'Windows module qualification failed' }
+      - name: Descriptor v3.1 type names and MinGW name bytes
+        run: |
+          & $env:TELEMETRY_WINDOWS_PYTHON -B tests/structured/type_names/run.py --cxx "$env:TELEMETRY_WINDOWS_CXX" `
+            --node node --build-dir "$env:RUNNER_TEMP/type-names-windows"
+          if ($LASTEXITCODE -ne 0) { throw 'Windows type-name qualification failed' }
       - name: Offline Nucleo hardware-runner failure and restoration controls
         run: |
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
@@ -626,6 +631,15 @@ jobs:
           if [ "$MODE" = sanitized ]; then flags+=(--sanitize); fi
           if [ "$MODE" = nullchecks ]; then flags+=(--null-checks); fi
           python3 tests/structured/descriptor/run.py --build-dir build/structured-descriptor "${flags[@]}"
+      - name: Descriptor v3.1 type names, three decoders and this compiler's name bytes
+        env:
+          CXX: ${{ matrix.cxx }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          flags=()
+          if [ "$MODE" = sanitized ]; then flags+=(--sanitize); fi
+          if [ "$MODE" = nullchecks ]; then flags+=(--null-checks); fi
+          python3 tests/structured/type_names/run.py --node node --build-dir build/structured-type-names "${flags[@]}"
       - name: C++20 borrowed native Field and Service results
         env:
           CXX: ${{ matrix.cxx }}
@@ -1022,6 +1036,8 @@ jobs:
         run: |
           python3 tests/structured/descriptor/run.py --arm --cxx arm-none-eabi-g++ --build-dir build/arm-structured-descriptor
           python3 tests/structured/descriptor/run.py --arm --null-checks --cxx arm-none-eabi-g++ --build-dir build/arm-structured-descriptor-nullchecks
+      - name: Descriptor v3.1 name bytes from ARM GCC and the decoder's Cortex-M7 size
+        run: python3 tests/structured/type_names/run.py --cxx g++ --node node --arm-cxx arm-none-eabi-g++ --build-dir build/arm-type-names
       - name: C++20 structured resource Cortex-M7 checks
         run: python3 tests/structured/resources/run.py --arm --cxx arm-none-eabi-g++ --build-dir build/arm-structured-resources
       - name: C++20 RPC mailbox Cortex-M7 qualification

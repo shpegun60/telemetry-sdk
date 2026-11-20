@@ -121,6 +121,9 @@ def main():
              '-pedantic-errors', '-fdiagnostics-color=never',
              '-DTELEMETRY_TEST_REGISTRY_ROOTS=' + str(int(args.expect_new)),
              '-DTELEMETRY_TEST_MODULAR_LAYOUT=' + str(int(layout_name == 'modular')),
+             # The canonical descriptor must equal the v3.0 baseline's bytes, so this
+             # program keeps type names off; a pre-v3.1 source root ignores the switch.
+             '-DTELEMETRY_TYPE_NAMES=0',
              '-I' + str(source / 'lib'), '-I' + str(source / 'lib/boost_pfr/include'),
              '-I' + str(source / 'lib/magic_enum'), '-I' + str(source / 'lib/delegate')]
     if args.sanitize:

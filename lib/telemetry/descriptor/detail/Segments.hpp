@@ -61,6 +61,8 @@ struct Segment {
 
 static_assert(sizeof(Segment) == 12);
 
+// typeNames borrows the registry's static names indexed by TypeId. It is
+// empty when the descriptor emits no names, and minor then stays 0 (v3.0).
 struct Header {
 	std::uint32_t totalBytes = 0;
 	std::uint64_t fingerprint = 0;
@@ -69,7 +71,16 @@ struct Header {
 	std::array<std::uint32_t, 3> endpointCount{};
 	std::uint32_t catalogsOffset = 0;
 	std::uint32_t endpointsOffset = 0;
+	std::uint16_t minor = binaryMinor;
+	std::span<const std::string_view> typeNames{};
 };
+
+// The emitted name of one type record: empty for an unnamed type and for
+// every type when the descriptor strips names.
+[[nodiscard]] constexpr std::string_view typeName(const Header& header, std::uint32_t id) noexcept
+{
+	return id < header.typeNames.size() ? header.typeNames[id] : std::string_view{};
+}
 
 // Hash the same bytes that SliceSink emits; the caller controls when the
 // fingerprint field changes from zero to its completed value.
@@ -196,7 +207,7 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 		case SegmentKind::Header:
 			sink.text("TDS3");
 			sink.integer(binaryMajor, 2);
-			sink.integer(binaryMinor, 2);
+			sink.integer(header.minor, 2);
 			sink.integer(descriptorHeaderBytes, 2);
 			sink.integer(0, 2);
 			sink.integer(header.totalBytes, 4);
@@ -212,11 +223,19 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 			return;
 		case SegmentKind::Type: {
 			const auto& type = model.types.data[part.key];
-			record(sink, RecordKind::Type, type.recordBytes);
+			// v3.1: a named type sets TypeFlag::Named and places its name
+			// right after the 12-byte prefix; recordBytes excludes the name.
+			const auto name = typeName(header, part.key);
+			const auto named = name.empty() ? 0u : 4u + static_cast<std::uint32_t>(name.size());
+			record(sink, RecordKind::Type, type.recordBytes + named);
 			sink.integer(type.id, 4);
 			sink.integer(static_cast<unsigned>(type.kind), 1);
-			sink.integer(0, 3);
+			sink.integer(named == 0 ? 0u : static_cast<unsigned>(TypeFlag::Named), 1);
+			sink.integer(0, 2);
 			sink.integer(type.wireBytes, 4);
+			if (named != 0) {
+				string(sink, name);
+			}
 			switch (type.kind) {
 				case ts::TypeKind::Void:
 					break;

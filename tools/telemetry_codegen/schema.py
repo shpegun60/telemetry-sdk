@@ -59,12 +59,17 @@ class Schema:
         return self.raw["fingerprint"]
 
     @property
+    def minor(self):
+        """0 for a v3.0 descriptor; 1 when it names a type or has attributes (v3.1)."""
+        return self.raw["minor"]
+
+    @property
     def descriptor_header(self):
         """Reproduce the exact declared header from the already validated IR."""
         counts = []
         for catalogs, endpoints in zip(self.raw["catalogs"], self.raw["endpoints"]):
             counts.extend((len(catalogs), len(endpoints)))
-        return struct.pack("<4sHHHHIQ10I", b"TDS3", 3, 0, 64, 0, self.raw["total"],
+        return struct.pack("<4sHHHHIQ10I", b"TDS3", 3, self.minor, 64, 0, self.raw["total"],
                            self.fingerprint, len(self.types), *counts, *self.raw["offsets"])
 
 

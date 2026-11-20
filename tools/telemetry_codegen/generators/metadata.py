@@ -43,7 +43,7 @@ def document(schema):
                       symbol=row.symbol, valueType=row.value_type, requestType=row.request_type,
                       responseType=row.response_type, capabilities=row.capabilities)
                  for row in schema.endpoints]
-    return dict(format=FORMAT, version=VERSION, wireVersion=dict(major=3, minor=0),
+    return dict(format=FORMAT, version=VERSION, wireVersion=dict(major=3, minor=schema.minor),
                 fingerprint=f"0x{schema.fingerprint:016x}", descriptorSha256=schema.descriptor_sha256,
                 descriptorHeader=list(schema.descriptor_header), namespace=schema.namespace,
                 types=types, catalogs=catalogs, endpoints=endpoints)
@@ -90,11 +90,16 @@ export interface StructuralMetadata {
 '''
 
 
+def _declarations(minor):
+    """The typings pin the descriptor's own minor, as wireVersion does."""
+    return DECLARATIONS.replace("{major: 3; minor: 0}", f"{{major: 3; minor: {minor}}}")
+
+
 def _web(data, typed):
     rows = ["// Optional generated structural wire metadata. SPDX-License-Identifier: MIT.",
             "// No native offsets, defaults, units, session or executable client state."]
     if typed:
-        rows.append(DECLARATIONS)
+        rows.append(_declarations(data["wireVersion"]["minor"]))
     rows += ["function freeze" + ("<T>" if typed else "") + "(value" +
              (": T): Readonly<T>" if typed else ")") + " {",
              "  if (value !== null && typeof value === 'object') {",
@@ -123,7 +128,7 @@ def _cpp(schema, data):
            "std::string_view catalogName, name, groupSymbol, symbol; };\n",
            f'inline constexpr char format[] = "{FORMAT}";\n',
            "inline constexpr std::uint32_t version = 1;\n",
-           "inline constexpr std::uint16_t wireMajor = 3, wireMinor = 0;\n",
+           f"inline constexpr std::uint16_t wireMajor = 3, wireMinor = {schema.minor};\n",
            f'inline constexpr std::uint64_t fingerprint = {data["fingerprint"]}ULL;\n',
            f'inline constexpr char descriptorSha256[] = "{schema.descriptor_sha256}";\n',
            "inline constexpr std::array<std::uint8_t, 64> descriptorHeader{" +
@@ -166,7 +171,8 @@ def generate(schema, targets):
     if "js" in targets:
         files["js/device.metadata.js"] = _web(data, False)
         files["js/device.metadata.d.ts"] = ("// Optional structural wire metadata. MIT.\n" +
-                                            DECLARATIONS + "export declare const structuralMetadata: StructuralMetadata;\n")
+                                            _declarations(schema.minor) +
+                                            "export declare const structuralMetadata: StructuralMetadata;\n")
     if "ts" in targets:
         files["ts/device.metadata.ts"] = _web(data, True)
     return files

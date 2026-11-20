@@ -100,7 +100,7 @@ int main(int argc, char** argv)
 		++df::calls;
 		return telemetry::WriteResult::Applied;
 	});
-	const ::telemetry::descriptor::Descriptor rebound{df::model};
+	const auto rebound = ::telemetry::descriptor::withoutTypeNames(df::model);
 	assert(rebound.fingerprint() == df::edge.fingerprint() && readAll(rebound) == before);
 	df::getter.reset();
 	df::setter.reset();

@@ -92,6 +92,9 @@ struct RuntimeType {
 	TypeId relatedTypeId = 0;
 	std::uint32_t elementCount = 0, firstMember = 0, memberCount = 0;
 	std::uint32_t firstEnum = 0, enumCount = 0, depth = 0, expandedNodes = 0;
+	// v3.1 type name of an Enum or Struct, unique in the descriptor; empty when
+	// unnamed. It borrows the descriptor bytes like every other name.
+	std::string_view name{};
 };
 
 struct RuntimeMember {
@@ -176,6 +179,7 @@ private:
 	bool published_ = false;
 	Input bytes_{};
 	std::uint64_t fingerprint_ = 0;
+	std::uint16_t minor_ = 0;
 	Requirements counts_{};
 	std::array<std::uint32_t, 3> catFirst_{}, catCount_{}, epFirst_{}, epCount_{};
 	friend class RuntimeSchema;
@@ -249,9 +253,10 @@ struct PathStep {
 };
 
 // Views borrow a published workspace; no method dereferences an invalidated index.
-// Public methods: parse, valid, owner, generation, descriptor, fingerprint, type,
-// members, enumEntries, catalogs, endpoints, findEndpoint, findField, findCommand,
-// findService, resolve, accepts, view.
+// Public methods: parse, valid, owner, generation, descriptor, fingerprint,
+// minorVersion, type, typeName, findType, members, enumEntries, catalogs,
+// endpoints, findEndpoint, findField, findCommand, findService, resolve,
+// accepts, view.
 class RuntimeSchema {
 public:
 	RuntimeSchema() noexcept = default;
@@ -283,9 +288,34 @@ public:
 		return valid() ? owner_->fingerprint_ : 0;
 	}
 
+	// 0 for a descriptor without type names and attributes (v3.0), 1 otherwise.
+	[[nodiscard]] std::uint16_t minorVersion() const noexcept
+	{
+		return valid() ? owner_->minor_ : 0;
+	}
+
 	[[nodiscard]] const RuntimeType* type(TypeId id) const noexcept
 	{
 		return valid() && id < owner_->counts_.types ? &owner_->types_[id] : nullptr;
+	}
+
+	// The v3.1 name of an Enum or Struct; empty when unnamed or out of range.
+	[[nodiscard]] std::string_view typeName(TypeId id) const noexcept
+	{
+		const auto* t = type(id);
+		return t ? t->name : std::string_view{};
+	}
+
+	// Exact, case-sensitive type name. Names are unique in a descriptor, so the
+	// name is a key; an empty name or an unnamed descriptor finds nothing.
+	[[nodiscard]] const RuntimeType* findType(std::string_view name) const noexcept
+	{
+		if (!valid() || name.empty())
+			return nullptr;
+		for (const auto& item : owner_->types_.first(owner_->counts_.types))
+			if (item.name == name)
+				return &item;
+		return nullptr;
 	}
 
 	[[nodiscard]] std::span<const RuntimeMember> members(TypeId id) const noexcept

@@ -1,7 +1,10 @@
-"""Bounded production Descriptor v3.0 parser; no C++ producer code is imported.
+"""Bounded production Descriptor v3.0/v3.1 parser; no C++ producer code is imported.
 
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 C++ producer goldens and the independent JS consumer validate this parser.
+v3.1 adds an optional unique type name on Enum/Struct records and a skippable
+attribute area after any record payload; attributes are validated and skipped,
+so a descriptor with attributes yields the model of the same bytes without them.
 """
 from dataclasses import dataclass
 import struct
@@ -28,6 +31,10 @@ class Limits:
     expanded_nodes: int = 262144
 
 
+TYPE_NAMED = 1
+RECORD_ATTRIBUTES = 1
+
+
 def require(condition, reason):
     if not condition:
         raise InvalidDescriptor(reason)
@@ -40,12 +47,25 @@ def fingerprint(data):
     return result
 
 
+def attribute_tag_class(tag):
+    """Reserved, advisory (SDK), application or critical, per the v3.1 tag table."""
+    if 0x0001 <= tag <= 0x3FFF:
+        return 'advisory'
+    if 0x4000 <= tag <= 0x7FFF:
+        return 'application'
+    if 0x8001 <= tag <= 0xBFFF:
+        return 'critical'
+    return 'reserved'
+
+
 # Bounded cursor over one descriptor section or record payload.
 # API: take/number consume bytes; zeros/text validate content; record creates a
-# bounded child reader; done requires exact payload exhaustion.
+# bounded child reader; done requires exact payload exhaustion or, when the
+# record header flags an attribute area, a valid area that runs to its end.
 class Reader:
-    def __init__(self, data, begin, end, limits):
-        self.data, self.pos, self.end, self.limits = data, begin, end, limits
+    def __init__(self, data, begin, end, limits, minor=0):
+        self.data, self.pos, self.end, self.limits, self.minor = data, begin, end, limits, minor
+        self.attributes = False
 
     def take(self, count):
         require(0 <= count <= self.end - self.pos, 'truncated record')
@@ -74,16 +94,42 @@ class Reader:
         begin = self.pos
         require(self.number(1) == kind, 'record kind/order')
         require(self.number(1) == 1, 'record version')
-        self.zeros(2)
+        flags = self.number(2)
+        # v3.0 reserves the record flags; v3.1 defines bit 0 only.
+        require(flags == 0 or (self.minor >= 1 and flags == RECORD_ATTRIBUTES), 'reserved bytes')
         size = self.number(4)
         require(size <= self.end - self.pos, 'record length')
-        result = Reader(self.data, self.pos, self.pos + size, self.limits)
+        result = Reader(self.data, self.pos, self.pos + size, self.limits, self.minor)
+        result.attributes = flags == RECORD_ATTRIBUTES
         self.pos += size
         result.offset = begin
         return result
 
-    def done(self):
-        require(self.pos == self.end, 'extra or missing payload bytes')
+    def done(self, members=0):
+        """End a record: exact payload, or a canonical attribute area to its end.
+
+        members bounds attribute targets: 0 is the record's subject and k is
+        struct member k-1, so only a Struct Type record passes members > 0.
+        """
+        if not self.attributes:
+            require(self.pos == self.end, 'extra or missing payload bytes')
+            return
+        require(self.pos < self.end, 'attribute area: flag without attribute')
+        previous = None
+        while self.pos < self.end:
+            require(self.end - self.pos >= 8, 'attribute area: truncated attribute header')
+            tag, target, length = struct.unpack_from('<HHI', self.data, self.pos)
+            self.pos += 8
+            require(length <= self.end - self.pos, 'attribute area: value past the record')
+            self.pos += length
+            require(target <= members, 'attribute area: target outside the record')
+            require(previous is None or previous < (target, tag),
+                    'attribute area: unsorted or repeated (target, tag)')
+            previous = (target, tag)
+            category = attribute_tag_class(tag)
+            require(category != 'reserved', 'reserved attribute tag')
+            # No SDK tag is defined in v3.1: every critical tag is unknown here.
+            require(category != 'critical', 'unknown critical attribute tag')
 
 
 def parse(data, limits=Limits()):
@@ -98,7 +144,7 @@ def parse(data, limits=Limits()):
     data = memoryview(data)
     require(bytes(data[:4]) == b'TDS3', 'magic')
     major, minor, header, flags, total, stored_hash, *tail = struct.unpack_from('<4HIQ10I', data, 4)
-    require((major, minor, header, flags) == (3, 0, 64, 0), 'header version/flags')
+    require(major == 3 and minor in (0, 1) and (header, flags) == (64, 0), 'header version/flags')
     require(total == len(data), 'total length')
     type_count, fc, fe, cc, ce, sc, se, type_start, cat_start, ep_start = tail
     cat_counts, ep_counts = (fc, cc, sc), (fe, ce, se)
@@ -112,8 +158,10 @@ def parse(data, limits=Limits()):
     require(sum(ep_counts) * 21 <= total - ep_start, 'endpoint count/bytes')
     require(stored_hash == fingerprint(data), 'fingerprint')
 
-    reader = Reader(data, type_start, cat_start, limits)
+    reader = Reader(data, type_start, cat_start, limits, minor)
     types = []
+    type_names = set()
+    extended = False  # minor 1 requires at least one name or attribute area
     enum_total = 0
     scalar_sizes = (0, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8)
 
@@ -123,15 +171,27 @@ def parse(data, limits=Limits()):
 
     for index in range(type_count):
         row = reader.record(1)
+        extended |= row.attributes
         require(row.number(4) == index, 'positional type ID')
         kind = row.number(1)
-        row.zeros(3)
+        type_flags = row.number(1)
+        require(type_flags == 0 or (minor >= 1 and type_flags == TYPE_NAMED), 'reserved bytes')
+        row.zeros(2)
         wire = row.number(4)
         require(wire <= limits.wire_bytes, 'value wire budget')
         require((index == 0 and kind == 0) or (1 <= index <= 11 and kind == 1) or
                 (index >= 12 and kind in (2, 3, 4)), 'type kind/builtin position')
+        require(not row.attributes or kind >= 2, 'type kind: attributes on Void/Scalar')
         item = dict(id=index, kind=kind, wire=wire, offset=row.offset, depth=0, nodes=0)
+        if type_flags == TYPE_NAMED:
+            require(kind in (2, 3), 'type kind: name on a type other than Enum/Struct')
+            name = row.text()
+            require(name not in type_names, 'duplicate type name')
+            type_names.add(name)
+            item['name'] = name
+            extended = True
         expected_wire = 0
+        members = 0
         if kind == 1:
             code = row.number(1)
             row.zeros(3)
@@ -172,6 +232,7 @@ def parse(data, limits=Limits()):
                 nodes += child['nodes']
                 depth = max(depth, 1 + child['depth'])
             item.update(members=members, depth=depth, nodes=nodes)
+            members = count
         elif kind == 4:
             child_id = row.number(4)
             child = reference(child_id, index)
@@ -183,16 +244,17 @@ def parse(data, limits=Limits()):
         require(wire == expected_wire, 'wire size mismatch')
         require(item['depth'] <= limits.depth, 'type depth budget')
         require(item['nodes'] <= limits.expanded_nodes, 'expanded node budget')
-        row.done()
+        row.done(members)
         types.append(item)
     reader.done()
 
-    reader = Reader(data, cat_start, ep_start, limits)
+    reader = Reader(data, cat_start, ep_start, limits, minor)
     catalogs = [[], [], []]
     for category, count in enumerate(cat_counts):
         first, names = 0, set()
         for group in range(count):
             row = reader.record(2)
+            extended |= row.attributes
             require(row.number(1) == category + 1, 'catalog category/order')
             row.zeros(3)
             require(row.number(4) == group, 'catalog group index')
@@ -208,13 +270,14 @@ def parse(data, limits=Limits()):
         require(first == ep_counts[category], 'catalog total entries')
     reader.done()
 
-    reader = Reader(data, ep_start, total, limits)
+    reader = Reader(data, ep_start, total, limits, minor)
     endpoints = [[], [], []]
     for category in range(3):
         for catalog in catalogs[category]:
             names = set()
             for local in range(catalog['count']):
                 row = reader.record(category + 3)
+                extended |= row.attributes
                 packed = row.number(4)
                 require(packed == catalog['group'] << 16 | local, 'endpoint positional ID')
                 primary = row.number(4)
@@ -237,8 +300,11 @@ def parse(data, limits=Limits()):
                 require(name not in names, 'duplicate endpoint name')
                 names.add(name)
                 item['name'] = name
-                row.done()  # semantic metadata tails are forbidden
+                row.done()  # only a flagged, skippable attribute area may follow the name
                 endpoints[category].append(item)
     reader.done()
-    return dict(fingerprint=stored_hash, total=total, types=types, catalogs=catalogs,
+    # One canonical encoding per model: a descriptor without names and
+    # attributes is v3.0, so minor 1 must carry at least one of them.
+    require(minor == 0 or extended, 'header version: minor 1 without a type name or attribute')
+    return dict(fingerprint=stored_hash, total=total, minor=minor, types=types, catalogs=catalogs,
                 endpoints=endpoints, offsets=(type_start, cat_start, ep_start))

@@ -175,7 +175,9 @@ def main():
     report['compiler'] = version.splitlines()[0]
     flags = [compiler, '-std=c++20', '-Wall', '-Wextra', '-Werror', '-pedantic-errors',
              '-fdiagnostics-color=never', '-Ilib', '-Ilib/boost_pfr/include', '-Ilib/magic_enum',
-             '-fstack-usage']
+             '-fstack-usage',
+             # The fixture's own telemetry_config.hpp keeps its descriptor v3.0 (no type names).
+             '-Itests/structured/mcu/config']
     if args.sanitize:
         flags += ['-fsanitize=address,undefined', '-fno-omit-frame-pointer']
     if args.null_checks:

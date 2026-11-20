@@ -14,6 +14,8 @@
 
 #include "ReadResult.hpp"
 #include "detail/Segments.hpp"
+#include <telemetry/Config.hpp>
+#include <algorithm>
 #include <cstdlib>
 #include <limits>
 #include <type_traits>
@@ -32,7 +34,31 @@ enum class DescriptorError : std::uint8_t {
 	MetadataMismatch
 };
 
+// Per-descriptor choice read from an optional Profile::typeNames. The project
+// switch TELEMETRY_TYPE_NAMES decides what a build emits; a profile can only
+// strip names, for a program that must emit both forms, never add them.
+enum class TypeNames : std::uint8_t {
+	Emit,
+	Strip
+};
+
+// Profile that keeps Base's ceilings and strips every type name, so the bytes
+// and fingerprint are exactly v3.0's. With TELEMETRY_TYPE_NAMES=0 it adds nothing.
+template<class Base = ts::Limits>
+struct WithoutTypeNames : Base {
+	static constexpr TypeNames typeNames = TypeNames::Strip;
+};
+
 namespace detail {
+
+// Existing custom profiles without a typeNames member keep compiling.
+template<class Profile>
+inline constexpr bool profileEmitsTypeNames = [] {
+	if constexpr (requires { Profile::typeNames; })
+		return Profile::typeNames != TypeNames::Strip;
+	else
+		return true;
+}();
 
 template<class... Groups>
 struct CatalogShape {
@@ -92,6 +118,15 @@ struct Writable<ts::EmptyEndpointCatalog> {
 }
 
 [[noreturn]] inline void duplicateDescriptorName() noexcept
+{
+	std::abort();
+}
+
+// Two types in one descriptor share a type name. Fix: give one of them an
+// explicit TypeReflection<T> name = typeName("..."), or remove it with
+// noTypeName(); or strip all names with TELEMETRY_TYPE_NAMES=0.
+[[noreturn]] inline void
+duplicateTypeName() noexcept // TypeReflection<T>: typeName("...") or noTypeName()
 {
 	std::abort();
 }
@@ -220,6 +255,8 @@ private:
 
 // The segment count depends only on structural types/table arities. Names and
 // bindings can belong to a constexpr or runtime Model. No getter is invoked.
+// Type names (v3.1) are compile-time registry facts emitted when the project
+// switch and the Profile allow them; a repeated type name is DuplicateName.
 // The object owns offsets/header, and borrows the same metadata as ModelView.
 template<class Fields, class Commands, class Services, class Profile = ts::Limits>
 // Public methods:
@@ -303,6 +340,39 @@ class Descriptor {
 	}
 
 	static constexpr auto typeSegments = countTypeSegments();
+
+	// Names are compile-time facts of the registry. With the project switch at
+	// 0 or a stripping profile the registry's names are never instantiated.
+	static constexpr bool emitTypeNames =
+	    TELEMETRY_TYPE_NAMES != 0 && detail::profileEmitsTypeNames<Profile>;
+
+	static constexpr std::span<const std::string_view> emittedTypeNames() noexcept
+	{
+		if constexpr (emitTypeNames)
+			return Registry::typeNames();
+		else
+			return {};
+	}
+
+	// Type names are unique among type names (byte comparison); they may equal
+	// an endpoint, catalog or member name. Sorted once, at compile time.
+	static consteval bool typeNamesUnique() noexcept
+	{
+		if constexpr (!emitTypeNames) {
+			return true;
+		} else {
+			std::array<std::string_view, Registry::typeCount> names{};
+			std::size_t count = 0;
+			for (const auto name : Registry::typeNames())
+				if (!name.empty())
+					names[count++] = name;
+			std::sort(names.begin(), names.begin() + count);
+			return std::adjacent_find(names.begin(), names.begin() + count) ==
+			       names.begin() + count;
+		}
+	}
+
+	static constexpr bool uniqueTypeNames = typeNamesUnique();
 
 public:
 	static constexpr std::size_t segmentCount = 1 + typeSegments + catalogCount + endpointCount;
@@ -494,20 +564,40 @@ private:
 		                        ServiceShape::catalogs};
 		header_.endpointCount = {FieldShape::endpoints, CommandShape::endpoints,
 		                         ServiceShape::endpoints};
+		if constexpr (!uniqueTypeNames) {
+			error_ = DescriptorError::DuplicateName;
+			if (std::is_constant_evaluated()) {
+				detail::duplicateTypeName();
+			}
+			return;
+		}
+		header_.typeNames = emittedTypeNames();
 		std::size_t next = 0;
 		if (!add(next, descriptorHeaderBytes, Kind::Header)) {
 			return;
 		}
+		std::uint64_t namedBytes = 0;
 		for (std::uint32_t i = 0; i < header_.typeCount; ++i) {
 			const auto& type = model_.types.data[i];
 			const auto start = header_.totalBytes;
+			// A v3.1 name rides inside the Type segment: 4 + n bytes, no new
+			// segment. The registry admits names on Enum and Struct only.
+			const auto name = detail::typeName(header_, i);
+			const std::uint64_t named = name.empty() ? 0 : 4ULL + nameBytes(name);
 			const auto bytes =
-			    type.kind == ts::TypeKind::Void                                          ? 20
-			    : type.kind == ts::TypeKind::Scalar || type.kind == ts::TypeKind::Struct ? 24
-			                                                                             : 28;
+			    named + (type.kind == ts::TypeKind::Void ? 20
+			             : type.kind == ts::TypeKind::Scalar || type.kind == ts::TypeKind::Struct
+			                 ? 24
+			                 : 28);
+			if (named != 0 && type.kind != ts::TypeKind::Enum &&
+			    type.kind != ts::TypeKind::Struct) {
+				fail(DescriptorError::MetadataMismatch);
+				return;
+			}
 			if (!add(next, bytes, Kind::Type, i)) {
 				return;
 			}
+			namedBytes += named;
 			for (std::uint32_t m = 0; m < type.memberCount; ++m) {
 				if (!add(next, 8ULL + nameBytes(type.memberData[m].name), Kind::Member, i, m)) {
 					return;
@@ -519,15 +609,17 @@ private:
 					return;
 				}
 			}
-			if (header_.totalBytes - start != type.recordBytes) {
+			if (header_.totalBytes - start != type.recordBytes + named) {
 				fail(DescriptorError::MetadataMismatch);
 				return;
 			}
 		}
-		if (header_.totalBytes != descriptorHeaderBytes + model_.types.recordsBytes) {
+		if (header_.totalBytes != descriptorHeaderBytes + model_.types.recordsBytes + namedBytes) {
 			fail(DescriptorError::MetadataMismatch);
 			return;
 		}
+		// One canonical encoding per model: minor 1 exactly when a type is named.
+		header_.minor = namedBytes != 0 ? typeNamesMinor : binaryMinor;
 		header_.catalogsOffset = header_.totalBytes;
 		if (!catalogs(next, model_.fields, Kind::FieldCatalog, 0) ||
 		    !catalogs(next, model_.commands, Kind::CommandCatalog, 1) ||
@@ -568,6 +660,16 @@ private:
 
 template<class F, class C, class S>
 Descriptor(const ts::Model<F, C, S>&) -> Descriptor<F, C, S>;
+
+// The same model without type names: v3.0 bytes and fingerprint, for a program
+// that must emit both forms (a legacy fixture beside named profiles). A build
+// that never emits names sets TELEMETRY_TYPE_NAMES to 0 instead.
+template<class F, class C, class S>
+[[nodiscard]] constexpr Descriptor<F, C, S, WithoutTypeNames<>>
+withoutTypeNames(const ts::Model<F, C, S>& model) noexcept
+{
+	return Descriptor<F, C, S, WithoutTypeNames<>>{model};
+}
 
 // Optional Flash-byte representation for comparison or a small immutable model.
 // It is not also stored by the streaming Descriptor, and never allocates RAM.

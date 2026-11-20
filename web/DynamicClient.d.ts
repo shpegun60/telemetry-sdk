@@ -1,7 +1,7 @@
 /* Runtime session integration over one DeviceClient. Authors: Ruslan Kovtun, codexAi. MIT. */
 import type {
 	Backend, ByteInput, ClientStatus, Clock, Operation, Result} from '../lib/client/web/Client.js';
-import type {RuntimeSchema} from './telemetry.js';
+import type {RuntimeSchema, RuntimeType} from './telemetry.js';
 
 export const ValueStatus:
     Readonly<{Ok : 'Ok'; Stale : 'Stale'; NoValue : 'NoValue'; InvalidPayload : 'InvalidPayload'}>;
@@ -73,6 +73,8 @@ export class DynamicClient {
 	});
 	get session(): number;
 	get schema(): RuntimeSchema|undefined;
+	/** The admitted schema's Enum/Struct with this unique v3.1 type name. */
+	findType(name: string): RuntimeType|undefined;
 	get ready(): boolean;
 	get pendingCount(): number;
 	get recoveryRequired(): boolean;

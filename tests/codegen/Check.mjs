@@ -127,7 +127,8 @@ function roundTrip(type, value)
 
 check(generated.fingerprint === model.fingerprint);
 check(generated.descriptorSha256 === crypto.createHash('sha256').update(bytes).digest('hex'));
-equal(generated.wireVersion, {major : 3, minor : 0});
+// The generated SDK carries its own descriptor's minor: 1 when it names a type.
+equal(generated.wireVersion, {major : 3, minor : bytes[6] | bytes[7] << 8});
 equal(
     generated.Operation,
     {FieldRead : 'FieldRead', FieldWrite : 'FieldWrite', Command : 'Command', Service : 'Service'});

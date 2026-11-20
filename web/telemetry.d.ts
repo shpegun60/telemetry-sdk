@@ -41,10 +41,14 @@ export type RuntimeType = TypeBase&({readonly kind : 0}|{
 	readonly scalarCode: 1|2|3|4|5|6|7|8|9|10|11
 }|{
 	readonly kind: 2;
+	/** v3.1 unique type name; absent when the enum is unnamed. */
+	readonly name?: string;
 	readonly underlyingTypeId: number;
 	readonly entries: readonly RuntimeEnumEntry[]
 }|{
 	readonly kind: 3;
+	/** v3.1 unique type name; absent when the struct is unnamed. */
+	readonly name?: string;
 	readonly members: readonly RuntimeStructMember[]
 }|{
 	readonly kind: 4;
@@ -78,6 +82,8 @@ export interface RuntimeSchema {
 	readonly[validatedModel]: true;
 	readonly fingerprint: bigint;
 	readonly byteLength: number;
+	/** 0 without type names and attributes (v3.0), 1 otherwise (v3.1). */
+	readonly minor: 0|1;
 	readonly types: readonly RuntimeType[];
 	readonly fieldCatalogs: readonly Catalog[];
 	readonly commandCatalogs: readonly Catalog[];
@@ -89,6 +95,8 @@ export interface RuntimeSchema {
 export function descriptorFingerprint(input: ByteInput): bigint;
 export function parseDescriptor(input: ByteInput, overrides?: Partial<Limits>): RuntimeSchema;
 export function matchesDescriptorHeader(model: RuntimeSchema, input: ByteInput): boolean;
+/** The Enum/Struct with this unique v3.1 type name, or undefined. */
+export function findType(model: RuntimeSchema, name: string): RuntimeType|undefined;
 export function encodeValue(model: RuntimeSchema, typeId: number, value: unknown): Uint8Array;
 /** Preserve original IEEE NaN wire bits when the corresponding edited leaf remains NaN. */
 export function encodeValuePreserving(model: RuntimeSchema, typeId: number, value: unknown,

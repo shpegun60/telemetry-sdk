@@ -297,7 +297,7 @@ def _runtime_exports(schema, typed: bool, wire_editing=False) -> list[str]:
     header = schema.descriptor_header
     lines = [f"export const fingerprint = {schema.fingerprint}n;",
              f"export const descriptorSha256 = {_quote(schema.descriptor_sha256)};",
-             "export const wireVersion = Object.freeze({major: 3, minor: 0});",
+             f"export const wireVersion = Object.freeze({{major: 3, minor: {schema.minor}}});",
              "export const Operation = Object.freeze({FieldRead: 'FieldRead', FieldWrite: 'FieldWrite', Command: 'Command', Service: 'Service'}" + a(" as const") + ");",
              f"export function assertCompatibleFingerprint(peer{a(': bigint')}){a(': void')} {{",
              "  _require(typeof peer === 'bigint' && peer === fingerprint, 'Descriptor fingerprint mismatch');",
@@ -360,7 +360,7 @@ def _declarations(schema, wire_editing=False) -> str:
     lines += ["export declare class TelemetryCodecError extends Error { constructor(reason: string); }",
               f"export declare const fingerprint: {schema.fingerprint}n;",
               "export declare const descriptorSha256: string;",
-              "export declare const wireVersion: Readonly<{major: 3; minor: 0}>;",
+              f"export declare const wireVersion: Readonly<{{major: 3; minor: {schema.minor}}}>;",
               "export declare const Operation: Readonly<{FieldRead: 'FieldRead'; FieldWrite: 'FieldWrite'; Command: 'Command'; Service: 'Service'}>;",
               "export declare function assertCompatibleFingerprint(peer: bigint): void;",
               "export declare function matchesHeader(input: ByteInput): boolean;",

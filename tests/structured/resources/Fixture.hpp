@@ -110,7 +110,9 @@ inline constexpr ts::FieldCatalogTable fields{
     ts::group("first", first), ts::group("empty", emptyTable), ts::group("rest", rest)};
 inline constexpr ts::ServiceCatalogTable<> services{};
 inline constexpr ts::Model model{fields, ts::emptyCommands, services};
-inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
+// values.hex is a frozen v3.0 golden whose header copies this descriptor's
+// fingerprint: the profile strips type names on every build.
+inline constexpr auto descriptor = ::telemetry::descriptor::withoutTypeNames(model);
 inline constexpr auto packed = ::telemetry::descriptor::packDescriptor<descriptor>();
 inline std::array<std::byte, model.maxFieldScratch()> storage;
 inline ts::Workspace workspace{storage};

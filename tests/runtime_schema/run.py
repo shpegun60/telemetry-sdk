@@ -96,26 +96,33 @@ def corpus(descriptor):
     aggregate = next(item for item in compounds if item['kind'] == 3 and len(item['members']) > 3)
     array = next(item for item in compounds if item['kind'] == 4)
     enumeration = next(item for item in compounds if item['kind'] == 2 and len(item['entries']) >= 2)
+
+    def body(item):
+        # Kind payload after the 8-byte record header, 12-byte prefix and,
+        # in descriptor v3.1, the optional type name.
+        name = item.get('name')
+        return item['offset'] + 20 + (4 + len(name.encode('utf-8')) if name else 0)
+
     offset = aggregate['offset']
     change('struct-wire-size', offset + 16, struct.pack('<I', aggregate['wire'] + 1))
-    change('struct-forward-reference', offset + 24, struct.pack('<I', aggregate['id']))
-    change('struct-void-member', offset + 24, struct.pack('<I', 0))
-    change('struct-member-count', offset + 20, struct.pack('<I', 257))
+    change('struct-forward-reference', body(aggregate) + 4, struct.pack('<I', aggregate['id']))
+    change('struct-void-member', body(aggregate) + 4, struct.pack('<I', 0))
+    change('struct-member-count', body(aggregate), struct.pack('<I', 257))
     change('array-self-reference', array['offset'] + 20, struct.pack('<I', array['id']))
     change('array-count-overflow', array['offset'] + 24, struct.pack('<I', 65537))
-    change('enum-float-underlying', enumeration['offset'] + 20, struct.pack('<I', 10))
+    change('enum-float-underlying', body(enumeration), struct.pack('<I', 10))
     width = parsed['types'][enumeration['underlying']]['wire']
-    first = enumeration['offset'] + 28
+    first = body(enumeration) + 8
     first_name_size = struct.unpack_from('<I', descriptor, first + width)[0]
     second = first + width + 4 + first_name_size
     change('enum-duplicate-code', second, descriptor[first:first + width])
     change('enum-name-invalid-utf8', first + width + 4, b'\xff')
     change('enum-name-nul', first + width + 4, b'\0')
-    change('member-name-invalid-utf8', offset + 32, b'\xc0')
+    change('member-name-invalid-utf8', body(aggregate) + 12, b'\xc0')
     # Two equal-length struct member names become duplicates without changing
     # any record length. Packet's u8 and i8 are one such pair.
     data = bytearray(descriptor)
-    cursor = offset + 24
+    cursor = body(aggregate) + 4
     names = {}
     for _, name in aggregate['members']:
         size = struct.unpack_from('<I', data, cursor + 4)[0]
@@ -205,9 +212,16 @@ def corpus(descriptor):
         [field_endpoint(0, b'a'), field_endpoint(1, b'a')]), False)
     add('catalog-name-duplicate', endpoint_descriptor([field_catalog(0, 0, 1, b'g'), field_catalog(1, 1, 1, b'g')],
         [field_endpoint(0, b'a'), field_endpoint(65536, b'a')]), False)
-    for name in ('mixed', 'edge', 'empty'):
+    for name in ('mixed', 'edge', 'empty', 'named', 'attrs'):
         path = ROOT / 'tests/structured/descriptor' / (name + '.hex')
         add('golden-' + name, bytes.fromhex(path.read_text()), True)
+    # The shared descriptor v3.1 decoder table: every accepted case and one
+    # malformed descriptor per v3.1 rule, already fingerprinted.
+    table = json.loads((ROOT / 'tests/structured/descriptor/v31_cases.json').read_text(encoding='utf-8'))
+    for case in table['positive']:
+        add('v31-' + case['name'], bytes.fromhex(case['hex']), True, False)
+    for case in table['negative']:
+        add('v31-' + case['name'], bytes.fromhex(case['hex']), False, False)
     # Raw record and section truncations remain independently fingerprinted.
     for size in sorted(set([0, 1, 15, 23, 24, 63, 64, len(descriptor) - 1] +
                            [item['offset'] + 1 for item in parsed['types']])):
@@ -271,7 +285,9 @@ def main():
     sources.update((ROOT / 'lib/telemetry/runtime').rglob('*.hpp'))
     sources.update((ROOT / 'tools/telemetry_codegen').rglob('*.py'))
     sources.update(ROOT / name for name in ('lib/telemetry/model/Adapter.cpp', 'lib/telemetry/abi/StructuredAbi.cpp'))
-    sources.update(ROOT / 'tests/structured/descriptor' / (name + '.hex') for name in ('mixed', 'edge', 'empty'))
+    sources.update(ROOT / 'tests/structured/descriptor' / (name + '.hex')
+                   for name in ('mixed', 'edge', 'empty', 'named', 'attrs'))
+    sources.add(ROOT / 'tests/structured/descriptor/v31_cases.json')
     for text in dependency_texts:
         for part in text.replace('\\\n', ' ').split()[1:]:
             path = (ROOT / part).resolve()

@@ -99,7 +99,7 @@ def _schema(schema):
     header = schema.descriptor_header
     values = ", ".join(f"std::byte{{0x{byte:02x}}}" for byte in header)
     return (_header(schema, "Schema", "#include <array>\n#include <cstddef>\n#include <cstdint>\n#include <span>\n") +
-            f"namespace schema {{\ninline constexpr std::uint16_t major = 3, minor = 0;\n"
+            f"namespace schema {{\ninline constexpr std::uint16_t major = 3, minor = {schema.minor};\n"
             f"inline constexpr std::uint64_t fingerprint = 0x{schema.fingerprint:016x}ULL;\n"
             f'inline constexpr char descriptorSha256[] = "{schema.descriptor_sha256}";\n'
             f"inline constexpr std::array<std::byte, 64> descriptorHeader{{{values}}};\n"

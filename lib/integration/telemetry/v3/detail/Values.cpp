@@ -15,7 +15,9 @@
 #include <cstring>
 
 namespace resource::telemetry::v3::detail {
-// A values file carries the version of the descriptor it is read with.
+// Values (TVL3) stays 3.0 for every descriptor minor: a v3.1 descriptor only
+// adds type names and attributes, which never change a value token. A values
+// file pairs with its descriptor by fingerprint, not by version.
 static_assert(valuesMajor == ::telemetry::descriptor::binaryMajor &&
               valuesMinor == ::telemetry::descriptor::binaryMinor);
 

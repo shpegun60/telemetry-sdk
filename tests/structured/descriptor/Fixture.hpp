@@ -78,11 +78,14 @@ inline constexpr ts::FieldCatalogTable fields{ts::group("motor", fixture::mixedF
 inline constexpr ts::ServiceCatalogTable services{ts::group("motor", fixture::localServices),
                                                   ts::group("extra", extraServices)};
 inline constexpr ts::Model model{fields, fixture::commands, services};
-inline constexpr ::telemetry::descriptor::Descriptor mixed{fixture::model};
-inline constexpr ::telemetry::descriptor::Descriptor edge{model};
+// Frozen v3.0 goldens: the profile strips type names on every build, so these
+// bytes never depend on TELEMETRY_TYPE_NAMES; programs that include this file
+// may also build named (v3.1) descriptors of the same models.
+inline constexpr auto mixed = ::telemetry::descriptor::withoutTypeNames(fixture::model);
+inline constexpr auto edge = ::telemetry::descriptor::withoutTypeNames(model);
 inline constexpr ts::ServiceCatalogTable<> noServices{};
 inline constexpr ts::Model emptyModel{ts::emptyFields, ts::emptyCommands, noServices};
-inline constexpr ::telemetry::descriptor::Descriptor empty{emptyModel};
+inline constexpr auto empty = ::telemetry::descriptor::withoutTypeNames(emptyModel);
 inline constexpr auto mixedBytes = ::telemetry::descriptor::packDescriptor<mixed>();
 inline constexpr auto edgeBytes = ::telemetry::descriptor::packDescriptor<edge>();
 inline constexpr auto emptyBytes = ::telemetry::descriptor::packDescriptor<empty>();
@@ -93,7 +96,7 @@ static_assert(decltype(model)::typeId<fixture::MotorConfig>() == 15);
 // Classification must match the deduced Model without changing wire identity.
 using ExactCvModel = ts::Model<decltype(fields), decltype(fixture::commands), decltype(services)>;
 inline constexpr ExactCvModel exactCvModel{fields, fixture::commands, services};
-inline constexpr ::telemetry::descriptor::Descriptor exactCvDescriptor{exactCvModel};
+inline constexpr auto exactCvDescriptor = ::telemetry::descriptor::withoutTypeNames(exactCvModel);
 static_assert(exactCvDescriptor.valid() && exactCvDescriptor.fingerprint() == edge.fingerprint());
 static_assert(::telemetry::descriptor::packDescriptor<exactCvDescriptor>() == edgeBytes);
 } // namespace descriptor_fixture

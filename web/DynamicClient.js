@@ -9,6 +9,7 @@
 import {DeviceClient, Status, Batch} from '../lib/client/web/Client.js';
 import {
 	TypeKind,
+	findType,
 	matchesDescriptorHeader,
 	encodeValue,
 	encodeValuePreserving,
@@ -27,6 +28,7 @@ const noDecode = () => undefined;
 
 // Public methods:
 // - admit()/invalidate()/confirmQuiescence()/close(): Explicit session lifecycle.
+// - findType(): Look up a v3.1 type name in the admitted schema.
 // - bind()/bindReadMany(): Cache runtime contracts for one admission.
 // - readField()/writeField()/command()/service()/readMany()/batch(): One core FIFO.
 // - process(): Advance the same core for controlled owner clocks.
@@ -66,6 +68,14 @@ export class DynamicClient {
 	get schema()
 	{
 		return this.#current() ? this.#token.model : undefined;
+	}
+
+	// The admitted schema's Enum/Struct with this unique v3.1 type name. It is
+	// undefined without a current admission or when no type has the name.
+	findType(name)
+	{
+		const model = this.schema;
+		return model ? findType(model, name) : undefined;
 	}
 
 	get ready()

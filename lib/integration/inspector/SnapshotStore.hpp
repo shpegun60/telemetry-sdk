@@ -96,6 +96,8 @@ struct NodeInfo {
 	bool arrayElement = false;
 	// Names, like the metadata enumeration spans, borrow the live schema generation.
 	std::string_view name{};
+	// The node type's v3.1 name (an Enum or Struct); empty when unnamed.
+	std::string_view typeName{};
 };
 
 using ScalarData =
@@ -283,7 +285,7 @@ public:
 			return {checked.status, {}};
 		const auto& type = *checked.value;
 		NodeInfo result{type.kind,          type.id, type.scalarCode, children(type), node.index_,
-		                node.arrayElement_, {}};
+		                node.arrayElement_, {},      type.name};
 		if (type.kind == TypeKind::Enum) {
 			const auto* underlying = schema_.type(type.relatedTypeId);
 			if (!underlying)

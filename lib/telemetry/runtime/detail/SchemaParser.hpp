@@ -3,6 +3,11 @@
  * @brief Allocation-free validation and publication of descriptor v3 indexes.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
+ *
+ * Reads v3.0 and v3.1. A v3.1 type name is validated, checked for uniqueness
+ * and published in RuntimeType::name; an attribute area is validated and
+ * skipped, so nothing is stored for it and the model is that of the same
+ * descriptor without attributes.
  */
 #ifndef TELEMETRY_RUNTIME_DETAIL_SCHEMA_PARSER_HPP
 #define TELEMETRY_RUNTIME_DETAIL_SCHEMA_PARSER_HPP
@@ -15,13 +20,20 @@
 
 namespace telemetry::runtime::detail {
 
-// Public methods: construction, good, remaining, number, zeros, text, record, done.
+// Public methods: construction, good, remaining, attributes, number, zeros, text,
+// record, done.
 class SchemaReader {
 public:
 	SchemaReader(Input bytes, std::size_t begin, std::size_t end, ParseError& error,
-	             const ParseLimits& limits) noexcept
-	    : bytes_(bytes), pos_(begin), end_(end), error_(error), limits_(limits)
+	             const ParseLimits& limits, std::uint16_t minor = 0) noexcept
+	    : bytes_(bytes), pos_(begin), end_(end), error_(error), limits_(limits), minor_(minor)
 	{}
+
+	// v3.1: this record's header flags an attribute area after its payload.
+	bool attributes() const noexcept
+	{
+		return attributes_;
+	}
 
 	bool good() const noexcept
 	{
@@ -110,21 +122,63 @@ public:
 	{
 		if (number(1) != kind || number(1) != descriptor::recordVersion)
 			fail(ParseError::Record);
-		zeros(2);
+		// v3.0 reserves the record flags; v3.1 defines bit 0 only.
+		const auto flags = number(2);
+		constexpr auto area = static_cast<unsigned>(descriptor::RecordFlag::Attributes);
+		if (flags != 0 && (minor_ < descriptor::typeNamesMinor || flags != area))
+			fail(ParseError::Reserved);
 		const auto size = number(4);
 		if (!good() || size > remaining()) {
 			fail(ParseError::Record);
-			return {bytes_, pos_, pos_, error_, limits_};
+			return {bytes_, pos_, pos_, error_, limits_, minor_};
 		}
 		const auto begin = pos_;
 		pos_ += static_cast<std::size_t>(size);
-		return {bytes_, begin, pos_, error_, limits_};
+		SchemaReader result{bytes_, begin, pos_, error_, limits_, minor_};
+		result.attributes_ = flags == area;
+		return result;
 	}
 
-	void done() noexcept
+	// Without an attribute area the payload ends exactly here. With one, it
+	// runs to the record end as {u16 tag, u16 target, u32 length, value}
+	// sorted by (target, tag); members > 0 only for a Struct Type record,
+	// whose target k names member k-1. Advisory and application tags are
+	// validated and skipped; reserved and (all, in v3.1) critical tags refuse.
+	void done(std::uint32_t members = 0) noexcept
 	{
-		if (pos_ != end_)
-			fail(ParseError::Trailing);
+		if (!attributes_) {
+			if (pos_ != end_)
+				fail(ParseError::Trailing);
+			return;
+		}
+		if (good() && pos_ == end_)
+			fail(ParseError::Record);
+		std::uint32_t previous = 0;
+		for (bool first = true; good() && pos_ < end_; first = false) {
+			if (remaining() < descriptor::attributeHeaderBytes) {
+				fail(ParseError::Record);
+				return;
+			}
+			const auto tag = static_cast<std::uint16_t>(number(2));
+			const auto target = static_cast<std::uint32_t>(number(2));
+			const auto length = number(4);
+			if (length > remaining() || target > members) {
+				fail(ParseError::Record);
+				return;
+			}
+			pos_ += static_cast<std::size_t>(length);
+			const auto key = target << 16 | tag;
+			if (!first && key <= previous) {
+				fail(ParseError::Record);
+				return;
+			}
+			previous = key;
+			const auto category = descriptor::attributeTagClass(tag);
+			if (category == descriptor::AttributeTagClass::Reserved)
+				fail(ParseError::Reserved);
+			else if (category == descriptor::AttributeTagClass::Critical)
+				fail(ParseError::Record);
+		}
 	}
 
 private:
@@ -132,6 +186,8 @@ private:
 	std::size_t pos_, end_;
 	ParseError& error_;
 	const ParseLimits& limits_;
+	std::uint16_t minor_;
+	bool attributes_ = false;
 
 	void fail(ParseError error) noexcept
 	{
@@ -179,6 +235,9 @@ private:
 	std::array<std::uint32_t, 3> cats_{}, eps_{};
 	std::uint32_t catStart_ = 0, epStart_ = 0;
 	std::uint64_t fingerprint_ = 0;
+	std::uint16_t minor_ = 0;
+	// Minor 1 must carry at least one type name or attribute area.
+	bool extended_ = false;
 
 	SchemaParser(Input bytes, RuntimeSchemaWorkspace& workspace, const ParseLimits& limits) noexcept
 	    : bytes_(bytes), ws_(workspace), limits_(limits)
@@ -249,8 +308,10 @@ private:
 			return false;
 		SchemaReader row(bytes_, 0, 64, error_, limits_);
 		require(row.number(4) == 0x33534454, ParseError::Header);
-		require(row.number(2) == 3 && row.number(2) == 0 && row.number(2) == 64 &&
-		            row.number(2) == 0,
+		require(row.number(2) == descriptor::binaryMajor, ParseError::Header);
+		minor_ = static_cast<std::uint16_t>(row.number(2));
+		require((minor_ == descriptor::binaryMinor || minor_ == descriptor::typeNamesMinor) &&
+		            row.number(2) == 64 && row.number(2) == 0,
 		        ParseError::Header);
 		require(row.number(4) == bytes_.size(), ParseError::Header);
 		fingerprint_ = row.number(8);
@@ -299,20 +360,34 @@ private:
 		item.id = index;
 		require(row.number(4) == index, ParseError::TypeShape);
 		item.kind = static_cast<TypeKind>(row.number(1));
-		row.zeros(3);
+		// v3.1 typeFlags: bit 0 Named, only under minor 1; bits 1..7 reserved.
+		const auto flags = row.number(1);
+		constexpr auto named = static_cast<unsigned>(descriptor::TypeFlag::Named);
+		require(flags == 0 || (minor_ == descriptor::typeNamesMinor && flags == named),
+		        ParseError::Reserved);
+		row.zeros(2);
 		item.wireBytes = static_cast<std::uint32_t>(row.number(4));
 		require(item.wireBytes <= limits_.wireBytes, ParseError::Limit);
-		return require(
-		    (index == 0 && item.kind == TypeKind::Void) ||
-		        (index >= 1 && index <= 11 && item.kind == TypeKind::Scalar) ||
-		        (index >= 12 && (item.kind == TypeKind::Enum || item.kind == TypeKind::Struct ||
-		                         item.kind == TypeKind::Array)),
-		    ParseError::TypeShape);
+		const bool compound = item.kind == TypeKind::Enum || item.kind == TypeKind::Struct ||
+		                      item.kind == TypeKind::Array;
+		require((index == 0 && item.kind == TypeKind::Void) ||
+		            (index >= 1 && index <= 11 && item.kind == TypeKind::Scalar) ||
+		            (index >= 12 && compound),
+		        ParseError::TypeShape);
+		// Builtin records keep fixed bytes: no attribute area on Void/Scalar.
+		require(!row.attributes() || compound, ParseError::TypeShape);
+		if (flags == named && good()) {
+			require(item.kind == TypeKind::Enum || item.kind == TypeKind::Struct,
+			        ParseError::TypeShape);
+			item.name = row.text();
+		}
+		extended_ = extended_ || row.attributes() || !item.name.empty();
+		return good();
 	}
 
 	bool countStorage() noexcept
 	{
-		SchemaReader reader(bytes_, 64, catStart_, error_, limits_);
+		SchemaReader reader(bytes_, 64, catStart_, error_, limits_, minor_);
 		for (std::uint32_t index = 0; index < required_.types && good(); ++index) {
 			auto row = reader.record(1);
 			RuntimeType item;
@@ -348,7 +423,7 @@ private:
 	bool types() noexcept
 	{
 		constexpr unsigned widths[]{0, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8};
-		SchemaReader reader(bytes_, 64, catStart_, error_, limits_);
+		SchemaReader reader(bytes_, 64, catStart_, error_, limits_, minor_);
 		std::uint32_t memberPos = 0, enumPos = 0;
 		for (std::uint32_t index = 0; index < required_.types && good(); ++index) {
 			auto row = reader.record(1);
@@ -437,7 +512,8 @@ private:
 			require(depth <= limits_.depth && nodes <= limits_.expandedNodes, ParseError::Limit);
 			item.depth = static_cast<std::uint32_t>(depth);
 			item.expandedNodes = static_cast<std::uint32_t>(nodes);
-			row.done();
+			// Attribute targets k >= 1 name struct member k-1.
+			row.done(item.kind == TypeKind::Struct ? item.memberCount : 0);
 		}
 		reader.done();
 		return good();
@@ -479,9 +555,32 @@ private:
 		return good();
 	}
 
+	// Type names are unique among type names (byte comparison). Sorting the
+	// published rows by name, then by TypeId, needs no secondary storage; one
+	// comparator type keeps a single sort instantiation in a client image.
+	bool typeNames() noexcept
+	{
+		struct Order {
+			bool byName;
+
+			bool operator()(const RuntimeType& a, const RuntimeType& b) const noexcept
+			{
+				return byName ? a.name < b.name : a.id < b.id;
+			}
+		};
+
+		const auto rows = ws_.types_.first(required_.types);
+		sort(rows, Order{true});
+		for (std::size_t i = 1; i < rows.size(); ++i)
+			require(rows[i].name.empty() || rows[i - 1].name != rows[i].name,
+			        ParseError::DuplicateName);
+		sort(rows, Order{false});
+		return good();
+	}
+
 	bool catalogs() noexcept
 	{
-		SchemaReader reader(bytes_, catStart_, epStart_, error_, limits_);
+		SchemaReader reader(bytes_, catStart_, epStart_, error_, limits_, minor_);
 		std::uint32_t pos = 0, endpointBase = 0;
 		for (unsigned c = 0; c < 3 && good(); ++c) {
 			ws_.catFirst_[c] = pos;
@@ -518,7 +617,7 @@ private:
 
 	bool endpoints() noexcept
 	{
-		SchemaReader reader(bytes_, epStart_, bytes_.size(), error_, limits_);
+		SchemaReader reader(bytes_, epStart_, bytes_.size(), error_, limits_, minor_);
 		std::uint32_t pos = 0;
 		for (unsigned c = 0; c < 3 && good(); ++c) {
 			for (std::uint32_t g = 0; g < cats_[c] && good(); ++g) {
@@ -580,10 +679,15 @@ private:
 		    required_.catalogs > ws_.catalogs_.size() ||
 		    required_.endpoints > ws_.endpoints_.size())
 			return refused(Status::Capacity);
-		if (!types() || !catalogs() || !endpoints())
+		if (!types() || !typeNames() || !catalogs() || !endpoints())
+			return refused();
+		// One canonical encoding per model: without names and attributes the
+		// descriptor is v3.0, so minor 1 must carry at least one of them.
+		if (!require(minor_ == descriptor::binaryMinor || extended_, ParseError::Header))
 			return refused();
 		ws_.bytes_ = bytes_;
 		ws_.fingerprint_ = fingerprint_;
+		ws_.minor_ = minor_;
 		ws_.counts_ = required_;
 		ws_.published_ = true;
 		RuntimeSchema schema;
