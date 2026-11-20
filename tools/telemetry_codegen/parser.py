@@ -33,6 +33,7 @@ class Limits:
 
 TYPE_NAMED = 1
 RECORD_ATTRIBUTES = 1
+ATTRIBUTE_HEADER_BYTES = 5  # u8 tag, u32 length
 
 
 def require(condition, reason):
@@ -48,14 +49,14 @@ def fingerprint(data):
 
 
 def attribute_tag_class(tag):
-    """Reserved, advisory (SDK), application or critical, per the v3.1 tag table."""
-    if 0x0001 <= tag <= 0x3FFF:
+    """Reserved, advisory (SDK), application or critical, per the v3.1 u8 tag table."""
+    if 0x01 <= tag <= 0x3F:
         return 'advisory'
-    if 0x4000 <= tag <= 0x7FFF:
+    if 0x40 <= tag <= 0x7F:
         return 'application'
-    if 0x8001 <= tag <= 0xBFFF:
+    if 0x81 <= tag <= 0xBF:
         return 'critical'
-    return 'reserved'
+    return 'reserved'  # 0x00, 0x80, 0xC0..0xFF
 
 
 # Bounded cursor over one descriptor section or record payload.
@@ -105,11 +106,12 @@ class Reader:
         result.offset = begin
         return result
 
-    def done(self, members=0):
+    def done(self):
         """End a record: exact payload, or a canonical attribute area to its end.
 
-        members bounds attribute targets: 0 is the record's subject and k is
-        struct member k-1, so only a Struct Type record passes members > 0.
+        Each attribute is u8 tag, u32 length, value; tags ascend strictly, so a
+        tag appears at most once per record and its value describes the whole
+        record. A value is skipped by its length; no tag is defined in v3.1.
         """
         if not self.attributes:
             require(self.pos == self.end, 'extra or missing payload bytes')
@@ -117,15 +119,13 @@ class Reader:
         require(self.pos < self.end, 'attribute area: flag without attribute')
         previous = None
         while self.pos < self.end:
-            require(self.end - self.pos >= 8, 'attribute area: truncated attribute header')
-            tag, target, length = struct.unpack_from('<HHI', self.data, self.pos)
-            self.pos += 8
+            require(self.end - self.pos >= ATTRIBUTE_HEADER_BYTES, 'attribute area: header cut short')
+            tag, length = struct.unpack_from('<BI', self.data, self.pos)
+            self.pos += ATTRIBUTE_HEADER_BYTES
             require(length <= self.end - self.pos, 'attribute area: value past the record')
             self.pos += length
-            require(target <= members, 'attribute area: target outside the record')
-            require(previous is None or previous < (target, tag),
-                    'attribute area: unsorted or repeated (target, tag)')
-            previous = (target, tag)
+            require(previous is None or previous < tag, 'attribute area: tag out of order or repeated')
+            previous = tag
             category = attribute_tag_class(tag)
             require(category != 'reserved', 'reserved attribute tag')
             # No SDK tag is defined in v3.1: every critical tag is unknown here.
@@ -191,7 +191,6 @@ def parse(data, limits=Limits()):
             item['name'] = name
             extended = True
         expected_wire = 0
-        members = 0
         if kind == 1:
             code = row.number(1)
             row.zeros(3)
@@ -232,7 +231,6 @@ def parse(data, limits=Limits()):
                 nodes += child['nodes']
                 depth = max(depth, 1 + child['depth'])
             item.update(members=members, depth=depth, nodes=nodes)
-            members = count
         elif kind == 4:
             child_id = row.number(4)
             child = reference(child_id, index)
@@ -244,7 +242,7 @@ def parse(data, limits=Limits()):
         require(wire == expected_wire, 'wire size mismatch')
         require(item['depth'] <= limits.depth, 'type depth budget')
         require(item['nodes'] <= limits.expanded_nodes, 'expanded node budget')
-        row.done(members)
+        row.done()
         types.append(item)
     reader.done()
 

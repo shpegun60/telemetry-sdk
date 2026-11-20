@@ -140,11 +140,11 @@ public:
 	}
 
 	// Without an attribute area the payload ends exactly here. With one, it
-	// runs to the record end as {u16 tag, u16 target, u32 length, value}
-	// sorted by (target, tag); members > 0 only for a Struct Type record,
-	// whose target k names member k-1. Advisory and application tags are
-	// validated and skipped; reserved and (all, in v3.1) critical tags refuse.
-	void done(std::uint32_t members = 0) noexcept
+	// runs to the record end as {u8 tag, u32 length, value} with tags strictly
+	// ascending; each value describes the whole record and is skipped by its
+	// length. Advisory and application tags are validated and skipped;
+	// reserved and (all, in v3.1) critical tags refuse the descriptor.
+	void done() noexcept
 	{
 		if (!attributes_) {
 			if (pos_ != end_)
@@ -153,26 +153,24 @@ public:
 		}
 		if (good() && pos_ == end_)
 			fail(ParseError::Record);
-		std::uint32_t previous = 0;
+		unsigned previous = 0;
 		for (bool first = true; good() && pos_ < end_; first = false) {
 			if (remaining() < descriptor::attributeHeaderBytes) {
 				fail(ParseError::Record);
 				return;
 			}
-			const auto tag = static_cast<std::uint16_t>(number(2));
-			const auto target = static_cast<std::uint32_t>(number(2));
+			const auto tag = static_cast<std::uint8_t>(number(1));
 			const auto length = number(4);
-			if (length > remaining() || target > members) {
+			if (length > remaining()) {
 				fail(ParseError::Record);
 				return;
 			}
 			pos_ += static_cast<std::size_t>(length);
-			const auto key = target << 16 | tag;
-			if (!first && key <= previous) {
+			if (!first && tag <= previous) {
 				fail(ParseError::Record);
 				return;
 			}
-			previous = key;
+			previous = tag;
 			const auto category = descriptor::attributeTagClass(tag);
 			if (category == descriptor::AttributeTagClass::Reserved)
 				fail(ParseError::Reserved);
@@ -512,8 +510,7 @@ private:
 			require(depth <= limits_.depth && nodes <= limits_.expandedNodes, ParseError::Limit);
 			item.depth = static_cast<std::uint32_t>(depth);
 			item.expandedNodes = static_cast<std::uint32_t>(nodes);
-			// Attribute targets k >= 1 name struct member k-1.
-			row.done(item.kind == TypeKind::Struct ? item.memberCount : 0);
+			row.done();
 		}
 		reader.done();
 		return good();

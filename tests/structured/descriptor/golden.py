@@ -20,8 +20,18 @@ def text(value):
     return u32(len(encoded)) + encoded
 
 
-def attribute(tag, target, value=b''):
-    return struct.pack('<HHI', tag, target, len(value)) + value
+def attribute(tag, value=b''):
+    """One attribute: u8 tag, u32 length, value. Its value describes the whole record."""
+    return struct.pack('<BI', tag, len(value)) + value
+
+
+def member_items(member_count, items):
+    """The member-tag shape of a Struct record: a presence bitmap of
+    ceil(memberCount/8) bytes (bit i = member i), then one item per set bit."""
+    bitmap = bytearray((member_count + 7) // 8)
+    for index in items:
+        bitmap[index // 8] |= 1 << (index % 8)
+    return bytes(bitmap) + b''.join(items[index] for index in sorted(items))
 
 
 def record(kind, payload, attributes=b'', flags=None):
@@ -53,20 +63,21 @@ def enum_type(index, base, width, entries, **extra):
 MIXED_NAMES = {12: 'Mode', 14: 'State', 15: 'MotorConfig'}
 
 # Unregistered SDK advisory tags and one application tag; v3.1 defines none.
-ADVISORY_A, ADVISORY_B, APPLICATION = 0x3FFE, 0x3FFF, 0x4000
+ADVISORY_A, ADVISORY_B, APPLICATION = 0x3E, 0x3F, 0x40
 
-# attrs: advisory attributes on a Struct member, a Struct, an Enum, an Array,
-# a Catalog, a Field, a Command and a Service record, plus one application tag.
+# attrs: advisory attributes on a Struct (one of them in the member shape), an
+# Enum, an Array, a Catalog, a Field, a Command and a Service record, plus one
+# application tag. Tags ascend strictly within each record.
 MIXED_ATTRIBUTES = {
-    ('type', 12): attribute(ADVISORY_B, 0, b'enum'),
-    ('type', 13): attribute(ADVISORY_A, 0, u32(7)),
-    ('type', 14): attribute(ADVISORY_A, 0),
-    ('type', 15): (attribute(ADVISORY_A, 0, b'\x01') + attribute(ADVISORY_A, 2, b'\x02\x03') +
-                   attribute(ADVISORY_B, 2, b'') + attribute(APPLICATION, 3, b'app')),
-    ('catalog', 1, 0): attribute(ADVISORY_A, 0, b'group'),
-    ('endpoint', 1, 0, 1): attribute(ADVISORY_B, 0, u32(0, 0)),
-    ('endpoint', 2, 0, 0): attribute(ADVISORY_A, 0, b'c'),
-    ('endpoint', 3, 0, 0): attribute(ADVISORY_A, 0, b's'),
+    ('type', 12): attribute(ADVISORY_B, b'enum'),
+    ('type', 13): attribute(ADVISORY_A, u32(7)),
+    ('type', 14): attribute(ADVISORY_A),
+    ('type', 15): (attribute(ADVISORY_A, member_items(3, {1: bytes((0x02, 0x03))})) +
+                   attribute(ADVISORY_B, b'') + attribute(APPLICATION, b'app')),
+    ('catalog', 1, 0): attribute(ADVISORY_A, b'group'),
+    ('endpoint', 1, 0, 1): attribute(ADVISORY_B, u32(0, 0)),
+    ('endpoint', 2, 0, 0): attribute(ADVISORY_A, b'c'),
+    ('endpoint', 3, 0, 0): attribute(ADVISORY_A, b's'),
 }
 
 
@@ -162,7 +173,7 @@ def negative_cases():
     def add(name, data, verdict, python, js):
         cases.append(dict(name=name, verdict=verdict, python=python, js=js, hex=data.hex()))
 
-    struct15 = {('type', 15): attribute(ADVISORY_A, 0)}
+    struct15 = {('type', 15): attribute(ADVISORY_A)}
     # Header minor and type names.
     add('minor-2', fixture('named', minor=2), 'Header', 'header version', 'Descriptor version')
     add('minor-1-without-name-or-attribute', fixture('mixed', minor=1), 'Header', 'header version',
@@ -204,36 +215,30 @@ def negative_cases():
     add('record-flag-bit-15', fixture('named', attributes=struct15,
                                       extra={('type', 15): dict(flags=0x8001)}), 'Reserved',
         'reserved bytes', 'Nonzero reserved')
-    add('attributes-on-void', fixture('named', attributes={('type', 0): attribute(ADVISORY_A, 0)}),
+    add('attributes-on-void', fixture('named', attributes={('type', 0): attribute(ADVISORY_A)}),
         'TypeShape', 'attributes on Void/Scalar', 'Attributes on Void/Scalar')
-    add('attributes-on-scalar', fixture('named', attributes={('type', 4): attribute(ADVISORY_A, 0)}),
+    add('attributes-on-scalar', fixture('named', attributes={('type', 4): attribute(ADVISORY_A)}),
         'TypeShape', 'attributes on Void/Scalar', 'Attributes on Void/Scalar')
-    add('member-target-on-enum', fixture('named', attributes={('type', 12): attribute(ADVISORY_A, 1)}),
-        'Record', 'target outside', 'Attribute target outside')
-    add('member-target-on-field', fixture('named', attributes={('endpoint', 1, 0, 0): attribute(ADVISORY_A, 1)}),
-        'Record', 'target outside', 'Attribute target outside')
-    add('member-target-past-count', fixture('named', attributes={('type', 15): attribute(ADVISORY_A, 4)}),
-        'Record', 'target outside', 'Attribute target outside')
-    add('attributes-unsorted-target', fixture('named', attributes={
-        ('type', 15): attribute(ADVISORY_A, 2) + attribute(ADVISORY_A, 1)}), 'Record', 'unsorted or repeated',
-        'Unsorted or repeated attribute')
-    add('attributes-unsorted-tag', fixture('named', attributes={
-        ('type', 15): attribute(ADVISORY_B, 1) + attribute(ADVISORY_A, 1)}), 'Record', 'unsorted or repeated',
-        'Unsorted or repeated attribute')
-    add('attributes-repeated', fixture('named', attributes={
-        ('type', 15): attribute(ADVISORY_A, 1, b'a') + attribute(ADVISORY_A, 1, b'b')}), 'Record',
-        'unsorted or repeated', 'Unsorted or repeated attribute')
-    data = bytearray(fixture('named', attributes={('endpoint', 3, 0, 0): attribute(ADVISORY_A, 0, b'xy')}))
+    add('attribute-tag-out-of-order', fixture('named', attributes={
+        ('type', 15): attribute(ADVISORY_B) + attribute(ADVISORY_A)}), 'Record', 'out of order or repeated',
+        'Attribute tag out of order or repeated')
+    add('attribute-tag-repeated', fixture('named', attributes={
+        ('type', 15): attribute(ADVISORY_A, b'a') + attribute(ADVISORY_A, b'b')}), 'Record',
+        'out of order or repeated', 'Attribute tag out of order or repeated')
+    data = bytearray(fixture('named', attributes={('endpoint', 3, 0, 0): attribute(ADVISORY_A, b'xy')}))
     struct.pack_into('<I', data, len(data) - 6, 3)  # the value now runs one byte past the record
     add('attribute-length-past-record', rehash(data), 'Record', 'value past the record',
         'Attribute value past the record')
-    add('attribute-header-truncated', fixture('named', attributes={('endpoint', 2, 0, 0): b'\xfe\x3f\0\0'}),
-        'Record', 'truncated attribute header', 'Truncated attribute header')
-    for tag in (0x0000, 0x8000, 0xC000, 0xFFFF):
-        add(f'reserved-tag-{tag:04x}', fixture('named', attributes={('type', 14): attribute(tag, 0)}),
+    for left in (1, 2, 3, 4):
+        # A complete attribute, then a header cut short with 1..4 bytes left.
+        add(f'attribute-header-cut-short-{left}', fixture('named', attributes={
+            ('endpoint', 2, 0, 0): attribute(ADVISORY_A) + bytes((ADVISORY_B, 0, 0, 0))[:left]}),
+            'Record', 'header cut short', 'Attribute header cut short')
+    for tag in (0x00, 0x80, 0xC0, 0xFF):
+        add(f'reserved-tag-{tag:02x}', fixture('named', attributes={('type', 14): attribute(tag)}),
             'Reserved', 'reserved attribute tag', 'Reserved attribute tag')
-    for tag in (0x8001, 0xBFFF):
-        add(f'unknown-critical-tag-{tag:04x}', fixture('named', attributes={('type', 14): attribute(tag, 0)}),
+    for tag in (0x81, 0xBF):
+        add(f'unknown-critical-tag-{tag:02x}', fixture('named', attributes={('type', 14): attribute(tag)}),
             'Record', 'unknown critical attribute tag', 'Unknown critical attribute tag')
     return cases
 
@@ -250,7 +255,10 @@ def positive_cases():
         dict(name='utf8-type-name', hex=fixture('mixed', names={14: 'Стан'}).hex(),
              equals=None),
         dict(name='empty-value-application-tag', hex=fixture(
-            'mixed', attributes={('type', 15): attribute(APPLICATION, 1)}).hex(), equals='mixed'),
+            'mixed', attributes={('type', 15): attribute(APPLICATION)}).hex(), equals='mixed'),
+        dict(name='every-tag-class-but-critical', hex=fixture(
+            'mixed', attributes={('type', 15): attribute(0x04, b'r') + attribute(0x3F) + attribute(0x7F, b'z')}
+        ).hex(), equals='mixed'),
     ]
 
 

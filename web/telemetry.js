@@ -46,8 +46,9 @@ const schemas = new WeakMap();
 const scalarWidths = [ 0, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8 ];
 const signedCodes = new Set([ 3, 5, 7, 9 ]);
 const u32Max = 0xffffffff;
-const typeNamed = 1;        // v3.1 Type prefix typeFlags bit 0
-const recordAttributes = 1; // v3.1 record header flags bit 0
+const typeNamed = 1;            // v3.1 Type prefix typeFlags bit 0
+const recordAttributes = 1;     // v3.1 record header flags bit 0
+const attributeHeaderBytes = 5; // v3.1 attribute: u8 tag, u32 length
 
 // Preserve a view's byte offset/length. The result borrows input unless the
 // public operation explicitly snapshots it before retaining descriptor data.
@@ -187,10 +188,10 @@ class Reader {
 	}
 
 	// Without an attribute area the payload ends exactly here. With one, it runs
-	// to the record end as {u16 tag, u16 target, u32 length, value} sorted by
-	// (target, tag); members > 0 only for a Struct Type record (target k names
-	// member k-1). Advisory/application tags are validated and skipped.
-	done(members = 0)
+	// to the record end as {u8 tag, u32 length, value} with tags strictly
+	// ascending; each value describes the whole record and is skipped by its
+	// length. Advisory/application tags are validated and skipped.
+	done()
 	{
 		if (!this.attributes) {
 			require(this.pos === this.end, 'Extra or missing payload bytes');
@@ -199,16 +200,13 @@ class Reader {
 		require(this.pos < this.end, 'Attribute flag without attribute');
 		let previous = -1;
 		while (this.pos < this.end) {
-			require(this.end - this.pos >= 8, 'Truncated attribute header');
-			const tag = this.u16();
-			const target = this.u16();
+			require(this.end - this.pos >= attributeHeaderBytes, 'Attribute header cut short');
+			const tag = this.u8();
 			const length = this.u32();
 			require(length <= this.end - this.pos, 'Attribute value past the record');
 			this.pos += length;
-			require(target <= members, 'Attribute target outside the record');
-			const key = target * 65536 + tag;
-			require(key > previous, 'Unsorted or repeated attribute (target, tag)');
-			previous = key;
+			require(tag > previous, 'Attribute tag out of order or repeated');
+			previous = tag;
 			const category = attributeTagClass(tag);
 			require(category !== 'reserved', 'Reserved attribute tag');
 			// v3.1 defines no critical tag, so every critical tag is unknown here.
@@ -217,14 +215,15 @@ class Reader {
 	}
 }
 
-// v3.1 attribute tag ranges: SDK advisory, application, critical; the rest reserved.
+// v3.1 u8 attribute tag ranges: SDK advisory, application, critical; 0x00, 0x80
+// and 0xC0..0xFF are reserved.
 function attributeTagClass(tag)
 {
-	if (tag >= 0x0001 && tag <= 0x3fff)
+	if (tag >= 0x01 && tag <= 0x3f)
 		return 'advisory';
-	if (tag >= 0x4000 && tag <= 0x7fff)
+	if (tag >= 0x40 && tag <= 0x7f)
 		return 'application';
-	if (tag >= 0x8001 && tag <= 0xbfff)
+	if (tag >= 0x81 && tag <= 0xbf)
 		return 'critical';
 	return 'reserved';
 }
@@ -356,7 +355,7 @@ export function parseDescriptor(input, overrides = {})
 		require(wireBytes === expectedBytes, 'Wire size mismatch');
 		require(type.depth <= limits.typeDepth, 'Type depth budget');
 		require(type.nodes <= limits.expandedValueNodes, 'Expanded value node budget');
-		row.done(kind === TypeKind.Struct ? type.members.length : 0);
+		row.done();
 		types.push(type);
 	}
 	reader.done();

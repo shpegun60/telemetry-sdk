@@ -25,9 +25,10 @@ directory must be outside the checkout. Nothing touches a device.
 
 1. **Goldens.** [golden.py](../descriptor/golden.py) builds `named.hex` (the
    mixed model with its three C++ type names) and `attrs.hex` (the same plus
-   advisory attributes on a Struct member, a Struct, an Enum, an Array, a
-   Catalog, a Field, a Command and a Service record, and one application
-   tag) from explicit records, without the producer. It also writes
+   advisory attributes on Struct records, one of them in the member shape of
+   a presence bitmap and items, an Enum, an Array, a Catalog, a Field, a
+   Command and a Service record, and one application tag) from explicit
+   records, without the producer. It also writes
    [v31_cases.json](../descriptor/v31_cases.json): accepted v3.1 inputs and
    one malformed descriptor per rule with the verdict every decoder must give.
 2. **Producer.** `Producer.cpp` is built with the default configuration and
@@ -100,9 +101,10 @@ linked alone, against `lib/telemetry` of the base `3469202`:
 
 | Optimization | Base | v3.1 decoder | Delta |
 | --- | ---: | ---: | ---: |
-| O2 | 10548 B | 11792 B | +1244 B |
-| Os | 5880 B | 6928 B | +1048 B |
+| O2 | 10548 B | 11636 B | +1088 B |
+| Os | 5880 B | 6860 B | +980 B |
 
 The delta is reading and checking type names (`typePrefix`, one heapsort
-instantiation for uniqueness) and validating attribute areas (`done`). These
-are offline object sizes; no device was run.
+instantiation for uniqueness) and validating compact attribute areas (`done`:
+5-byte headers, ascending tags). These are offline object sizes; no device
+was run.

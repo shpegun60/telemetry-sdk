@@ -148,8 +148,9 @@ def manifest_assertions(contract):
         lines += [f'static_assert(telemetry::descriptor::{first} == 0x{tags[key][0]});',
                   f'static_assert(telemetry::descriptor::{last} == 0x{tags[key][1]});']
     lines += [f'static_assert(telemetry::descriptor::rangeTag == 0x{tags["range"]});',
-              f'static_assert(telemetry::descriptor::unitTag == 0x{tags["unit"]});']
-    for tag in ('0000', '8000', 'c000', 'ffff'):
+              f'static_assert(telemetry::descriptor::unitTag == 0x{tags["unit"]});',
+              f'static_assert(telemetry::descriptor::defaultTag == 0x{tags["default"]});']
+    for tag in ('00', '80', 'c0', 'ff'):
         lines.append(f'static_assert(telemetry::descriptor::attributeTagClass(0x{tag}) == '
                      'telemetry::descriptor::AttributeTagClass::Reserved);')
     for name in LIMIT_NAMES:

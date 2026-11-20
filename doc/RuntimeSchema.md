@@ -239,8 +239,8 @@ applied to a different root or workspace, even when their type IDs coincide.
 
 Descriptor validation covers the fingerprint, strict header/version/flags
 (minor 0 or 1, minor 1 only with a type name or attribute area), v3.1 type
-names (Enum/Struct only, unique) and attribute areas (order, target, bounds,
-reserved and unknown critical tags), section and record bounds, reserved bytes, exact record exhaustion, positional
+names (Enum/Struct only, unique) and attribute areas (5-byte headers, strictly
+ascending tags, bounds, reserved and unknown critical tags), section and record bounds, reserved bytes, exact record exhaustion, positional
 IDs, canonical built-in types, backward type references, checked wire sizes,
 nesting and expanded-node budgets, UTF-8 strings, unique names within their
 scopes, sorted enum codes, catalog coverage and endpoint type/capability rules.

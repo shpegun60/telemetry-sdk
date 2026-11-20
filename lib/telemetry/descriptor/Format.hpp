@@ -56,26 +56,32 @@ enum class TypeFlag : std::uint8_t {
 };
 
 // v3.1: the u16 flags of every record header (zero in v3.0). Attributes
-// means at least one {u16 tag, u16 target, u32 length, value} follows the
-// payload and runs exactly to the end of payloadBytes. Never on Void/Scalar.
+// means at least one {u8 tag, u32 length, value} follows the payload and runs
+// exactly to the end of payloadBytes. Tags ascend strictly, so each appears at
+// most once per record and its value describes the whole record. Never on
+// Void/Scalar. In a Struct record a member tag's value is a presence bitmap
+// of ceil(memberCount / 8) bytes (bit i = member i), then one item per set
+// bit in member order.
 enum class RecordFlag : std::uint16_t {
 	Attributes = 1
 };
 
-inline constexpr std::uint32_t attributeHeaderBytes = 8;
+inline constexpr std::uint32_t attributeHeaderBytes = 5;
 
 // Attribute tag ranges. A host skips an advisory tag it does not know
-// (validating order, target and bounds), refuses a reserved tag, and refuses
-// the descriptor for an unknown critical tag. v3.1 defines no tag yet; 0x0001
-// (Range) and 0x0002 (Unit) are reserved for their own reviewed contracts.
-inline constexpr std::uint16_t sdkAdvisoryTagFirst = 0x0001;
-inline constexpr std::uint16_t sdkAdvisoryTagLast = 0x3fff;
-inline constexpr std::uint16_t applicationTagFirst = 0x4000;
-inline constexpr std::uint16_t applicationTagLast = 0x7fff;
-inline constexpr std::uint16_t criticalTagFirst = 0x8001;
-inline constexpr std::uint16_t criticalTagLast = 0xbfff;
-inline constexpr std::uint16_t rangeTag = 0x0001;
-inline constexpr std::uint16_t unitTag = 0x0002;
+// (validating order and bounds, skipping the value by its length), refuses a
+// reserved tag, and refuses the descriptor for an unknown critical tag. v3.1
+// defines no tag yet; Range, Unit and Default are reserved for their own
+// reviewed contracts.
+inline constexpr std::uint8_t sdkAdvisoryTagFirst = 0x01;
+inline constexpr std::uint8_t sdkAdvisoryTagLast = 0x3f;
+inline constexpr std::uint8_t applicationTagFirst = 0x40;
+inline constexpr std::uint8_t applicationTagLast = 0x7f;
+inline constexpr std::uint8_t criticalTagFirst = 0x81;
+inline constexpr std::uint8_t criticalTagLast = 0xbf;
+inline constexpr std::uint8_t rangeTag = 0x01;
+inline constexpr std::uint8_t unitTag = 0x02;
+inline constexpr std::uint8_t defaultTag = 0x03;
 
 enum class AttributeTagClass : std::uint8_t {
 	Reserved,
@@ -84,8 +90,8 @@ enum class AttributeTagClass : std::uint8_t {
 	Critical
 };
 
-// 0x0000, 0x8000 and 0xC000..0xFFFF are reserved.
-[[nodiscard]] constexpr AttributeTagClass attributeTagClass(std::uint16_t tag) noexcept
+// 0x00, 0x80 and 0xC0..0xFF are reserved.
+[[nodiscard]] constexpr AttributeTagClass attributeTagClass(std::uint8_t tag) noexcept
 {
 	if (tag >= sdkAdvisoryTagFirst && tag <= sdkAdvisoryTagLast)
 		return AttributeTagClass::Advisory;

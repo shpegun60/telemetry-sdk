@@ -19,10 +19,10 @@
   "wire_v3_1": {
     "status": "additive contract: optional type names and a skippable attribute area; v3.0 stays frozen as the stripped form",
     "minor": 1, "type_flags": {"Named": 1}, "named_type_kinds": ["Enum", "Struct"],
-    "record_flags": {"Attributes": 1}, "attribute_header_bytes": 8,
-    "attribute_tags": {"sdk_advisory": ["0001", "3fff"], "application": ["4000", "7fff"],
-                       "critical": ["8001", "bfff"], "reserved": ["0000", "8000", "c000-ffff"],
-                       "range": "0001", "unit": "0002"}
+    "record_flags": {"Attributes": 1}, "attribute_header_bytes": 5,
+    "attribute_tags": {"sdk_advisory": ["01", "3f"], "application": ["40", "7f"],
+                       "critical": ["81", "bf"], "reserved": ["00", "80", "c0-ff"],
+                       "range": "01", "unit": "02", "default": "03"}
   },
   "default_type_names": 1,
   "structured_abi_revision": 6,
@@ -50,6 +50,6 @@
     "tests/structured/descriptor/mixed.hex": {"bytes": 968, "sha256": "939ba312e6ad5ce9339a15f3544bca4f924b86bab980fe97bffe258797634b38"},
     "tests/structured/resources/values.hex": {"bytes": 73, "sha256": "e3e4137f0226251b5a0dbd4725987aaa0642d080e40c9d11d08051026db56ca6"},
     "tests/structured/descriptor/named.hex": {"bytes": 1000, "sha256": "80a0327931c0812a42d44782446ef391618e83240e314b17877e7aedf8c50cdb", "minor": 1},
-    "tests/structured/descriptor/attrs.hex": {"bytes": 1117, "sha256": "b61580fd4fe87d7f7e2dc9dd039779619c96935af532b71ccb0c5f6ac2fb3a00", "minor": 1}
+    "tests/structured/descriptor/attrs.hex": {"bytes": 1079, "sha256": "edecb212abae4947b6dc18735c5dfcdbe68fe5667fb337848e309356c1e1cb0d", "minor": 1}
   }
 }

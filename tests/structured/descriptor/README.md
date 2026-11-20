@@ -23,8 +23,9 @@ The frozen models are built through `withoutTypeNames`, so `mixed`, `edge`
 and `empty` stay v3.0 whatever `TELEMETRY_TYPE_NAMES` says. The same script
 writes the descriptor v3.1 fixtures: `named.hex` (1000 B, the mixed model
 with the names `Mode`, `State` and `MotorConfig`, which the default producer
-emits byte for byte), `attrs.hex` (1117 B, named plus advisory and
-application attributes on every record kind) and `v31_cases.json`, the
+emits byte for byte), `attrs.hex` (1079 B, named plus advisory and
+application attributes on every record kind, 5-byte attribute headers) and
+`v31_cases.json`, the
 decoder table the [type-names suite](../type_names/README.md) runs in C++,
 JS and Python.
 Running `golden.py` explicitly rewrites fixtures; the test runner never does.

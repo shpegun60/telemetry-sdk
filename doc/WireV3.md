@@ -259,30 +259,33 @@ record header  u8 kind, u8 recordVersion = 1, u16 flags, u32 payloadBytes
                flags: bit 0 Attributes, bits 1..15 zero
 payload        unchanged
 [attribute]*   present iff flags bit 0; runs exactly to the end of payloadBytes:
-               u16 tag, u16 target, u32 length, u8 value[length]
+               u8 tag, u32 length, u8 value[length]
 ```
 
 - Under minor 0 the record flags are 0. The flag means at least one
   attribute; there is no area length word, because `payloadBytes` bounds the
-  area and each attribute's own length makes it skippable.
-- `target` 0 is the record's subject (the type, catalog, Field value or
-  endpoint). A target k >= 1 is struct member k-1 and is allowed only in a
-  Struct Type record, up to its `memberCount`. Command and Service arguments
-  are structs, so an argument's attribute rides on a member of its request.
-- Attributes are sorted by (target, tag), strictly ascending, so a
-  (target, tag) pair appears once. The last attribute ends exactly at the
-  record end.
+  area and each attribute's own length makes it skippable. The header is 5
+  bytes; the length stays u32, like every length in the format, because a
+  value may carry whole wire values.
+- Tags ascend strictly, so each tag appears at most once per record, and an
+  attribute's value describes the whole record. The last attribute ends
+  exactly at the record end.
+- In a Struct Type record a tag that describes members has one shape: a
+  presence bitmap of `ceil(memberCount / 8)` bytes (bit i is member i, at
+  most 32 bytes), then one item per set bit, in member order. Command and
+  Service arguments are structs, so an argument's attribute rides on its
+  request struct. The shape is defined here; no tag is.
 - Void and Scalar Type records never carry an area: builtins keep fixed bytes.
 
-| Tag | Meaning | A host that does not know the tag |
+| Tag (u8) | Meaning | A host that does not know the tag |
 | --- | --- | --- |
-| `0x0000`, `0x8000`, `0xC000..0xFFFF` | reserved | refuses the descriptor |
-| `0x0001..0x3FFF` | SDK advisory, registered here; `0x0001` Range and `0x0002` Unit are reserved, not yet defined | skips it |
-| `0x4000..0x7FFF` | application advisory; the SDK never assigns them | skips it |
-| `0x8001..0xBFFF` | SDK critical (must be understood); none is defined in v3.1 | refuses the descriptor |
+| `0x00`, `0x80`, `0xC0..0xFF` | reserved | refuses the descriptor |
+| `0x01..0x3F` | SDK advisory, registered here; `0x01` Range, `0x02` Unit and `0x03` Default are reserved, not yet defined | skips it |
+| `0x40..0x7F` | application advisory; the SDK never assigns them | skips it |
+| `0x81..0xBF` | SDK critical (must be understood); none is defined in v3.1 | refuses the descriptor |
 
-To skip an attribute is to validate its header (order, target, bounds) and
-ignore its value. The fingerprint still covers it, so hosts of every age agree
+To skip an attribute is to validate its header (order, bounds) and pass its
+value by its length. The fingerprint still covers it, so hosts of every age agree
 on the model's identity. An addition that hosts must not ignore takes a
 critical tag: it refuses only the descriptors that use it, where a minor bump
 would refuse them all. v3.1 defines no tag; a tag enters the area only through
@@ -300,7 +303,7 @@ as the same bytes without its attributes.
 | two equal type names | `DuplicateName` |
 | empty or overlong name | `Limit` |
 | name with NUL or invalid UTF-8 | `Utf8` |
-| name or attribute past its record; flag without an attribute; a target outside the record or past `memberCount`; unsorted or repeated (target, tag); an unknown critical tag | `Record` |
+| name or attribute past its record; flag without an attribute; an attribute header cut short (1-4 bytes left); a tag out of order or repeated; an unknown critical tag | `Record` |
 
 The JS and Python decoders refuse the same descriptors; the shared table is
 [v31_cases.json](../tests/structured/descriptor/v31_cases.json), checked by the
