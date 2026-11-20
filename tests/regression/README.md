@@ -46,6 +46,16 @@ literals remain checked. [ArmSlotGateCheck.py](ArmSlotGateCheck.py) replays exis
 O2/Os assembly logs and exercises padding, local-target and reference controls.
 These are offline compiler comparisons, not MCU cycle measurements.
 
+[DescriptorSizeProbe](DescriptorSizeProbe.cpp) serves a descriptor from one
+linked root, `descriptor_probe`, so `run_arm_checks.py` can report what
+serving it costs on Cortex-M7: the NUCLEO-H7S3L8 demo's flat model and the
+group-tree fixture as a tree and as flat catalogs, each packed (consteval
+bytes) and streaming (`DescriptorView::read`), with `TELEMETRY_TYPE_NAMES` 1
+and 0. The probe checks at compile time that names cost exactly their records
+(a u32 length and the bytes per name); the runner requires every type name in
+each named image and none in a stripped one. See the
+[size report](../README.md#arm-descriptor-size-report).
+
 Runtime conditions and commands are counted by the executed fixtures and runner.
 Per-command arguments, exit status and output are retained in the build logs.
 No historical fixed pass total is used as the final suite's result.
