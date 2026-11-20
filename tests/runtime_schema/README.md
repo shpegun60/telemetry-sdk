@@ -8,7 +8,8 @@ python3 -B tests/runtime_schema/run.py --cxx clang++-18 --sanitize --build-dir /
 python3 -B tests/runtime_schema/run.py --big-endian --build-dir /external/runtime-endian
 ```
 
-The Native producer exports a real model descriptor and compares core
+The Native producer exports a real model descriptor (descriptor v3.1 with type
+names, the default build) and compares core
 `dispatchEncoded(FieldRead)` bytes with the static Codec. A consumer including
 only runtime headers checks scalar bit patterns, nested arrays/structs, open
 enums, empty values, prepared paths, workspace identity/invalidation, exact
@@ -65,7 +66,9 @@ establishes that sets do not rescan the DTO and commit validates before copying.
 The Writer itself has no operating-system dependency.
 
 The parser corpus includes rehashed semantic mutations, section truncations,
-depth boundaries, UTF-8 names, and seeded random inputs. Every acceptance result
+depth boundaries, UTF-8 names, and seeded random inputs, plus every case of the
+descriptor v3.1 table (`tests/structured/descriptor/v31_cases.json`) and the
+`named`/`attrs` goldens. Every acceptance result
 is compared with the existing independent Python descriptor parser. The runner
 retains command logs, binary/generated/fixture hashes, corpus classifications and
 before/end source hashes in `summary.json`. These are host checks, with no board

@@ -19,6 +19,14 @@ python tests/structured/descriptor/run.py --arm --cxx arm-none-eabi-g++ --build-
 `golden.py` constructs fixtures independently from explicit format records.
 The frozen `.hex` files must agree with that specification, the C++ constexpr
 packed arrays, every-offset/chunked reads and ARM object-section extraction.
+The frozen models are built through `withoutTypeNames`, so `mixed`, `edge`
+and `empty` stay v3.0 whatever `TELEMETRY_TYPE_NAMES` says. The same script
+writes the descriptor v3.1 fixtures: `named.hex` (1000 B, the mixed model
+with the names `Mode`, `State` and `MotorConfig`, which the default producer
+emits byte for byte), `attrs.hex` (1117 B, named plus advisory and
+application attributes on every record kind) and `v31_cases.json`, the
+decoder table the [type-names suite](../type_names/README.md) runs in C++,
+JS and Python.
 Running `golden.py` explicitly rewrites fixtures; the test runner never does.
 `parser.py` is an independent bounded reader, not a call into the producer.
 

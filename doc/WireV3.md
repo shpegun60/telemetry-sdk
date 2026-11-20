@@ -1,4 +1,4 @@
-# Descriptor і Values: формат v3.0
+# Descriptor і Values: формат v3.0 і v3.1
 
 Автори: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 
@@ -11,6 +11,9 @@ dependency pins та незалежні golden fixtures зафіксовані �
 [freeze manifest](../tests/structured/freeze/contract.json) та
 [compile-time contract](../tests/structured/freeze/Contract.cpp).
 In-memory C++ ABI revision 6 має окремий номер; canonical wire лишається 3.0.
+Descriptor v3.1 adds an optional type name and a skippable attribute area; a
+descriptor without both is byte-identical v3.0, which stays frozen as the
+stripped form. See [Descriptor v3.1](#descriptor-v31-type-names-and-attributes).
 Transport framing і optional Bind/Exchange описані окремо.
 
 ## Навігація
@@ -21,6 +24,7 @@ Transport framing і optional Bind/Exchange описані окремо.
 - [Type records](#type-records)
 - [Catalog і endpoint records](#catalog-і-endpoint-records)
 - [Fingerprint](#fingerprint)
+- [Descriptor v3.1: type names and attributes](#descriptor-v31-type-names-and-attributes)
 - [Default technical ceilings](#default-technical-ceilings)
 - [Values header і tokens](#values-header-і-tokens)
 - [Читання Values порціями](#читання-values-порціями)
@@ -35,7 +39,10 @@ Transport framing і optional Bind/Exchange описані окремо.
 - Між records немає padding. Native pointers, `size_t`, C++ object layout,
   alignment і struct padding не експортуються.
 - Nonzero reserved bits/bytes, невідомі record kinds/flags/version та
-  непідтримувана version header відхиляються клієнтом v3.0.
+  непідтримувана version header відхиляються клієнтом v3.0. A v3.1 client
+  accepts minor 0 and 1; under minor 1 only the Type prefix `typeFlags` bit 0
+  and the record header flags bit 0 are defined, every other reserved bit
+  and byte is still refused.
 - Endpoint/group names непорожні. Endpoint names у catalog унікальні;
   catalog names унікальні в межах категорії. Різні категорії можуть мати
   однакові імена.
@@ -50,7 +57,7 @@ Transport framing і optional Bind/Exchange описані окремо.
 | --- | --- | --- |
 | 0 | 4 bytes | ASCII `TDS3` |
 | 4 | u16 | major = 3 |
-| 6 | u16 | minor = 0 |
+| 6 | u16 | minor = 0; v3.1: 1 when a type is named or a record has attributes |
 | 8 | u16 | headerBytes = 64 |
 | 10 | u16 | flags = 0 |
 | 12 | u32 | totalBytes |
@@ -79,11 +86,14 @@ Canonical order: Header → Types → Catalogs → Endpoints. Усередині
 | --- | --- | --- |
 | 0 | u8 | kind: Type=1, Catalog=2, Field=3, Command=4, Service=5 |
 | 1 | u8 | recordVersion = 1 |
-| 2 | u16 | flags = 0 |
+| 2 | u16 | flags = 0; v3.1: bit 0 Attributes, bits 1..15 zero |
 | 4 | u32 | payloadBytes, без 8-byte header |
 
 Length визначає межу record. Воно не дозволяє мовчки прийняти невідому
 семантику. Правила нового kind/minor потребують окремого version contract.
+v3.1 is that contract for minor 1: a flagged attribute area runs from the end
+of the payload to `payloadBytes` and is validated and skipped by tag class;
+there is no new record kind.
 
 ## Type records
 
@@ -92,8 +102,10 @@ Length визначає межу record. Воно не дозволяє мовч
 ```text
 u32 typeId
 u8  typeKind       // Void=0, Scalar=1, Enum=2, Struct=3, Array=4
-u8  reserved[3]    // zero
+u8  typeFlags      // v3.0: zero; v3.1: bit 0 Named
+u8  reserved[2]    // zero
 u32 wireBytes
+[string name]      // v3.1, present iff Named; Enum and Struct only
 ```
 
 | Kind | Payload після prefix |
@@ -122,7 +134,9 @@ TypeIds щільні й у postorder: складний type посилаєтьс
 Struct member не можуть бути Void. WireBytes повторно обчислюється з
 графа й порівнюється із записаним значенням.
 
-Формат не має typeName. Consumer використовує endpoint/member names.
+v3.0 has no type name; a consumer uses endpoint and member names. v3.1 adds
+an optional, unique name on Enum and Struct records; arrays, scalars and
+Void are never named.
 Structural identity на wire та exact C++ identity для native API — різні
 контракти; два C++ structs однакової форми не стають exact native type.
 
@@ -167,8 +181,10 @@ string name
 ```
 
 PackedId: high 16 bits — group position, low 16 bits — entry position.
-Категорії мають окремі ID spaces. Усі endpoint records закінчуються після
-name: semantic units, defaults, limits та metadata policy хвоста немає.
+Категорії мають окремі ID spaces. In v3.0 every endpoint record ends after
+its name. In v3.1 any record may continue with an attribute area flagged in
+its header; no tag defines units, defaults, limits or metadata policy yet,
+and a tag enters the area only through its own reviewed contract.
 Request/Response members описує TypeRegistry. Порожні tables дозволені;
 endpoint holes чи reserved placeholder entries не вводяться.
 Late-bound slot state не змінює descriptor або fingerprint.
@@ -180,7 +196,8 @@ fingerprint заміненими на нулі. Basis — `0xcbf29ce484222325`, 
 `0x100000001b3`; unsigned arithmetic modulo 2^64.
 
 Hash включає headers, names, enum dictionary, type shapes, endpoint order
-і Field capabilities. Поточні values, owner/callback addresses та slot
+і Field capabilities; in v3.1 also type names and attribute areas, the
+skipped ones included. Поточні values, owner/callback addresses та slot
 state не входять. Descriptor кешує fingerprint один раз; Values header
 копіює його. Значення не перехешовуються після кожного READ/write/call.
 
@@ -188,6 +205,119 @@ state не входять. Descriptor кешує fingerprint один раз; Va
 колізій. Transport integrity, access policy та момент порівняння
 fingerprint визначає application. Для offline export збережіть обидва
 файли: `values.bin` сам не описує своїх типів.
+
+## Descriptor v3.1: type names and attributes
+
+v3.1 is an additive contract on top of the frozen v3.0 bytes. It adds two
+optional parts and nothing else: a type name on Enum and Struct records, and
+a skippable attribute area after any record's payload. A descriptor with
+neither is byte-identical v3.0 (same bytes, same fingerprint): v3.0 stays
+frozen as the stripped form. Values (`TVL3`) stays 3.0; it pairs with its
+descriptor by fingerprint, not by version.
+
+### Header minor
+
+The header minor is 0 or 1. It is 1 exactly when at least one type is named
+or at least one record has an attribute area; a nameless model without
+attributes is always minor 0, so every model has one canonical encoding.
+Header flags stay 0, `recordVersion` stays 1 and there is no new record kind.
+A v3.1 host reads v3.0 and v3.1; a v3.0 host refuses v3.1 at the header, as
+it refuses any unknown minor, which is a clear refusal and never a misread.
+
+| Descriptor | v3.0 host | v3.1 host |
+| --- | --- | --- |
+| v3.0 (no names and attributes, or names stripped) | reads it | reads it; every type name is empty |
+| v3.1 | refuses it at the header | reads it |
+
+### Type names
+
+```text
+u32 typeId
+u8  typeKind        // unchanged
+u8  typeFlags       // v3.0: 0. v3.1: bit 0 Named, bits 1..7 zero
+u8  reserved[2]     // zero
+u32 wireBytes
+[string name]       // present iff Named; Enum and Struct only
+kind payload        // unchanged
+```
+
+- Under minor 0 every `typeFlags` is 0, exactly as in v3.0.
+- Under minor 1 `typeFlags` is 0 or 1, and `Named` is allowed only on Enum
+  (2) and Struct (3). Void, Scalar and Array records are never named: a host
+  keeps its builtin labels and composes `Mode[4]` or `Config[2]`.
+- The name is an ordinary descriptor string (1..`maxStringBytes` bytes of
+  valid UTF-8, no NUL). It is unique among the descriptor's type names, by
+  byte comparison; it may equal an endpoint, catalog or member name, which
+  live in other namespaces.
+- Hosts must not assume an identifier: an explicit name may be any valid
+  UTF-8. Automatic names are ASCII identifiers by construction.
+
+### Attribute area
+
+```text
+record header  u8 kind, u8 recordVersion = 1, u16 flags, u32 payloadBytes
+               flags: bit 0 Attributes, bits 1..15 zero
+payload        unchanged
+[attribute]*   present iff flags bit 0; runs exactly to the end of payloadBytes:
+               u16 tag, u16 target, u32 length, u8 value[length]
+```
+
+- Under minor 0 the record flags are 0. The flag means at least one
+  attribute; there is no area length word, because `payloadBytes` bounds the
+  area and each attribute's own length makes it skippable.
+- `target` 0 is the record's subject (the type, catalog, Field value or
+  endpoint). A target k >= 1 is struct member k-1 and is allowed only in a
+  Struct Type record, up to its `memberCount`. Command and Service arguments
+  are structs, so an argument's attribute rides on a member of its request.
+- Attributes are sorted by (target, tag), strictly ascending, so a
+  (target, tag) pair appears once. The last attribute ends exactly at the
+  record end.
+- Void and Scalar Type records never carry an area: builtins keep fixed bytes.
+
+| Tag | Meaning | A host that does not know the tag |
+| --- | --- | --- |
+| `0x0000`, `0x8000`, `0xC000..0xFFFF` | reserved | refuses the descriptor |
+| `0x0001..0x3FFF` | SDK advisory, registered here; `0x0001` Range and `0x0002` Unit are reserved, not yet defined | skips it |
+| `0x4000..0x7FFF` | application advisory; the SDK never assigns them | skips it |
+| `0x8001..0xBFFF` | SDK critical (must be understood); none is defined in v3.1 | refuses the descriptor |
+
+To skip an attribute is to validate its header (order, target, bounds) and
+ignore its value. The fingerprint still covers it, so hosts of every age agree
+on the model's identity. An addition that hosts must not ignore takes a
+critical tag: it refuses only the descriptors that use it, where a minor bump
+would refuse them all. v3.1 defines no tag; a tag enters the area only through
+its own reviewed contract. No producer emits attributes yet, and decoders
+store nothing for a skipped attribute: a descriptor decodes to the same model
+as the same bytes without its attributes.
+
+### Refusals
+
+| Rule broken | C++ `ParseError` |
+| --- | --- |
+| minor other than 0 or 1; minor 1 without any name or attribute | `Header` |
+| `typeFlags` or record flags nonzero under minor 0; stray flag bits; a reserved tag | `Reserved` |
+| `Named` on Void, Scalar or Array; an area on Void or Scalar | `TypeShape` |
+| two equal type names | `DuplicateName` |
+| empty or overlong name | `Limit` |
+| name with NUL or invalid UTF-8 | `Utf8` |
+| name or attribute past its record; flag without an attribute; a target outside the record or past `memberCount`; unsorted or repeated (target, tag); an unknown critical tag | `Record` |
+
+The JS and Python decoders refuse the same descriptors; the shared table is
+[v31_cases.json](../tests/structured/descriptor/v31_cases.json), checked by the
+[type-names suite](../tests/structured/type_names/README.md).
+
+### Producer
+
+The C++ producer emits names when the project switch `TELEMETRY_TYPE_NAMES` in
+[Config.hpp](../lib/telemetry/Config.hpp) is 1 (the default); 0 compiles no
+name into the image and the bytes are v3.0's. Names come from
+`telemetry::reflection::typeName<T>()`: magic_enum for scoped enums, the
+compiler's function signature for aggregates (short name only; a template
+specialization or an unnamed struct gets none), or an explicit
+`TypeReflection<T>` with `typeName("...")` or `noTypeName()`. A repeated name
+is `DescriptorError::DuplicateName`. `withoutTypeNames(model)` strips names
+from one descriptor for a program that must emit both forms. The producer
+emits no attribute.
 
 ## Default technical ceilings
 

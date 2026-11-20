@@ -16,6 +16,15 @@
     "type_kinds": {"Void": 0, "Scalar": 1, "Enum": 2, "Struct": 3, "Array": 4},
     "scalar_codes": {"Bool": 1, "U8": 2, "S8": 3, "U16": 4, "S16": 5, "U32": 6, "S32": 7, "U64": 8, "S64": 9, "F32": 10, "F64": 11}
   },
+  "wire_v3_1": {
+    "status": "additive contract: optional type names and a skippable attribute area; v3.0 stays frozen as the stripped form",
+    "minor": 1, "type_flags": {"Named": 1}, "named_type_kinds": ["Enum", "Struct"],
+    "record_flags": {"Attributes": 1}, "attribute_header_bytes": 8,
+    "attribute_tags": {"sdk_advisory": ["0001", "3fff"], "application": ["4000", "7fff"],
+                       "critical": ["8001", "bfff"], "reserved": ["0000", "8000", "c000-ffff"],
+                       "range": "0001", "unit": "0002"}
+  },
+  "default_type_names": 1,
   "structured_abi_revision": 6,
   "default_local_object_bytes": 32,
   "limits": {
@@ -39,6 +48,8 @@
     "tests/structured/descriptor/edge.hex": {"bytes": 1486, "sha256": "f42605fb1be3cc9a64064e2a2438939677c6462bd7aa1e775c586e6e0fa6a4c4"},
     "tests/structured/descriptor/empty.hex": {"bytes": 348, "sha256": "b1f3646ce3155305ca10a4312226fa1e92a3e39f3a0c2795b600a08b85b070e6"},
     "tests/structured/descriptor/mixed.hex": {"bytes": 968, "sha256": "939ba312e6ad5ce9339a15f3544bca4f924b86bab980fe97bffe258797634b38"},
-    "tests/structured/resources/values.hex": {"bytes": 73, "sha256": "e3e4137f0226251b5a0dbd4725987aaa0642d080e40c9d11d08051026db56ca6"}
+    "tests/structured/resources/values.hex": {"bytes": 73, "sha256": "e3e4137f0226251b5a0dbd4725987aaa0642d080e40c9d11d08051026db56ca6"},
+    "tests/structured/descriptor/named.hex": {"bytes": 1000, "sha256": "80a0327931c0812a42d44782446ef391618e83240e314b17877e7aedf8c50cdb", "minor": 1},
+    "tests/structured/descriptor/attrs.hex": {"bytes": 1117, "sha256": "b61580fd4fe87d7f7e2dc9dd039779619c96935af532b71ccb0c5f6ac2fb3a00", "minor": 1}
   }
 }

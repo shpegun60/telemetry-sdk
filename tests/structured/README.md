@@ -58,6 +58,7 @@ Stage 08: [mixed Field/Command/Model](endpoints/run.py).
 | endpoints | Mixed scalar/enum/array/struct Fields and Commands, storage budgets and codegen |
 | borrowed | Const-reference Field/Service outputs, view lifetime, slots, overlap, wire parity and ARM codegen |
 | descriptor | Independent binary parser, golden bytes and fingerprint |
+| [type_names](type_names/README.md) | Descriptor v3.1 type names and attribute areas: goldens, three decoders, seam, switch, link, configuration and cross-compiler bytes |
 | resources | Streaming/packed DescriptorFile, ValuesFile and application resource facade |
 | [rpc](rpc/README.md) | Optional RpcMailbox transfer/state contract, checked dispatch, duplicate retries, no-heap, bounded ARM roots and separate [H7S UART integration](rpc/h7s/README.md) |
 | [rpc_client](rpc_client/README.md) | Typed outgoing RPC, stable packet storage, retry, schema contract, exact result types and uncertain outcomes |

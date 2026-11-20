@@ -35,7 +35,9 @@ the old lifetime; handle checks do not distinguish a retained handle from the
 destroyed instance. Discard all handles before destroying their model.
 Handle checks precede access to stored value views or metadata. The public API
 does not expose a raw DynamicValueView into a reusable snapshot buffer.
-Catalog/endpoint spans, node names and optional enum labels still borrow the
+`NodeInfo::typeName` carries the node type's descriptor v3.1 name (an enum or
+struct), empty when unnamed. Catalog/endpoint spans, node names, type names and
+optional enum labels still borrow the
 published schema generation. Copy labels into application-owned text before
 retaining them across schema replacement; numeric scalar values are copies.
 

@@ -28,6 +28,12 @@ async function readConfig(session, observedHeader) {
 }
 ```
 
+A descriptor v3.1 names its enums and structs: `type.name` on a kind 2/3 type,
+undefined when unnamed. Names are unique, so `findType(schema, name)` from
+`telemetry.js`, or `client.findType(name)` for the admitted schema, returns
+that type or undefined; `schema.minor` is 0 for v3.0 and 1 for v3.1.
+Attribute areas are validated and skipped and never change the model.
+
 Cache opaque endpoint bindings for repeated operations in that admission.
 `writeField(endpoint, value)`, `command(endpoint, request)` and
 `service(endpoint, request)` take ordinary schema-shaped values. A Void request

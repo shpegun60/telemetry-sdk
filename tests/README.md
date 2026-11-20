@@ -84,6 +84,14 @@ The [runtime schema suite](runtime_schema/README.md) reads real Descriptor v3
 files and wire payloads with caller-owned storage, compares generated codecs,
 and checks malformed descriptors against the independent Python parser.
 
+The [type-names suite](structured/type_names/README.md) qualifies descriptor
+v3.1: independent named and attribute goldens, one decoder table with one
+verdict in C++, JS and Python, the `typeName<T>()` seam and its compile-time
+refusals, the `TELEMETRY_TYPE_NAMES` switch (names off reproduces the frozen
+v3.0 goldens; mixed objects fail to link), the configuration file, the
+cross-compiler bytes of automatic names (host g++, clang++-18, MinGW, ARM GCC),
+the not-yet-established cross-backend test and the ARM decoder size.
+
 Run the shared ID, slot and numeric checks from the repository root:
 
 ```sh

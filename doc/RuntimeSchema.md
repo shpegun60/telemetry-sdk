@@ -1,6 +1,6 @@
 # Runtime schema and dynamic wire values
 
-The C++20 runtime module consumes Descriptor v3.0 bytes without knowing a
+The C++20 runtime module consumes Descriptor v3.0 and v3.1 bytes without knowing a
 Model's native C++ types. `RuntimeSchema` indexes validated types, structure
 members, enum entries, catalogs and endpoints in caller-owned storage.
 `DynamicValueView` borrows canonical payload bytes and reads scalar leaves;
@@ -88,6 +88,23 @@ pointer borrows the descriptor/index storage, just like `endpoints()`; it must
 not be retained across workspace reset, reparse or destruction. It is metadata,
 not a session binding: remote access still uses DynamicClient's admission and
 generation checks.
+
+## Type names
+
+A descriptor v3.1 may name its enums and structs. `RuntimeType::name` holds
+the name, or an empty view when the type is unnamed and for every array,
+scalar and Void; it borrows the descriptor bytes like every other name.
+`typeName(id)` returns the same view and `minorVersion()` reports 0 for a
+v3.0 descriptor, 1 for v3.1. Type names are unique in a descriptor, so a
+name is a key:
+
+```cpp
+const auto* config = parsed.schema.findType("Config"); // nullptr when absent
+```
+
+`findType` is exact and case-sensitive; an empty name finds nothing. An
+attribute area is validated and skipped: the schema stores nothing for it,
+and a descriptor decodes to the same model as its bytes without attributes.
 
 ## Stage and commit edits
 
@@ -220,8 +237,10 @@ applied to a different root or workspace, even when their type IDs coincide.
 
 ## Validation and value semantics
 
-Descriptor validation covers the fingerprint, strict header/version/flags,
-section and record bounds, reserved bytes, exact record exhaustion, positional
+Descriptor validation covers the fingerprint, strict header/version/flags
+(minor 0 or 1, minor 1 only with a type name or attribute area), v3.1 type
+names (Enum/Struct only, unique) and attribute areas (order, target, bounds,
+reserved and unknown critical tags), section and record bounds, reserved bytes, exact record exhaustion, positional
 IDs, canonical built-in types, backward type references, checked wire sizes,
 nesting and expanded-node budgets, UTF-8 strings, unique names within their
 scopes, sorted enum codes, catalog coverage and endpoint type/capability rules.

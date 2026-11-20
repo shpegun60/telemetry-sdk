@@ -240,7 +240,9 @@ read `endpointStatus` only when `dispatch == Ok`. Application value validation
 belongs to the callback. `Accepted` reports the callback's status without
 creating a queue or retaining its request.
 
-`TELEMETRY_STRUCTURED_LOCAL_BYTES` defaults to **32 bytes** and controls only
+`TELEMETRY_STRUCTURED_LOCAL_BYTES` defaults to **32 bytes** (in
+[Config.hpp](Config.hpp), with every project switch; a project sets it in its
+own `telemetry_config.hpp` or with `-D`) and controls only
 encoded payload storage. An owning Field value or Command request that fits uses a
 local object; larger objects use caller-owned `Workspace`. For a Service, the
 Request consumes this budget first, then `ServiceResult<Response>` fits only

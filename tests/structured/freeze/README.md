@@ -3,6 +3,12 @@
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 
 This suite fixes the current C++20 public contract and frozen wire v3.0.
+Descriptor v3.1 is an additive contract: `wire_v3_1` in the manifest pins its
+minor, type and record flags and attribute tag ranges, and `named.hex` and
+`attrs.hex` join the goldens with their own minor 1. v3.0 stays frozen as the
+stripped form: the four v3.0 goldens are unchanged, `binaryMinor` stays 0 and
+Values stays 3.0. `default_type_names` pins the `TELEMETRY_TYPE_NAMES`
+default of [Config.hpp](../../../lib/telemetry/Config.hpp).
 This suite does not execute hardware. The separate
 [Stage 14 H7S results](../mcu/h7s/RESULTS.md) record that execution.
 The [qualification decision](../../../doc/StructuredTelemetryV3FreezeQualification.md)

@@ -60,8 +60,12 @@ The [wire v3 contract](../../../../doc/WireV3.md) defines the frozen bytes
 and the [architecture](../../../../doc/Architecture.md) explains the provider boundary. The file contains a 64-byte `TDS3` header, then Type,
 Catalog and Field/Command/Service records. Integers are canonical little-endian;
 strings are a u32 byte length followed by UTF-8 without NUL. Wire bytes contain
-no pointers, C++ padding, unit, limits, defaults, policy flags or type names.
-Every endpoint record ends with its name.
+no pointers, C++ padding, unit, limits, defaults or policy flags. Descriptor
+v3.1 adds an optional, unique type name on enums and structs, emitted when
+`TELEMETRY_TYPE_NAMES` (Config.hpp, default 1) is on, and a skippable
+attribute area that no SDK tag uses yet; without both, the bytes are v3.0.
+A v3.0 endpoint record ends with its name; a v3.1 record may continue with an
+attribute area flagged in its header.
 
 The one u64 fingerprint is FNV-1a over the entire descriptor with header
 bytes 16–23 treated as zero. It is computed once during construction, or
