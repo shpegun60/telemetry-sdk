@@ -32,6 +32,11 @@ SUPPORT = {
 PROJECT = ROOT / "examples/device_integration"
 PROJECT_SOURCES = [PROJECT / name for name in ("main.cpp", "Device.cpp", "Api.cpp")]
 PROJECT_HEADERS = [PROJECT / name for name in ("Device.hpp", "Api.hpp")]
+# The branch-file layout: a header-only device whose SDK side needs no compiled source.
+TREE = ROOT / "examples/group_tree"
+TREE_SOURCES = [TREE / "main.cpp"]
+TREE_HEADERS = [TREE / name for name in ("Telemetry.hpp", "adc/Adc.hpp", "adc/AdcTelemetry.hpp",
+                                         "metrology/Meter.hpp", "metrology/MetrologyTelemetry.hpp")]
 
 
 def sha256(path):
@@ -129,6 +134,10 @@ def main():
              ("lib/telemetry/abi/StructuredAbi.cpp", "lib/telemetry/model/Adapter.cpp",
               "lib/resource/protocol/Protocol.cpp")],
             [*PROJECT_HEADERS, PROJECT / "CMakeLists.txt"])
+        if ({path.relative_to(TREE) for path in TREE.rglob("*.[ch]pp")} !=
+                {path.relative_to(TREE) for path in [*TREE_SOURCES, *TREE_HEADERS]}):
+            raise RuntimeError("Group tree source coverage changed")
+        programs["GroupTree"] = (TREE_SOURCES, [], [*TREE_HEADERS, TREE / "CMakeLists.txt"])
         for name, (sources, support, metadata) in programs.items():
             inputs = [*sources, *support]
             entry = {"input_sha256": {str(path.relative_to(ROOT)): sha256(path)
@@ -162,7 +171,7 @@ def main():
                     prefix = {"Resources": "Resource", "Encoded": "Encoded",
                               "DeviceIntegration": "Device integration", "Ergonomics": "Ergonomics",
                               "FlatNative": "Flat native", "Codec": "Codec",
-                              "NativeOnly": "Native only"}[name]
+                              "NativeOnly": "Native only", "GroupTree": "Group tree"}[name]
                     rows = re.findall(r"^" + prefix + r" guide: (\d+) checks passed$", result, re.M)
                     if len(rows) != 1 or int(rows[0]) <= 0:
                         raise RuntimeError(name + ": expected one positive counted report")

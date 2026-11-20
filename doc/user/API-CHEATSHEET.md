@@ -14,6 +14,8 @@ named objects із [повного прикладу](../../examples/user_guide/N
 ## Навігація
 
 - [Створити](#створити)
+- [Group tree, шляхи й handles](#group-tree-шляхи-й-handles)
+- [Імена типів](#імена-типів)
 - [A. Compile-time exact — рекомендовано для application code](#a-compile-time-exact--рекомендовано-для-application-code)
 - [B. Typed traversal — усі definitions](#b-typed-traversal--усі-definitions)
 - [C. Runtime ID, typed definition](#c-runtime-id-typed-definition)
@@ -40,6 +42,60 @@ ts::Model model{fields, commands, services};
 Field Value: bool / number / enum / `std::array` / supported aggregate.
 Command і Service Request: відсутній або один aggregate `T` / `const T&`.
 Service Response: aggregate або void. Business limits перевіряє callback.
+
+## Group tree, шляхи й handles
+
+```cpp
+// Файл гілки: один вираз, без tables і IDs; групи вкладаються.
+inline constexpr auto branch = ts::group("adc",
+    ts::group("channel1", ts::field<&gain<0>, &setGain<0>>("Gain")),
+    ts::field<&config, &setConfig>("Config"),
+    ts::command<&reset>("Reset"),
+    ts::service<&calibrate>("Calibrate"));
+
+// Файл композиції: Model із гілок, потім handles (шлях перевіряється тут).
+inline constexpr ts::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;
+inline constexpr auto rate = ts::endpoint<model, "adc/Config.rateHz">; // член: лише read()
+inline constexpr auto reset = ts::endpoint<model, "adc/Reset">;
+
+gain1.read();          // std::optional<float>
+gain1.write(2.5f);     // WriteResult; лише цілий Field
+rate.read();           // getter усього Field, повертає член
+reset.call();          // Command / Service з native arguments
+gain1.id;              // PackedId, те саме, що ts::idOf<model, "adc/channel1/Gain">()
+
+ts::read<model, "adc/Status.raw[1]">();     // разовий доступ без handle
+ts::write<model, "adc/Config">(newConfig);
+ts::call<model, "adc/Calibrate">(Reference{1.25f});
+model.idOf<"adc/channel1/Gain">();          // consteval PackedId
+```
+
+Шлях: `group/.../endpoint`, далі `.member` і `[i]`. Імена в дереві без `/ . [ ] \`,
+унікальні в межах групи. Хибний шлях, write члена чи call на Field — build
+error; handle порожній і компілюється в той самий код, що `makeId`.
+`Model{fields, commands, services}` і `makeId` працюють як раніше.
+[Model: group tree](Model.md#group-tree-модель-із-файлів-гілок).
+
+## Імена типів
+
+```cpp
+namespace adc { struct Config { /* ... */ }; }   // у descriptor: adc::Config
+
+template<>
+struct telemetry::reflection::TypeReflection<Spectrum<4>> {
+    static constexpr auto name = telemetry::reflection::typeName("metrology::Spectrum4");
+    // або noTypeName(): прибрати ім'я
+};
+
+// telemetry_config.hpp проєкту: без імен, descriptor побайтово v3.0.
+#define TELEMETRY_TYPE_NAMES 0
+```
+
+Ім'я — найближчий scope і ім'я типу; унікальне в descriptor.
+Hosts, старші за v3.1, відмовляють іменованому descriptor: перезберіть host,
+перегенеруйте static SDK або вимкніть імена.
+[Fields: імена типів](Fields.md#8-імена-типів-у-descriptor).
 
 ## A. Compile-time exact — рекомендовано для application code
 

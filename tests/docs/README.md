@@ -3,12 +3,13 @@
 `run.py` compiles the nine complete examples under
 [`examples/user_guide`](../../examples/user_guide) with C++20 and warnings as
 errors, plus the complete multi-file
-[`device_integration`](../../examples/device_integration/README.md) application.
-Host mode executes all ten programs. `Native.cpp` keeps its runtime
+[`device_integration`](../../examples/device_integration/README.md) application
+and the [`group_tree`](../../examples/group_tree/README.md) branch-file layout.
+Host mode executes all eleven programs. `Native.cpp` keeps its runtime
 assertions enabled through `-UNDEBUG`, as does `QuickStart.cpp`; a preprocessor
 control verifies that `NDEBUG` is absent and `assert` remains defined. The Native example reports
-completion, while NativeOnly, Resources, Encoded, Ergonomics, FlatNative, Codec and DeviceIntegration report their
-executed check counts.
+completion, while NativeOnly, Resources, Encoded, Ergonomics, FlatNative, Codec, DeviceIntegration and GroupTree
+report their executed check counts.
 The runner records those counts without claiming per-assert counts for Native
 or QuickStart. ResourceClient executes complete client/server operations and
 reports completion after checking outcomes. It also requires exact text agreement between `QuickStart.cpp`
@@ -24,7 +25,7 @@ python tests/docs/run.py --cxx arm-none-eabi-g++ --arm --build-dir build/docs-ar
 
 Select the actual compiler on the machine. `--build-dir` is required and may
 point outside the checkout. Sanitizers are a host execution mode. ARM mode
-compiles and links all ten programs at `-O2` and `-Os` with newlib-nano and
+compiles and links all eleven programs at `-O2` and `-Os` with newlib-nano and
 nosys; it executes no image and connects to no board. `--null-checks` retains
 the existing null-check compiler mode in either host or ARM builds.
 
@@ -50,6 +51,12 @@ The project's header and CMake input hashes are recorded alongside its C++
 source hashes. The same executable can also be built with the example's
 CMakeLists.txt and run through CTest; the docs runner covers it directly in
 all existing CI modes.
+GroupTree is header-only on the SDK side: branch files over classes that know
+nothing of telemetry, a Model of two branches, named handles, path access, a
+`TypeReflection` override, and the descriptor decoded by `RuntimeSchema` with
+every endpoint's path and type name. Its 20 counted checks run in every host
+mode; the runner fails if a source or header is added to the example without
+being listed.
 
 ## Documentation UX validation, 2026-10-11
 

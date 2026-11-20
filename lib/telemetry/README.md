@@ -222,6 +222,45 @@ use indexed dispatch specialized for each visitor type; their code size is a
 separate cost from a known-target native call. See the
 [API tests](../../tests/structured/README.md) for the checked contracts.
 
+### Group trees, paths and named handles
+
+A device with many subsystems can keep each one in a branch file and mount
+the branches: `telemetry::group(name, items...)` mixes subgroups, Fields,
+Commands and Services, and `Model{adc::tlm::branch, metrology::tlm::branch}`
+composes them (descriptor v3.1). Endpoints are then reached by path,
+`group/.../endpoint` followed by `.member` and `[i]`, resolved at compile time:
+
+```cpp
+inline constexpr telemetry::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;
+inline constexpr auto rate = telemetry::endpoint<model, "adc/Config.rateHz">; // reads only
+inline constexpr auto reset = telemetry::endpoint<model, "adc/Reset">;
+
+gain1.read();                                   // optional<float>
+gain1.write(2.5f);                              // WriteResult
+reset.call();                                   // CommandResult
+telemetry::read<model, "adc/Status.raw[1]">();  // one-off access without a handle
+```
+
+A handle is an empty object whose type carries the PackedId and the value
+type; the path is checked once, where the handle is declared, and a call
+compiles to the same code as typed access by a `makeId` ID. A member handle
+reads only. `makeId` and the three-catalog `Model{fields, commands, services}`
+are unchanged. See [Model](../../doc/user/Model.md#group-tree-модель-із-файлів-гілок)
+and the [group tree example](../../examples/group_tree/README.md).
+
+### Type names
+
+Every enum and struct in a descriptor carries a type name taken from the code:
+the innermost scope and the type's own name (`adc::Config`). A
+`reflection::TypeReflection<T>` specialization replaces it with
+`typeName("...")` or removes it with `noTypeName()`, and must precede the
+first descriptor containing `T`, like `EnumReflection`. The project switch
+`TELEMETRY_TYPE_NAMES` (default 1, in [Config.hpp](Config.hpp), set in the
+project's own `telemetry_config.hpp`) at 0 leaves every name out and the
+descriptor is byte for byte v3.0, which hosts built before descriptor v3.1
+need. See [Fields](../../doc/user/Fields.md#8-імена-типів-у-descriptor).
+
 ## Encoded access and storage
 
 The canonical codec writes exact `wireSize<T>` bytes: little-endian scalar

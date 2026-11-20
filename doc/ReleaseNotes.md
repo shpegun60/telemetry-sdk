@@ -5,6 +5,58 @@
 [Документація](README.md) · [Migration guide](StructuredTelemetryV3MigrationGuide.md) ·
 [API Map](user/APIOverview.md)
 
+## 2026-11-20: descriptor v3.1 - імена типів, дерево груп, шляхи й handles
+
+[PR #65](https://github.com/shpegun60/telemetry-sdk/pull/65) додає descriptor
+v3.1 як адитивний контракт поверх замороженого v3.0.
+
+- **Імена типів, увімкнені за замовчуванням.** Кожен enum і struct у
+  descriptor отримує ім'я з коду: найближчий scope і ім'я типу (`adc::Config`).
+  `TypeReflection<T>` з `typeName("...")` замінює ім'я, з `noTypeName()`
+  прибирає його. Перемикач `TELEMETRY_TYPE_NAMES` (типово 1) живе в
+  [Config.hpp](../lib/telemetry/Config.hpp) разом з іншими перемикачами SDK;
+  проєкт задає його у власному `telemetry_config.hpp` або через `-D`.
+  [Fields: імена типів](user/Fields.md#8-імена-типів-у-descriptor).
+- **Дерево груп.** `ts::group(name, items...)` змішує subgroups, Fields,
+  Commands і Services; `Model{adc::tlm::branch, metrology::tlm::branch}`
+  монтує файли гілок. Dispatch лишається O(1), structured ABI revision 6.
+- **Шляхи й named handles.** Один запис шляху `group/.../endpoint.member[i]`
+  для пристрою, hosts і генератора. На пристрої
+  `inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;`
+  розв'язує шлях під час компіляції; далі `gain1.read()`, `gain1.write(2.5f)`,
+  `reset.call()`. Handle компілюється в той самий код, що `makeId`; вільні
+  `telemetry::read/write/call/idOf<model, "path">()` лишаються.
+  [Model: group tree](user/Model.md#group-tree-модель-із-файлів-гілок),
+  [приклад](../examples/group_tree/README.md).
+- **Hosts і генератор.** `RuntimeSchema`, `web/telemetry.js` і Python parser
+  читають імена, attribute area і дерево; генератор дає іменовані типи,
+  namespaces груп і handles у generated та Dynamic clients
+  ([GeneratedNamesAndHandles](GeneratedNamesAndHandles.md)).
+
+### Сумісність: старі hosts і новий пристрій
+
+Пристрій, перезібраний з цим SDK, надсилає descriptor v3.1, щойно в ньому є
+enum або struct. **Hosts, старші за цей SDK, відмовляють такому пристрою**
+(descriptor minor 1). Виберіть одне:
+
+1. перезберіть host із цим SDK;
+2. перегенеруйте static SDK з нового descriptor: код користувача
+   компілюється без змін, бо кожен наявний generated symbol зберігає ім'я та
+   signature;
+3. поставте `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp`
+   пристрою: descriptor тоді побайтово дорівнює v3.0, fingerprint не
+   змінюється.
+
+Без змін лишаються `Model{fields, commands, services}`, tables,
+`ts::group(name, table)`, `makeId`, typed `fields.read<id>()` і generated
+symbols (`detail::Type_N` включно). Плоска модель без enums і structs і далі
+надсилає v3.0. Values лишається 3.0. Fingerprint пристрою з enum чи struct
+змінюється один раз, тому записані сесії, прив'язані до fingerprint,
+починаються заново. Значення `TELEMETRY_TYPE_NAMES` входить у structured ABI
+tag: перезберіть усі object files SDK з однаковими перемикачами.
+[Migration guide](StructuredTelemetryV3MigrationGuide.md#descriptor-v31-імена-типів-і-дерево-груп)
+описує кроки.
+
 ## 2026-10-11: owning result pointer lifetime
 
 [`5d2bb93`](https://github.com/shpegun60/telemetry/commit/5d2bb937880cb5c47da5399420469803d5ecf8ac)

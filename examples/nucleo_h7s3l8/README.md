@@ -55,14 +55,32 @@ parsing/dispatch; interrupt callbacks only drive the existing UART state machine
 
 LIST discovers `/telemetry/descriptor.bin` after a version-file decoy; Descriptor
 is deliberately file index 1. Clients must discover its index and read its full
-size using STAT and cursor READ. Descriptor v3 and TEQ1 bytes are unchanged.
+size using STAT and cursor READ. TEQ1 bytes are unchanged.
 
-| Field | Endpoint ID | Value |
-| --- | ---: | --- |
-| `measure.Voltage` | 0 | Struct: Ua 230.1, Ub 229.8, Uc 231.2 |
-| `device.Counter` | 65536 | U64 `18446744073709551615` |
-| `device.Status` | 65537 | U32 uptimeMs, requests, fieldReads, refused; Bool demonstration=true |
-| `device.Probe` | 65538 | Matrix `[[1,-2,3],[4,5,-6]]`, Enabled=true, signed open enum mode=-2 |
+| Field | Endpoint ID | Type | Value |
+| --- | ---: | --- | --- |
+| `measure.Voltage` | 0 | `struct nucleo_demo::Voltage` | Ua 230.1, Ub 229.8, Uc 231.2 |
+| `device.Counter` | 65536 | `u64` | `18446744073709551615` |
+| `device.Status` | 65537 | `struct nucleo_demo::Status` | U32 uptimeMs, requests, fieldReads, refused; Bool demonstration=true |
+| `device.Probe` | 65538 | `struct nucleo_demo::Probe` | Matrix `[[1,-2,3],[4,5,-6]]`, Enabled=true, `enum nucleo_demo::Mode` mode=-2 |
+
+### Type names
+
+The descriptor is v3.1: it names its enum and structs, as above. The names
+come from the code with nothing written for them: the innermost namespace and
+the type's own name. `Mode` keeps its `EnumReflection`, which lists its
+enumerators (Idle=-7, Active=12); its type name is automatic like the others.
+A `TypeReflection<T>` specialisation in [Protocol.hpp](Protocol.hpp) could
+replace a name (`typeName("board::Mode")`) or remove it (`noTypeName()`).
+
+The commented [telemetry_config.hpp](telemetry_config.hpp) shows the
+project-wide switch. `#define TELEMETRY_TYPE_NAMES 0` leaves every name out,
+and the descriptor is then byte for byte the v3.0 one: hosts older than the
+SDK that introduced v3.1 refuse a named descriptor, so a project that must
+serve them either rebuilds its hosts or turns the names off. The model itself
+stays the flat `Model{fields, commands, services}`, whose endpoint IDs above
+do not change. The image size with and without names is in the
+[ARM descriptor size report](../../tests/README.md#arm-descriptor-size-report).
 
 The enum declares Idle=-7 and Active=12; -2 must display as an unknown signed code.
 Status is captured by the single owner at dispatch. Its counter values include

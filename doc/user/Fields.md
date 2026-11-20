@@ -378,6 +378,14 @@ Global `PackedId` має high 16 bits group і low 16 bits local position:
 `makeId<0, 1>()` позначає другий Field першої групи. Порядок declarations
 визначає identity; names не беруть участі в runtime lookup.
 
+Модель із дерева груп (`Model{adc::tlm::branch, ...}`) дає той самий доступ
+за шляхом замість позицій: `telemetry::endpoint<model, "adc/channel1/Gain">`
+оголошує handle (`gain1.read()`, `gain1.write(2.5f)`), а
+`telemetry::read<model, "adc/Config.rateHz">()` читає разово. Шлях
+розв'язується під час компіляції в той самий PackedId і не змінюється від
+перестановки оголошень; помилковий шлях — build error. Дивіться
+[Model: group tree](Model.md#group-tree-модель-із-файлів-гілок).
+
 | API | Тип/результат | Призначення |
 | --- | --- | --- |
 | `local.get<Position>()` | `const FieldDefinition&` | Exact declaration; invalid static position дає diagnostic |
@@ -537,7 +545,80 @@ Setter отримує валідне native представлення, але �
 відкочують уже виконані side effects. Framing віддає повний payload один
 раз; повторний write повторно викликає setter.
 
-## 8. Джерела й подальші приклади
+## 8. Імена типів у descriptor
+
+Descriptor v3.1 називає кожен enum і struct, які в ньому є, а clients
+показують ці імена: `struct adc::Config` замість `struct (3)`, `enum adc::Mode`
+замість `enum`. Нічого писати не треба: ім'я береться з коду.
+
+| Оголошення | Ім'я в descriptor |
+| --- | --- |
+| `namespace adc { struct Config; }` | `adc::Config` |
+| `class Adc { struct Config; };` (вкладений клас) | `Adc::Config` |
+| `namespace power::adc { enum class Mode; }` | `adc::Mode`: лише найближчий scope |
+| `struct Config;` у global або anonymous namespace | `Config` |
+| `Spectrum<4>`, спеціалізація шаблону | без імені |
+| Локальний клас у функції | build error: потрібне явне ім'я |
+
+- Ім'я — найближчий scope і власне ім'я типу, один рівень. Тому `adc::Config`
+  і `metrology::Config` із різних гілок дерева не конфліктують. Масиви,
+  scalars і void імен не мають.
+- Імена унікальні в одному descriptor. Два типи з однаковим ім'ям — build
+  error у constexpr descriptor (`duplicateTypeName()`), а runtime descriptor
+  повертає `DescriptorError::DuplicateName`.
+- Ім'я, автоматичне чи явне, має форму `[scope "::"] name`: щонайбільше одне
+  `::`, обидві частини непорожні, без `:`, `/`, `.`, `[`, `]` і `\`. Частина
+  має не більше `maxNameBytes` (64) байтів profile.
+
+### Override: TypeReflection
+
+Явне ім'я замінює автоматичне, `noTypeName()` прибирає його. Так розв'язують
+збіг імен, дають ім'я спеціалізації шаблону чи ховають внутрішній тип:
+
+```cpp
+template<>
+struct telemetry::reflection::TypeReflection<metrology::Spectrum<4>> {
+    static constexpr auto name = telemetry::reflection::typeName("metrology::Spectrum4");
+};
+
+template<>
+struct telemetry::reflection::TypeReflection<app::Internal> {
+    static constexpr auto name = telemetry::reflection::noTypeName();
+};
+```
+
+Як і `EnumReflection`, specialization має стояти перед першим descriptor, що
+містить тип, у кожному translation unit; пізня specialization — ODR-помилка,
+яку compiler може не діагностувати. У моделі з файлів гілок вона живе у файлі
+гілки, якій належить тип, перед її group expression. `EnumReflection` і
+`TypeReflection` незалежні: перший задає імена enumerators, другий — ім'я
+самого enum.
+
+### Вимкнути імена: TELEMETRY_TYPE_NAMES 0
+
+Перемикач проєкту живе у власному `telemetry_config.hpp` проєкту, який SDK
+знаходить на include path, як `lwipopts.h` чи `FreeRTOSConfig.h`; `-D` теж
+працює:
+
+```cpp
+// telemetry_config.hpp
+#define TELEMETRY_TYPE_NAMES 0
+```
+
+З 0 жоден рядок імені не потрапляє в image, а descriptor побайтово
+дорівнює v3.0. Ім'я коштує 4 байти довжини плюс свої байти: у
+[NUCLEO demo](../../examples/nucleo_h7s3l8/README.md#type-names) чотири імена
+займають 90 B packed descriptor. Значення має бути однаковим у кожному
+translation unit; compiled SDK sources перетворюють розбіжність на link error.
+Hosts читають імена завжди, перемикач вирішує лише, що надсилає пристрій.
+
+Hosts, зібрані до descriptor v3.1, відмовляють пристрою з іменами. Тоді або
+перезберіть host, або перегенеруйте static SDK (код користувача компілюється
+без змін), або поставте `TELEMETRY_TYPE_NAMES 0`. Для однієї програми, що
+має віддавати обидві форми, є profile `descriptor::withoutTypeNames(model)`.
+Байти й правила — [Descriptor і Values](DescriptorAndValues.md).
+
+## 9. Джерела й подальші приклади
 
 - [FieldDefinition та factory overloads](../../lib/telemetry/field/Field.hpp).
 - [FieldTable та erased FieldEntry](../../lib/telemetry/field/FieldTable.hpp).
@@ -551,6 +632,8 @@ Setter отримує валідне native представлення, але �
   counters, read-only write, malformed bool і large borrowed payload.
 - [Device integration](../../examples/device_integration/README.md): private
   bindings за звичайним runtime application facade.
+- [Group tree](../../examples/group_tree/README.md): модель із файлів гілок,
+  named handles, доступ за шляхом і override імені типу.
 - [Commands](Commands.md) для action/status та [Services](Services.md)
   для request/response операцій.
 

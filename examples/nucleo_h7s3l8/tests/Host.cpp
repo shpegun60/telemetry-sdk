@@ -1,6 +1,8 @@
 /* Actual board Protocol/ServerLoop and real COBS fixed pools, no HAL. MIT. */
 #include "ServerLoop.hpp"
 #include <resource/protocol/Packets.hpp>
+#include <telemetry/runtime/RuntimeSchema.hpp>
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -194,6 +196,40 @@ void orderedBarrier()
 	}
 }
 
+// The descriptor read over the link names its enum and structs (v3.1), as
+// the Inspector shows them; with TELEMETRY_TYPE_NAMES 0 it is v3.0, unnamed.
+void typeNames(std::span<const std::byte> bytes)
+{
+	namespace rt = telemetry::runtime;
+	std::array<rt::RuntimeType, 32> types{};
+	std::array<rt::RuntimeMember, 32> members{};
+	std::array<rt::RuntimeEnumEntry, 8> enums{};
+	std::array<rt::RuntimeCatalog, 8> catalogs{};
+	std::array<rt::RuntimeEndpoint, 8> endpoints{};
+	rt::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs, endpoints};
+	const auto parsed = rt::RuntimeSchema::parse(bytes, workspace);
+	CHECK(bool(parsed));
+	const auto& schema = parsed.schema;
+	const auto* voltage = schema.findField("measure", "Voltage");
+	const auto* status = schema.findField("device", "Status");
+	const auto* probe = schema.findField("device", "Probe");
+	CHECK(voltage && status && probe);
+#if TELEMETRY_TYPE_NAMES
+	CHECK(schema.minorVersion() == 1);
+	CHECK(schema.typeName(voltage->typeId) == "nucleo_demo::Voltage");
+	CHECK(schema.typeName(status->typeId) == "nucleo_demo::Status");
+	CHECK(schema.typeName(probe->typeId) == "nucleo_demo::Probe");
+	const auto* mode = schema.findType("nucleo_demo::Mode");
+	CHECK(mode && mode->kind == telemetry::TypeKind::Enum && mode->enumCount == 2);
+	const auto entries = schema.enumEntries(mode->id);
+	CHECK(entries.size() == 2 && entries[0].name == "Idle" && entries[1].name == "Active");
+#else
+	CHECK(schema.minorVersion() == 0);
+	CHECK(schema.typeName(voltage->typeId).empty() && schema.typeName(probe->typeId).empty());
+	CHECK(!schema.findType("nucleo_demo::Mode"));
+#endif
+}
+
 void descriptorAndReadOnly()
 {
 	Harness h;
@@ -224,6 +260,7 @@ void descriptorAndReadOnly()
 		      reply.response.data.size() == nucleo_demo::packedDescriptor.size());
 		CHECK(std::memcmp(reply.response.data.data(), nucleo_demo::packedDescriptor.data(),
 		                  reply.response.data.size()) == 0);
+		typeNames(reply.response.data);
 	}
 	CHECK(nucleo_demo::model.view().commandCatalogCount == 0 &&
 	      nucleo_demo::model.view().serviceCatalogCount == 0);

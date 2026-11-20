@@ -71,6 +71,7 @@ project sources наведені у [прикладах](../../examples/user_gui
 | Оголосити Field, Command, Service; працювати з native типами | [Fields](Fields.md), [Commands](Commands.md), [Services](Services.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
 | Локальні/глобальні ID, iteration і indexes | [Tables and catalogs](TablesAndCatalogs.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
 | Model, TypeRegistry, runtime view та encoded buffers | [Model](Model.md), [Codec and Workspace](CodecAndWorkspace.md) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) |
+| Модель із файлів гілок, шляхи, named handles, імена типів | [Model: group tree](Model.md#group-tree-модель-із-файлів-гілок), [Fields: імена типів](Fields.md#8-імена-типів-у-descriptor) | [group_tree](../../examples/group_tree/main.cpp) |
 | Оголосити масив файлів і власний provider, вибрати шляхи | [Resource files](Resources.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |
 | LIST/STAT/READ/WRITE/SAVE, порційний transfer і cursor | [Resource files](Resources.md), [protocol](../../lib/resource/protocol/README.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |
 | Прийняти UART/TCP frame і звернутися до Model без файлів | [Транспорт і ресурси](TransportAndResources.md) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) |
