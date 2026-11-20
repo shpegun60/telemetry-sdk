@@ -10,7 +10,8 @@ import {readFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 
 const [moduleUrl, casesPath] = [ pathToFileURL(process.argv[2]).href, process.argv[3] ];
-const {parseDescriptor, findType, TelemetryFormatError, TypeKind} = await import(moduleUrl);
+const {parseDescriptor, findType, findEndpoint, endpointPath, TelemetryFormatError, TypeKind} =
+    await import(moduleUrl);
 const cases = JSON.parse(readFileSync(casesPath, 'utf8'));
 let checks = 0, failures = 0;
 const check = (condition, what) => {
@@ -76,6 +77,19 @@ for (const item of cases) {
 			const type = index === 0 ? row.typeId : row.requestTypeId;
 			lines.push(`endpoint ${index + 1} ${row.id} ${type} ${row.responseTypeId ?? 0} ${
 				row.capabilities ?? 0} ${hex(row.name)}`);
+		}
+	});
+	for (const group of model.groups ?? [])
+		lines.push(`group ${group.index} ${group.depth} ${group.parent ?? '-'} ${hex(group.path)}`);
+	endpoints.forEach((rows, index) => {
+		for (const row of rows) {
+			const path = endpointPath(model, index, row);
+			lines.push(`path ${index + 1} ${row.id} ${hex(path)}`);
+			const found = findEndpoint(model, path);
+			check(!model.groupTree || (found?.endpoint === row && found.category === index),
+			      'findEndpoint(endpointPath) finds the endpoint in a tree');
+			check(found === undefined || found.endpoint === row,
+			      'findEndpoint(endpointPath) finds this endpoint or none');
 		}
 	});
 }

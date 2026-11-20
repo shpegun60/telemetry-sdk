@@ -11,9 +11,11 @@ dependency pins та незалежні golden fixtures зафіксовані �
 [freeze manifest](../tests/structured/freeze/contract.json) та
 [compile-time contract](../tests/structured/freeze/Contract.cpp).
 In-memory C++ ABI revision 6 має окремий номер; canonical wire лишається 3.0.
-Descriptor v3.1 adds an optional type name and a skippable attribute area; a
-descriptor without both is byte-identical v3.0, which stays frozen as the
-stripped form. See [Descriptor v3.1](#descriptor-v31-type-names-and-attributes).
+Descriptor v3.1 adds an optional type name, a skippable attribute area and
+one shared tree of groups; a descriptor without them is byte-identical v3.0,
+which stays frozen as the stripped form. See
+[Descriptor v3.1](#descriptor-v31-type-names-and-attributes) and
+[Group tree](#group-tree).
 Transport framing і optional Bind/Exchange описані окремо.
 
 ## Навігація
@@ -59,7 +61,7 @@ Transport framing і optional Bind/Exchange описані окремо.
 | 4 | u16 | major = 3 |
 | 6 | u16 | minor = 0; v3.1: 1 when a type is named or a record has attributes |
 | 8 | u16 | headerBytes = 64 |
-| 10 | u16 | flags = 0 |
+| 10 | u16 | flags = 0; v3.1: bit 0 GroupTree |
 | 12 | u32 | totalBytes |
 | 16 | u64 | descriptorFingerprint |
 | 24 | u32 | typeCount, включно з Void і builtins |
@@ -304,7 +306,7 @@ as the same bytes without its attributes.
 
 | Rule broken | C++ `ParseError` |
 | --- | --- |
-| minor other than 0 or 1; minor 1 without any name or attribute | `Header` |
+| minor other than 0 or 1; minor 1 without any name, attribute or tree; header flags other than 0 (minor 0) or GroupTree (minor 1); a tree whose three catalog counts differ | `Header` |
 | `typeFlags` or record flags nonzero under minor 0; stray flag bits; a reserved tag | `Reserved` |
 | `Named` on Void, Scalar or Array; an area on Void or Scalar; a type name not of the shape `[scope "::"] name` | `TypeShape` |
 | two equal type names | `DuplicateName` |
@@ -338,9 +340,62 @@ a clash. `withoutTypeNames(model)` strips names
 from one descriptor for a program that must emit both forms. The producer
 emits no attribute.
 
+### Group tree
+
+A device built from branch files describes one tree of groups shared by the
+three families, as a folder holds folders and files. The header flag bit 0
+`GroupTree` (minor 1 only) selects it; the three catalog counts of the header
+then all equal G, the number of groups, and the Catalogs section holds G
+group records in pre-order:
+
+```text
+record header   kind 2 (Catalog), version 1, flags (bit 0 Attributes), payloadBytes
+u8  category    0 = Group (family catalogs keep 1..3)
+u8  reserved    0
+u16 depth       the first is 0, each at most the previous one plus 1
+u32 fieldCount, commandCount, serviceCount
+string name
+```
+
+- A group's parent is the nearest earlier group one level up; a host builds
+  the parent list in O(G). Its first endpoint in each family is the sum of
+  the earlier groups' counts in that family, and each family's counts sum to
+  the header's endpoint count.
+- PackedId stays 16|16. The group part is the group's pre-order position,
+  shared by all three families; the entry part is its position among the
+  group's endpoints of that family. Endpoint records keep their v3.0 layout
+  and order (Field, Command, Service, then group and entry).
+- Names in a tree are path segments: a group or endpoint name holds no `/`,
+  `.`, `[`, `]` or `\`, and names are unique among everything one group
+  holds, its subgroups and the endpoints of all three families. Root groups
+  are siblings too. A flat (v3.0) descriptor keeps any UTF-8 name.
+- A group record costs 28 + n bytes, as a family catalog record does, but one
+  per group instead of one per family that uses it. A group may be empty.
+
+| Tree rule broken | C++ `ParseError` |
+| --- | --- |
+| category 0 outside tree mode, or 1..3 in it; first depth not 0; a depth jump; counts that do not sum to the header's | `Catalog` |
+| `/ . [ ] \` in a group name / in an endpoint name of a tree | `Catalog` / `Endpoint` |
+| two equal names in one group (subgroups and endpoints of any family) | `DuplicateName` |
+| depth, name or path over the host's `ParseLimits` | `Limit` |
+
+### Paths
+
+One grammar names a group, an endpoint, a member and an element for every
+client and for device code: groups and the endpoint joined by `/`, then
+`.member` and `[i]` as needed, for example `adc/channel1/Gain`,
+`adc/Config.gain` or `adc/Status.raw[1]`. Group rows carry no trailing `/`.
+In a tree the path of an endpoint is unique. In a flat descriptor the group
+is one segment and a name may contain the path characters, so a path writes
+`\/`, `\.`, `\[`, `\]` and `\\` for them, and a Field and a Command of
+the same group and name are told apart by their kind.
+`RuntimeSchema::findEndpoint(path)`, `findGroup` and `resolvePath`,
+`findEndpoint`/`findGroup` in telemetry.js and the Python parser, and the
+device's `telemetry::read<model, path>()` read this grammar.
+
 ## Default technical ceilings
 
-Ці 11 default constants у `telemetry::Limits` обмежують складність та
+Ці 14 default constants у `telemetry::Limits` обмежують складність та
 обсяг type model/parser. Вони не визначають допустимі прикладні values,
 не записуються в endpoint records і не змінюють fingerprint. Зміна
 default contract потребує явного перегляду compatibility та freeze gates.
@@ -358,6 +413,14 @@ default contract потребує явного перегляду compatibility 
 | `maxEndpointCountTotal` | 65536 | Endpoints усіх категорій разом |
 | `maxValueWireBytes` | 1048576 | Один payload type; transport capacity окрема |
 | `maxExpandedValueNodes` | 262144 | Розгорнута складність одного value |
+| `maxGroupDepth` | 8 | Levels of a group tree: depths 0..7 |
+| `maxNameBytes` | 64 | One group, endpoint or member name of a tree; one part of a type name |
+| `maxPathBytes` | 256 | `group/.../endpoint` of a tree; a whole type name |
+
+The three group-tree ceilings are a producer's: it is strict so that new
+devices stay tidy, and checks them at compile time (the flat form keeps its
+names). Hosts read with `ParseLimits` `groupDepth = 255`, `nameBytes = 4096`
+and `pathBytes = 4096`, so every device reads.
 
 Expanded nodes: scalar/enum=1, Void=0, Struct=1+сума member nodes,
 Array=1+N×element nodes. Overflow і ceiling перевіряються перед

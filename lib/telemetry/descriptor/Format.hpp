@@ -7,9 +7,10 @@
  * Keep the producer and client on one frozen descriptor and values layout.
  * These numbers describe canonical bytes, independently of C++ object
  * layout; version changes must be coordinated with descriptor readers.
- * v3.1 adds two optional parts to v3.0: a type name on Enum and Struct
- * records, and a skippable attribute area after any record's payload.
- * Without both, a descriptor is byte-identical v3.0 (minor 0).
+ * v3.1 adds three optional parts to v3.0: a type name on Enum and Struct
+ * records, a skippable attribute area after any record's payload, and the
+ * GroupTree mode, where one shared tree of group records replaces the three
+ * family catalogs. Without them, a descriptor is byte-identical v3.0 (minor 0).
  */
 #ifndef TELEMETRY_DESCRIPTOR_FORMAT_HPP
 #define TELEMETRY_DESCRIPTOR_FORMAT_HPP
@@ -24,7 +25,8 @@ inline constexpr std::uint16_t binaryMajor = 3;
 // Values file. Values (TVL3) stays 3.0 and pairs with its descriptor by
 // fingerprint, not by version.
 inline constexpr std::uint16_t binaryMinor = 0;
-// The descriptor minor when some type is named or some record has attributes.
+// The descriptor minor when some type is named, some record has attributes or
+// the catalogs are one group tree.
 inline constexpr std::uint16_t typeNamesMinor = 1;
 inline constexpr std::uint16_t descriptorHeaderBytes = 64;
 inline constexpr std::uint8_t recordVersion = 1;
@@ -67,6 +69,20 @@ enum class RecordFlag : std::uint16_t {
 };
 
 inline constexpr std::uint32_t attributeHeaderBytes = 5;
+
+// v3.1: the u16 flags of the descriptor header (zero in v3.0). GroupTree means
+// the Catalogs section holds one group record per group of a shared tree, in
+// pre-order, and the three catalog counts of the header all equal that count.
+enum class HeaderFlag : std::uint16_t {
+	GroupTree = 1
+};
+
+// The category byte of a group record (v3.0 catalog records keep 1..3):
+//   u8 category 0, u8 reserved 0, u16 depth, u32 fieldCount, u32 commandCount,
+//   u32 serviceCount, string name
+// The first depth is 0 and each is at most the previous one plus 1; a group's
+// first entry in each family is the sum of the earlier groups' counts.
+inline constexpr std::uint8_t groupCategory = 0;
 
 // Attribute tag ranges. A host skips an advisory tag it does not know
 // (validating order and bounds, skipping the value by its length), refuses a

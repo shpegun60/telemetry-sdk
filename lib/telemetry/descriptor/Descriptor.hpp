@@ -60,6 +60,53 @@ inline constexpr bool profileEmitsTypeNames = [] {
 		return true;
 }();
 
+// The three catalog tables a Descriptor reads: a flat Model's own, or the
+// tables a group-tree Model builds over its groups.
+template<class M>
+struct CatalogTypes;
+
+template<class F, class C, class S>
+struct CatalogTypes<ts::Model<F, C, S>> {
+	using Fields = F;
+	using Commands = C;
+	using Services = S;
+};
+
+template<class... B>
+struct CatalogTypes<
+    ts::Model<ts::detail::GroupTreeFields<B...>, ts::detail::GroupTreeCommands<B...>,
+              ts::detail::GroupTreeServices<B...>>> {
+	using Tree = ts::Model<ts::detail::GroupTreeFields<B...>, ts::detail::GroupTreeCommands<B...>,
+	                       ts::detail::GroupTreeServices<B...>>;
+	using Fields = typename Tree::FieldCatalogs;
+	using Commands = typename Tree::CommandCatalogs;
+	using Services = typename Tree::ServiceCatalogs;
+};
+
+// Group-tree ceilings of a profile; a custom profile without them keeps the
+// Limits defaults.
+template<class Profile>
+struct TreeCeilings {
+	static constexpr std::uint32_t groupDepth = [] {
+		if constexpr (requires { Profile::maxGroupDepth; })
+			return static_cast<std::uint32_t>(Profile::maxGroupDepth);
+		else
+			return ts::Limits::maxGroupDepth;
+	}();
+	static constexpr std::uint32_t nameBytes = [] {
+		if constexpr (requires { Profile::maxNameBytes; })
+			return static_cast<std::uint32_t>(Profile::maxNameBytes);
+		else
+			return ts::Limits::maxNameBytes;
+	}();
+	static constexpr std::uint32_t pathBytes = [] {
+		if constexpr (requires { Profile::maxPathBytes; })
+			return static_cast<std::uint32_t>(Profile::maxPathBytes);
+		else
+			return ts::Limits::maxPathBytes;
+	}();
+};
+
 template<class... Groups>
 struct CatalogShape {
 	static constexpr std::size_t catalogs = sizeof...(Groups);
@@ -132,6 +179,22 @@ duplicateTypeName() noexcept // TypeReflection<T>: typeName("...") or noTypeName
 }
 
 [[noreturn]] inline void descriptorSizeExceeded() noexcept
+{
+	std::abort();
+}
+
+// A group, endpoint or member name of a tree is longer than the profile's
+// maxNameBytes, or a group/.../endpoint path longer than maxPathBytes.
+[[noreturn]] inline void
+groupTreeNameCeilingExceeded() noexcept // a tree name over maxNameBytes or a path over maxPathBytes
+{
+	std::abort();
+}
+
+// One part of a type name is longer than maxNameBytes, or the whole name is
+// longer than maxPathBytes. Fix: a shorter explicit TypeReflection<T> name.
+[[noreturn]] inline void
+typeNameCeilingExceeded() noexcept // a type name part over maxNameBytes or a name over maxPathBytes
 {
 	std::abort();
 }
@@ -273,12 +336,38 @@ class Descriptor {
 	using Registry = typename Model::Registry;
 	using Kind = detail::SegmentKind;
 	using Segment = detail::Segment;
-	using FieldShape = detail::Shape<std::remove_cv_t<Fields>>;
-	using CommandShape = detail::Shape<std::remove_cv_t<Commands>>;
-	using ServiceShape = detail::Shape<std::remove_cv_t<Services>>;
+	using Catalogs = detail::CatalogTypes<Model>;
+	using FieldCatalogs = std::remove_cv_t<typename Catalogs::Fields>;
+	using FieldShape = detail::Shape<FieldCatalogs>;
+	using CommandShape = detail::Shape<std::remove_cv_t<typename Catalogs::Commands>>;
+	using ServiceShape = detail::Shape<std::remove_cv_t<typename Catalogs::Services>>;
+	using Ceilings = detail::TreeCeilings<Profile>;
 
-	static constexpr std::size_t catalogCount =
-	    FieldShape::catalogs + CommandShape::catalogs + ServiceShape::catalogs;
+	// GroupTree mode (v3.1): one group record per group of the shared tree.
+	static constexpr bool groupTree = ts::detail::groupTreeModel<Model>;
+
+	static consteval std::size_t countCatalogRecords() noexcept
+	{
+		if constexpr (groupTree)
+			return Model::groupCount;
+		else
+			return FieldShape::catalogs + CommandShape::catalogs + ServiceShape::catalogs;
+	}
+
+	static constexpr std::size_t catalogCount = countCatalogRecords();
+
+	static consteval bool groupsFitProfile() noexcept
+	{
+		if constexpr (groupTree) {
+			for (const auto depth : Model::groupDepths)
+				if (depth >= Ceilings::groupDepth)
+					return false;
+		}
+		return true;
+	}
+
+	static_assert(groupsFitProfile(),
+	              "Group tree deeper than the profile's maxGroupDepth (levels 0..maxGroupDepth-1)");
 	static constexpr std::size_t endpointCount =
 	    FieldShape::endpoints + CommandShape::endpoints + ServiceShape::endpoints;
 	static_assert(catalogCount <= Profile::maxCatalogCountTotal,
@@ -353,6 +442,32 @@ class Descriptor {
 		else
 			return {};
 	}
+
+	static constexpr std::span<const std::uint16_t> groupDepths() noexcept
+	{
+		if constexpr (groupTree)
+			return Model::groupDepths;
+		else
+			return {};
+	}
+
+	// Each part of every emitted type name within maxNameBytes, and the whole
+	// name within maxPathBytes. Compile-time facts, checked once.
+	static consteval bool typeNamesFitProfile() noexcept
+	{
+		for (const auto name : emittedTypeNames()) {
+			const auto separator = name.find("::");
+			const auto first = separator == std::string_view::npos ? name.size() : separator;
+			const auto second =
+			    separator == std::string_view::npos ? 0 : name.size() - separator - 2;
+			if (first > Ceilings::nameBytes || second > Ceilings::nameBytes ||
+			    name.size() > Ceilings::pathBytes)
+				return false;
+		}
+		return true;
+	}
+
+	static constexpr bool typeNamesFit = typeNamesFitProfile();
 
 	// Type names are unique among type names (byte comparison); they may equal
 	// an endpoint, catalog or member name. Sorted once, at compile time.
@@ -467,6 +582,72 @@ private:
 		return nameBytes(std::string_view{text, size});
 	}
 
+	// Length of one group's path, group/.../group, by walking up its parents;
+	// at most maxGroupDepth steps, without a table of lengths.
+	constexpr std::uint64_t groupPathBytes(std::uint32_t group) const noexcept
+	{
+		std::uint64_t bytes = 0;
+		for (std::uint32_t at = group;;) {
+			bytes += ts::detail::treeNameView(model_.fields.catalogs()[at].name).size();
+			if constexpr (groupTree) {
+				at = Model::groupParents[at];
+				if (at == Model::noParent)
+					return bytes;
+				++bytes;
+			} else {
+				return bytes;
+			}
+		}
+	}
+
+	constexpr bool treeNameFits(std::uint64_t name, std::uint64_t path) noexcept
+	{
+		if (name <= Ceilings::nameBytes && path <= Ceilings::pathBytes)
+			return true;
+		error_ = DescriptorError::InvalidName;
+		if (std::is_constant_evaluated())
+			detail::groupTreeNameCeilingExceeded();
+		return false;
+	}
+
+	// The G group records of a tree: names and paths within the profile, every
+	// family's row present at every position.
+	template<class Index>
+	constexpr bool groupRecords(std::size_t& next, Index fields) noexcept
+	{
+		if (fields.count() != Model::groupCount || model_.commands.count() != Model::groupCount ||
+		    model_.services.count() != Model::groupCount) {
+			fail(DescriptorError::MetadataMismatch);
+			return false;
+		}
+		for (std::uint32_t group = 0; group < Model::groupCount; ++group) {
+			const auto bytes = nameBytes(fields.catalogs()[group].name);
+			const auto path = groupPathBytes(group);
+			if (!valid() || !treeNameFits(bytes, path))
+				return false;
+			if (!add(next, 28ULL + bytes, Kind::GroupCatalog, group, 0))
+				return false;
+		}
+		return true;
+	}
+
+	// Endpoint names of a tree are path segments too: within maxNameBytes, and
+	// group/.../endpoint within maxPathBytes.
+	template<class Index>
+	constexpr bool treeEndpointsFit(Index index) noexcept
+	{
+		for (std::uint32_t group = 0; group < index.count(); ++group) {
+			const auto& catalog = index.catalogs()[group];
+			const auto prefix = groupPathBytes(group) + 1;
+			for (std::uint32_t entry = 0; entry < catalog.count; ++entry) {
+				const auto name = ts::detail::treeNameView(catalog.entries[entry].name).size();
+				if (!treeNameFits(name, prefix + name))
+					return false;
+			}
+		}
+		return true;
+	}
+
 	constexpr bool add(std::size_t& next, std::uint64_t bytes, Kind kind, std::uint32_t key = 0,
 	                   std::uint32_t index = 0, bool writable = false) noexcept
 	{
@@ -545,8 +726,8 @@ private:
 			for (std::uint32_t entry = 0; entry < catalog.count; ++entry) {
 				const auto bytes = (kind == Kind::Command ? 20ULL : 24ULL) +
 				                   nameBytes(catalog.entries[entry].name);
-				const bool writable = kind == Kind::Field &&
-				                      detail::Writable<std::remove_cv_t<Fields>>::at(group, entry);
+				const bool writable =
+				    kind == Kind::Field && detail::Writable<FieldCatalogs>::at(group, entry);
 				if (!add(next, bytes, kind, (group << 16) | entry, 0, writable)) {
 					return false;
 				}
@@ -571,7 +752,15 @@ private:
 			}
 			return;
 		}
+		if constexpr (!typeNamesFit) {
+			error_ = DescriptorError::InvalidName;
+			if (std::is_constant_evaluated()) {
+				detail::typeNameCeilingExceeded();
+			}
+			return;
+		}
 		header_.typeNames = emittedTypeNames();
+		header_.groupDepths = groupDepths();
 		std::size_t next = 0;
 		if (!add(next, descriptorHeaderBytes, Kind::Header)) {
 			return;
@@ -599,7 +788,12 @@ private:
 			}
 			namedBytes += named;
 			for (std::uint32_t m = 0; m < type.memberCount; ++m) {
-				if (!add(next, 8ULL + nameBytes(type.memberData[m].name), Kind::Member, i, m)) {
+				const auto memberBytes = nameBytes(type.memberData[m].name);
+				// A member name is a path segment of a tree: adc/Config.Gain.
+				if (groupTree && !treeNameFits(memberBytes, 0)) {
+					return;
+				}
+				if (!add(next, 8ULL + memberBytes, Kind::Member, i, m)) {
 					return;
 				}
 			}
@@ -618,12 +812,18 @@ private:
 			fail(DescriptorError::MetadataMismatch);
 			return;
 		}
-		// One canonical encoding per model: minor 1 exactly when a type is named.
-		header_.minor = namedBytes != 0 ? typeNamesMinor : binaryMinor;
+		// One canonical encoding per model: minor 1 exactly when a type is named
+		// or the catalogs are one group tree.
+		header_.minor = namedBytes != 0 || groupTree ? typeNamesMinor : binaryMinor;
 		header_.catalogsOffset = header_.totalBytes;
-		if (!catalogs(next, model_.fields, Kind::FieldCatalog, 0) ||
-		    !catalogs(next, model_.commands, Kind::CommandCatalog, 1) ||
-		    !catalogs(next, model_.services, Kind::ServiceCatalog, 2)) {
+		if constexpr (groupTree) {
+			if (!groupRecords(next, model_.fields) || !treeEndpointsFit(model_.fields) ||
+			    !treeEndpointsFit(model_.commands) || !treeEndpointsFit(model_.services)) {
+				return;
+			}
+		} else if (!catalogs(next, model_.fields, Kind::FieldCatalog, 0) ||
+		           !catalogs(next, model_.commands, Kind::CommandCatalog, 1) ||
+		           !catalogs(next, model_.services, Kind::ServiceCatalog, 2)) {
 			return;
 		}
 		header_.endpointsOffset = header_.totalBytes;

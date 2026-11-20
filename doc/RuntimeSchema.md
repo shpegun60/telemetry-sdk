@@ -108,6 +108,31 @@ const auto* config = parsed.schema.findType("adc::Config"); // nullptr when abse
 attribute area is validated and skipped: the schema stores nothing for it,
 and a descriptor decodes to the same model as its bytes without attributes.
 
+## Group trees and paths
+
+A v3.1 descriptor in GroupTree mode describes one tree of groups shared by the
+three families. `groupTree()` says so; `groups()` lists the G groups in
+pre-order, each with `parent` (`noParentGroup` at a root) and `depth`. Every
+family's `catalogs(category)` holds the same G groups with that family's
+range, so `RuntimeEndpoint::catalogIndex` is the group, and the workspace needs
+3G catalog rows. Paths follow one grammar, `group/.../endpoint` then
+`.member` and `[i]`:
+
+```cpp
+const auto* gain = parsed.schema.findEndpoint("adc/channel1/Gain"); // any family
+const auto* adc = parsed.schema.findGroup("adc");
+const auto target = parsed.schema.resolvePath("adc/Config.gain");   // endpoint + handle
+std::array<char, 256> text{};
+const auto size = parsed.schema.endpointPath(*gain, text);          // "adc/channel1/Gain"
+```
+
+In a flat descriptor a name may hold the path characters; its path escapes
+`/ . [ ] \` with a backslash, and a path naming endpoints of two families
+is ambiguous (nullptr). The older `findEndpoint(category, "group.name")` keeps
+its dotted form. `ParseLimits` adds `groupDepth` (255), `nameBytes` and
+`pathBytes` (4096): hosts are lenient, a producer's defaults are 8, 64 and
+256.
+
 ## Stage and commit edits
 
 Include `<telemetry/runtime/DynamicValueWriter.hpp>`. `begin` returns a move-only

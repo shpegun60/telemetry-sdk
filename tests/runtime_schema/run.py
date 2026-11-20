@@ -212,7 +212,7 @@ def corpus(descriptor):
         [field_endpoint(0, b'a'), field_endpoint(1, b'a')]), False)
     add('catalog-name-duplicate', endpoint_descriptor([field_catalog(0, 0, 1, b'g'), field_catalog(1, 1, 1, b'g')],
         [field_endpoint(0, b'a'), field_endpoint(65536, b'a')]), False)
-    for name in ('mixed', 'edge', 'empty', 'named', 'attrs'):
+    for name in ('mixed', 'edge', 'empty', 'named', 'attrs', 'tree'):
         path = ROOT / 'tests/structured/descriptor' / (name + '.hex')
         add('golden-' + name, bytes.fromhex(path.read_text()), True)
     # The shared descriptor v3.1 decoder table: every accepted case and one
@@ -286,7 +286,7 @@ def main():
     sources.update((ROOT / 'tools/telemetry_codegen').rglob('*.py'))
     sources.update(ROOT / name for name in ('lib/telemetry/model/Adapter.cpp', 'lib/telemetry/abi/StructuredAbi.cpp'))
     sources.update(ROOT / 'tests/structured/descriptor' / (name + '.hex')
-                   for name in ('mixed', 'edge', 'empty', 'named', 'attrs'))
+                   for name in ('mixed', 'edge', 'empty', 'named', 'attrs', 'tree'))
     sources.add(ROOT / 'tests/structured/descriptor/v31_cases.json')
     for text in dependency_texts:
         for part in text.replace('\\\n', ' ').split()[1:]:

@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 	std::array<telemetry::runtime::RuntimeType, 128> types{};
 	std::array<telemetry::runtime::RuntimeMember, 512> members{};
 	std::array<telemetry::runtime::RuntimeEnumEntry, 512> enums{};
-	std::array<telemetry::runtime::RuntimeCatalog, 32> catalogs{};
+	std::array<telemetry::runtime::RuntimeCatalog, 64> catalogs{};
 	std::array<telemetry::runtime::RuntimeEndpoint, 128> endpoints{};
 	telemetry::runtime::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs,
 	                                                     endpoints};

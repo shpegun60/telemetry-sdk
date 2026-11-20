@@ -33,7 +33,8 @@ enum class SegmentKind : std::uint8_t {
 	ServiceCatalog,
 	Field,
 	Command,
-	Service
+	Service,
+	GroupCatalog
 };
 
 // Twelve bytes per segment on every supported ABI. Metadata addresses remain
@@ -62,7 +63,8 @@ struct Segment {
 static_assert(sizeof(Segment) == 12);
 
 // typeNames borrows the registry's static names indexed by TypeId. It is
-// empty when the descriptor emits no names, and minor then stays 0 (v3.0).
+// empty when the descriptor emits no names. groupDepths borrows the tree
+// Model's static outline and is empty for a flat model.
 struct Header {
 	std::uint32_t totalBytes = 0;
 	std::uint64_t fingerprint = 0;
@@ -73,6 +75,7 @@ struct Header {
 	std::uint32_t endpointsOffset = 0;
 	std::uint16_t minor = binaryMinor;
 	std::span<const std::string_view> typeNames{};
+	std::span<const std::uint16_t> groupDepths{};
 };
 
 // The emitted name of one type record: empty for an unnamed type and for
@@ -184,6 +187,8 @@ constexpr void string(Sink& sink, std::string_view text) noexcept
 			return {model.commands.catalogs()[part.key].name, bytes - 28};
 		case SegmentKind::ServiceCatalog:
 			return {model.services.catalogs()[part.key].name, bytes - 28};
+		case SegmentKind::GroupCatalog:
+			return {model.fields.catalogs()[part.key].name, bytes - 28};
 		case SegmentKind::Field:
 			return {model.fields.catalogs()[group].entries[entry].name, bytes - 24};
 		case SegmentKind::Command:
@@ -209,7 +214,8 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 			sink.integer(binaryMajor, 2);
 			sink.integer(header.minor, 2);
 			sink.integer(descriptorHeaderBytes, 2);
-			sink.integer(0, 2);
+			sink.integer(
+			    header.groupDepths.empty() ? 0u : static_cast<unsigned>(HeaderFlag::GroupTree), 2);
 			sink.integer(header.totalBytes, 4);
 			sink.integer(header.fingerprint, 8);
 			sink.integer(header.typeCount, 4);
@@ -287,6 +293,17 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 			string(sink, segmentName(part, bytes, model));
 			return;
 		}
+		case SegmentKind::GroupCatalog:
+			// One group of the shared tree: every family's row at this position.
+			record(sink, RecordKind::Catalog, bytes);
+			sink.integer(groupCategory, 1);
+			sink.integer(0, 1);
+			sink.integer(header.groupDepths[part.key], 2);
+			sink.integer(model.fields.catalogs()[part.key].count, 4);
+			sink.integer(model.commands.catalogs()[part.key].count, 4);
+			sink.integer(model.services.catalogs()[part.key].count, 4);
+			string(sink, segmentName(part, bytes, model));
+			return;
 		case SegmentKind::Field:
 			record(sink, RecordKind::Field, bytes);
 			sink.integer(part.key, 4);

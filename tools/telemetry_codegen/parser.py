@@ -2,9 +2,11 @@
 
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 C++ producer goldens and the independent JS consumer validate this parser.
-v3.1 adds an optional unique type name on Enum/Struct records and a skippable
-attribute area after any record payload; attributes are validated and skipped,
-so a descriptor with attributes yields the model of the same bytes without them.
+v3.1 adds an optional unique type name on Enum/Struct records, a skippable
+attribute area after any record payload, and the GroupTree mode: one shared
+tree of group records in pre-order replaces the three family catalogs.
+Attributes are validated and skipped, so a descriptor with attributes yields
+the model of the same bytes without them.
 """
 from dataclasses import dataclass
 import struct
@@ -29,10 +31,17 @@ class Limits:
     wire_bytes: int = 1048576
     depth: int = 32
     expanded_nodes: int = 262144
+    # Group-tree ceilings: hosts are lenient (a producer's defaults are 8/64/256).
+    group_depth: int = 255
+    name_bytes: int = 4096
+    path_bytes: int = 4096
 
 
 TYPE_NAMED = 1
 RECORD_ATTRIBUTES = 1
+HEADER_GROUP_TREE = 1
+GROUP_CATEGORY = 0
+PATH_CHARACTERS = '/.[]\\'
 ATTRIBUTE_HEADER_BYTES = 5  # u8 tag, u32 length
 
 
@@ -52,6 +61,112 @@ def type_name_shape_valid(name):
     """[scope "::"] name: at most one "::", each part nonempty, without ':' or / . [ ] \\."""
     parts = name.split('::', 1) if '::' in name else [name]
     return all(part and not any(c in part for c in ':/.[]\\') for part in parts)
+
+
+def tree_name_valid(name):
+    """A group or endpoint name of a tree is a path segment: no / . [ ] or backslash."""
+    return not any(c in name for c in PATH_CHARACTERS)
+
+
+def escape_segment(name):
+    """A flat (v3.0) name in a path: backslash before / . [ ] and backslash."""
+    return ''.join('\\' + c if c in PATH_CHARACTERS else c for c in name)
+
+
+def split_path(path):
+    """group/.../endpoint[.member|[i]]... -> (segments, member suffix); None if malformed.
+
+    A backslash escapes the next character, so a flat name keeps any UTF-8.
+    """
+    segments, current, i = [], '', 0
+    while i < len(path):
+        c = path[i]
+        if c == '\\':
+            if i + 1 == len(path):
+                return None
+            current += path[i + 1]
+            i += 2
+            continue
+        if c == '/':
+            if not current:
+                return None
+            segments.append(current)
+            current = ''
+        elif c in '.[':
+            break
+        elif c == ']':
+            return None
+        else:
+            current += c
+        i += 1
+    if not current:
+        return None
+    segments.append(current)
+    return segments, path[i:]
+
+
+def group_path(groups, index):
+    """The path of one group, group/.../group, escaped for a flat descriptor."""
+    parts = []
+    while index is not None:
+        parts.append(escape_segment(groups[index]['name']))
+        index = groups[index]['parent']
+    return '/'.join(reversed(parts))
+
+
+def endpoint_path(model, category, endpoint):
+    """group/.../endpoint in a tree, escaped group/endpoint in a flat descriptor."""
+    group = endpoint['id'] >> 16
+    if model['groups'] is not None:
+        return model['groups'][group]['path'] + '/' + endpoint['name']
+    return escape_segment(model['catalogs'][category][group]['name']) + '/' + escape_segment(endpoint['name'])
+
+
+def find_group(model, path):
+    """The group record of a tree at path, or None."""
+    split = split_path(path)
+    if model['groups'] is None or split is None or split[1]:
+        return None
+    parent = None
+    found = None
+    for segment in split[0]:
+        found = next((i for i, g in enumerate(model['groups'])
+                      if g['parent'] == parent and g['name'] == segment), None)
+        if found is None:
+            return None
+        parent = found
+    return model['groups'][found]
+
+
+def find_endpoint(model, path):
+    """(category, endpoint, member suffix) for group/.../endpoint[.member[i]], or None.
+
+    In a tree the path alone is unique. In a flat descriptor the group is one
+    escaped segment, and a path naming endpoints of two families is ambiguous.
+    """
+    split = split_path(path)
+    if split is None or len(split[0]) < 2:
+        return None
+    segments, suffix = split
+    matches = []
+    if model['groups'] is not None:
+        group = find_group(model, '/'.join(escape_segment(s) for s in segments[:-1]))
+        if group is None:
+            return None
+        index = model['groups'].index(group)
+        for category in range(3):
+            for endpoint in model['endpoints'][category]:
+                if endpoint['id'] >> 16 == index and endpoint['name'] == segments[-1]:
+                    matches.append((category, endpoint))
+    elif len(segments) == 2:
+        for category in range(3):
+            for catalog in model['catalogs'][category]:
+                if catalog['name'] != segments[0]:
+                    continue
+                for endpoint in model['endpoints'][category][catalog['first']:catalog['first'] + catalog['count']]:
+                    if endpoint['name'] == segments[1]:
+                        matches.append((category, endpoint))
+    return (*matches[0], suffix) if len(matches) == 1 else None
 
 
 def attribute_tag_class(tag):
@@ -150,17 +265,23 @@ def parse(data, limits=Limits()):
     data = memoryview(data)
     require(bytes(data[:4]) == b'TDS3', 'magic')
     major, minor, header, flags, total, stored_hash, *tail = struct.unpack_from('<4HIQ10I', data, 4)
-    require(major == 3 and minor in (0, 1) and (header, flags) == (64, 0), 'header version/flags')
+    # v3.0 reserves the header flags; v3.1 defines bit 0, GroupTree.
+    require(major == 3 and minor in (0, 1) and header == 64 and
+            (flags == 0 or (minor >= 1 and flags == HEADER_GROUP_TREE)), 'header version/flags')
+    tree = flags == HEADER_GROUP_TREE
     require(total == len(data), 'total length')
     type_count, fc, fe, cc, ce, sc, se, type_start, cat_start, ep_start = tail
     cat_counts, ep_counts = (fc, cc, sc), (fe, ce, se)
+    # In a tree every family's catalog count is the group count G.
+    require(not tree or fc == cc == sc, 'header: group tree catalog counts differ')
+    records = fc if tree else sum(cat_counts)
     require(12 <= type_count <= limits.types, 'type budget')
-    require(sum(cat_counts) <= limits.catalogs, 'catalog budget')
+    require(records <= limits.catalogs, 'catalog budget')
     require(sum(ep_counts) <= limits.endpoints, 'endpoint budget')
     require(all(c <= 65536 for c in cat_counts), 'group index capacity')
     require(type_start == 64 <= cat_start <= ep_start <= total, 'section offsets')
     require(type_count * 20 <= cat_start - type_start, 'type count/bytes')
-    require(sum(cat_counts) * 29 <= ep_start - cat_start, 'catalog count/bytes')
+    require(records * 29 <= ep_start - cat_start, 'catalog count/bytes')
     require(sum(ep_counts) * 21 <= total - ep_start, 'endpoint count/bytes')
     require(stored_hash == fingerprint(data), 'fingerprint')
 
@@ -193,6 +314,8 @@ def parse(data, limits=Limits()):
             require(kind in (2, 3), 'type kind: name on a type other than Enum/Struct')
             name = row.text()
             require(type_name_shape_valid(name), 'type kind: type name shape')
+            require(all(len(part.encode()) <= limits.name_bytes for part in name.split('::')) and
+                    len(name.encode()) <= limits.path_bytes, 'name budget')
             require(name not in type_names, 'duplicate type name')
             type_names.add(name)
             item['name'] = name
@@ -231,6 +354,7 @@ def parse(data, limits=Limits()):
                 child_id = row.number(4)
                 child = reference(child_id, index)
                 name = row.text()
+                require(not tree or len(name.encode()) <= limits.name_bytes, 'name budget')
                 require(name not in names, 'duplicate member name')
                 names.add(name)
                 members.append((child_id, name))
@@ -255,7 +379,40 @@ def parse(data, limits=Limits()):
 
     reader = Reader(data, cat_start, ep_start, limits, minor)
     catalogs = [[], [], []]
-    for category, count in enumerate(cat_counts):
+    groups = [] if tree else None
+    firsts = [0, 0, 0]
+    for index in range(fc if tree else 0):
+        # One group of the shared tree, in pre-order.
+        row = reader.record(2)
+        extended |= row.attributes
+        require(row.number(1) == GROUP_CATEGORY, 'catalog category/order')
+        row.zeros(1)
+        depth = row.number(2)
+        counts = (row.number(4), row.number(4), row.number(4))
+        name = row.text()
+        require(depth < limits.group_depth, 'group depth budget')
+        require(depth <= (groups[-1]['depth'] + 1 if groups else 0), 'catalog: group depth outline')
+        require(tree_name_valid(name), 'catalog: tree name character')
+        parent = None
+        if depth:
+            parent = next(i for i in range(index - 1, -1, -1) if groups[i]['depth'] == depth - 1)
+        item = dict(name=name, depth=depth, parent=parent, counts=counts, first=tuple(firsts),
+                    offset=row.offset)
+        groups.append(item)
+        path = group_path(groups, index)
+        item['path'] = path
+        require(len(name.encode()) <= limits.name_bytes and len(path.encode()) <= limits.path_bytes,
+                'name budget')
+        for category in range(3):
+            require(counts[category] <= 65536 and counts[category] <= ep_counts[category] - firsts[category],
+                    'catalog entry count')
+            catalogs[category].append(dict(group=index, first=firsts[category], count=counts[category],
+                                           name=name, offset=row.offset))
+            firsts[category] += counts[category]
+        row.done()
+    if tree:
+        require(tuple(firsts) == ep_counts, 'catalog total entries')
+    for category, count in enumerate(() if tree else cat_counts):
         first, names = 0, set()
         for group in range(count):
             row = reader.record(2)
@@ -303,13 +460,29 @@ def parse(data, limits=Limits()):
                         item['response'] = response
                 name = row.text()
                 require(name not in names, 'duplicate endpoint name')
+                if tree:
+                    require(tree_name_valid(name), 'endpoint: tree name character')
+                    path = groups[catalog['group']]['path'] + '/' + name
+                    require(len(name.encode()) <= limits.name_bytes and len(path.encode()) <= limits.path_bytes,
+                            'name budget')
                 names.add(name)
                 item['name'] = name
                 row.done()  # only a flagged, skippable attribute area may follow the name
                 endpoints[category].append(item)
     reader.done()
-    # One canonical encoding per model: a descriptor without names and
-    # attributes is v3.0, so minor 1 must carry at least one of them.
-    require(minor == 0 or extended, 'header version: minor 1 without a type name or attribute')
+    if tree:
+        # Names are unique among everything one group holds, like a folder:
+        # its subgroups and the endpoints of all three families.
+        held = {}
+        for index, group in enumerate(groups):
+            held.setdefault(group['parent'], []).append(group['name'])
+        for category in range(3):
+            for endpoint in endpoints[category]:
+                held.setdefault(endpoint['id'] >> 16, []).append(endpoint['name'])
+        for names in held.values():
+            require(len(names) == len(set(names)), 'duplicate sibling name')
+    # One canonical encoding per model: a descriptor without names, attributes
+    # and a tree is v3.0, so minor 1 must carry at least one of them.
+    require(minor == 0 or extended or tree, 'header version: minor 1 without a type name or attribute')
     return dict(fingerprint=stored_hash, total=total, minor=minor, types=types, catalogs=catalogs,
-                endpoints=endpoints, offsets=(type_start, cat_start, ep_start))
+                endpoints=endpoints, groups=groups, offsets=(type_start, cat_start, ep_start))

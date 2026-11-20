@@ -33,6 +33,12 @@ undefined when unnamed. Names are unique, so `findType(schema, name)` from
 `telemetry.js`, or `client.findType(name)` for the admitted schema, returns
 that type or undefined; `schema.minor` is 0 for v3.0 and 1 for v3.1.
 Attribute areas are validated and skipped and never change the model.
+In GroupTree mode `schema.groupTree` is true and `schema.groups` lists the
+groups in pre-order with `depth`, `parent`, `path` and per-family counts.
+`findGroup(schema, 'adc/channel1')`, `findEndpoint(schema, 'adc/Config.gain')`
+(`{category, endpoint, member}`) and `endpointPath(schema, category, endpoint)`
+read and write the path grammar of [WireV3](WireV3.md#paths); a flat name is
+escaped with `escapePathSegment`.
 
 Cache opaque endpoint bindings for repeated operations in that admission.
 `writeField(endpoint, value)`, `command(endpoint, request)` and

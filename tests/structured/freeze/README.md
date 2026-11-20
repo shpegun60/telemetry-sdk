@@ -34,9 +34,10 @@ the step/constraints/limits/defaults clauses in the metadata detector.
 
 The readable [contract.json](contract.json) records header widths, LE,
 record/type/scalar/status/capability codes, FNV-1a-64 constants, u32 packed
-identity, ABI revision, the default 32-byte storage budget, all eleven default
-`ts::Limits` resource ceilings, exact dependency
-pins and four independent descriptor/values goldens. Generated compile-time
+identity, ABI revision, the default 32-byte storage budget, all fourteen
+default `ts::Limits` resource ceilings (the eleven of v3.0 and the three
+group-tree ceilings of v3.1), exact dependency pins and the independent
+descriptor/values goldens, v3.1's `named`, `attrs` and `tree` included. Generated compile-time
 assertions tie its numeric constants to the implementation. Golden hashes
 are over decoded bytes, independent of `.hex` whitespace. Existing
 descriptor/resource/client suites still compare emitted bytes with their

@@ -1,8 +1,10 @@
 """Independent explicit fixtures for descriptor v3.0 and v3.1 (not producer-generated).
 
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
-v3.0: mixed, edge, empty. v3.1: named (mixed with its three C++ type names) and
-attrs (named plus advisory and application attributes on every record kind).
+v3.0: mixed, edge, empty. v3.1: named (mixed with its three C++ type names),
+attrs (named plus advisory and application attributes on every record kind)
+and tree (the GroupTree mode: two branches, adc and metrology, in one shared
+tree of group records).
 The v3.1 table lists accepted inputs and one malformed descriptor per rule,
 with the verdict that the C++, JS and Python decoders must all give.
 """
@@ -81,7 +83,74 @@ MIXED_ATTRIBUTES = {
 }
 
 
-def fixture(which, names=None, attributes=None, minor=None, extra=None):
+# The group-tree fixture of tests/structured/group_tree: the producer's
+# registry order (Fields in group pre-order, then Commands, then Services).
+TREE_NAMES = {12: 'adc::Config', 14: 'adc::Status', 15: 'metrology::Window', 16: 'metrology::Config',
+              17: 'adc::Reference', 18: 'adc::Offset'}
+
+# Pre-order groups: name, depth, Fields (type, name, caps), Commands (request,
+# name), Services (request, response, name).
+TREE_GROUPS = [
+    ('adc', 0, [(12, 'Config', 3), (14, 'Status', 1)], [(0, 'Reset')], [(17, 18, 'Calibrate')]),
+    ('channel1', 1, [(10, 'Gain', 3)], [], []),
+    ('channel2', 1, [(10, 'Gain', 3)], [], []),
+    ('metrology', 0, [(16, 'Config', 3)], [], []),
+]
+
+
+def tree_fixture(groups=None, names=None, flags=1, minor=1, attributes=None, counts=None, raw=None):
+    """One GroupTree descriptor: G group records, then the endpoints in group order.
+
+    raw maps a group index to (category, reserved) bytes so one rule can be
+    broken at a time; counts overrides the header's six catalog/endpoint counts.
+    """
+    groups = TREE_GROUPS if groups is None else groups
+    names = TREE_NAMES if names is None else names
+    attributes, raw = attributes or {}, raw or {}
+    types = [type_record(0, 0, 0)]
+    for code, size in enumerate((1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8), 1):
+        types.append(type_record(code, 1, size, bytes((code, 0, 0, 0))))
+    types += [struct_type(12, 7, [(10, 'gain'), (4, 'rateHz'), (1, 'enabled')], name=names.get(12)),
+              type_record(13, 4, 4, u32(5, 2)),
+              struct_type(14, 6, [(4, 'flags'), (13, 'raw')], name=names.get(14)),
+              enum_type(15, 2, 1, [(0, 'Rectangular'), (1, 'Hann'), (2, 'FlatTop')], name=names.get(15)),
+              struct_type(16, 5, [(6, 'cycles'), (15, 'window')], name=names.get(16)),
+              struct_type(17, 4, [(10, 'volts')], name=names.get(17)),
+              struct_type(18, 4, [(10, 'counts')], name=names.get(18))]
+    catalogs, families = [], ([], [], [])
+    for index, (name, depth, fields, commands, services) in enumerate(groups):
+        category, reserved = raw.get(index, (0, 0))
+        catalogs.append(record(2, bytes((category, reserved)) + struct.pack('<H', depth) +
+                               u32(len(fields), len(commands), len(services)) + text(name),
+                               attributes.get(('group', index), b'')))
+        for local, (type_id, entry, caps) in enumerate(fields):
+            families[0].append(record(3, u32(index << 16 | local, type_id) + bytes((caps, 0, 0, 0)) + text(entry)))
+        for local, (request, entry) in enumerate(commands):
+            families[1].append(record(4, u32(index << 16 | local, request) + text(entry)))
+        for local, (request, response, entry) in enumerate(services):
+            families[2].append(record(5, u32(index << 16 | local, request, response) + text(entry)))
+    if counts is None:
+        counts = [len(groups), len(families[0]), len(groups), len(families[1]), len(groups), len(families[2])]
+    type_bytes, catalog_bytes = b''.join(types), b''.join(catalogs)
+    endpoint_bytes = b''.join(b''.join(rows) for rows in families)
+    total = 64 + len(type_bytes) + len(catalog_bytes) + len(endpoint_bytes)
+    header = b'TDS3' + struct.pack('<4HIQ10I', 3, minor, 64, flags, total, 0, len(types), *counts,
+                                 64, 64 + len(type_bytes), 64 + len(type_bytes) + len(catalog_bytes))
+    result = bytearray(header + type_bytes + catalog_bytes + endpoint_bytes)
+    struct.pack_into('<Q', result, 16, fingerprint(result))
+    return bytes(result)
+
+
+def with_group(index, **change):
+    """TREE_GROUPS with one group's fields replaced (name, depth, fields, commands, services)."""
+    keys = ('name', 'depth', 'fields', 'commands', 'services')
+    groups = [list(group) for group in TREE_GROUPS]
+    for key, value in change.items():
+        groups[index][keys.index(key)] = value
+    return [tuple(group) for group in groups]
+
+
+def fixture(which, names=None, attributes=None, minor=None, extra=None, motor='motor'):
     """Build one descriptor; names/attributes/minor/extra exist for v3.1 and negative cases.
 
     extra maps ('type', id) to keyword overrides of that record (name, flags,
@@ -92,6 +161,8 @@ def fixture(which, names=None, attributes=None, minor=None, extra=None):
     if which == 'attrs':
         return fixture('mixed', MIXED_NAMES if names is None else names,
                        MIXED_ATTRIBUTES if attributes is None else attributes, minor, extra)
+    if which == 'tree':
+        return tree_fixture()
     names, attributes, extra = names or {}, attributes or {}, extra or {}
 
     def options(key):
@@ -113,11 +184,11 @@ def fixture(which, names=None, attributes=None, minor=None, extra=None):
                   type_record(13, 4, 6, u32(4, 3), **options(('type', 13))),
                   struct_type(14, 5, [(10, 'volts'), (1, 'active')], **options(('type', 14))),
                   struct_type(15, 7, [(10, 'target'), (4, 'rpm'), (1, 'enabled')], **options(('type', 15)))]
-        field_groups = [('motor', [(1, 'Enabled', 1), (4, 'RPM', 1), (10, 'Temperature', 1),
-                                    (11, 'Precise', 1), (12, 'Mode', 1), (13, 'Samples', 1),
-                                    (14, 'State', 1), (15, 'Config', 3)])]
-        command_groups = [('motor', [(15, 'Configure'), (0, 'Reset')])]
-        service_groups = [('motor', [(15, 15, 'Echo')])]
+        field_groups = [(motor, [(1, 'Enabled', 1), (4, 'RPM', 1), (10, 'Temperature', 1),
+                                  (11, 'Precise', 1), (12, 'Mode', 1), (13, 'Samples', 1),
+                                  (14, 'State', 1), (15, 'Config', 3)])]
+        command_groups = [(motor, [(15, 'Configure'), (0, 'Reset')])]
+        service_groups = [(motor, [(15, 15, 'Echo')])]
         if which == 'edge':
             types += [struct_type(16, 0, []), type_record(17, 4, 10, u32(14, 2)),
                       type_record(18, 4, 0, u32(2, 0)),
@@ -246,6 +317,44 @@ def negative_cases():
     for tag in (0x81, 0xBF):
         add(f'unknown-critical-tag-{tag:02x}', fixture('named', attributes={('type', 14): attribute(tag)}),
             'Record', 'unknown critical attribute tag', 'Unknown critical attribute tag')
+    # GroupTree: the header flag, group records and the tree's name rules.
+    add('group-tree-on-minor-0', tree_fixture(minor=0), 'Header', 'header version', 'Descriptor version')
+    add('header-flag-bit-1', tree_fixture(flags=2), 'Header', 'header version', 'Descriptor version')
+    add('header-flags-tree-and-bit-1', tree_fixture(flags=3), 'Header', 'header version', 'Descriptor version')
+    add('tree-catalog-counts-differ', tree_fixture(counts=[4, 5, 3, 1, 4, 1]), 'Header',
+        'group tree catalog counts differ', 'Group tree catalog counts differ')
+    add('group-record-outside-tree-mode', tree_fixture(flags=0, minor=1, counts=[4, 5, 0, 1, 0, 1]), 'Catalog',
+        'catalog category/order', 'Catalog category/order')
+    add('family-catalog-in-tree-mode', tree_fixture(raw={1: (1, 0)}), 'Catalog', 'catalog category/order',
+        'Catalog category/order')
+    add('group-record-reserved-byte', tree_fixture(raw={2: (0, 1)}), 'Reserved', 'reserved bytes',
+        'Nonzero reserved')
+    add('tree-first-depth-not-zero', tree_fixture(groups=with_group(0, depth=1)), 'Catalog',
+        'group depth outline', 'Group depth outline')
+    add('tree-depth-jump', tree_fixture(groups=with_group(1, depth=2)), 'Catalog', 'group depth outline',
+        'Group depth outline')
+    add('tree-depth-over-ceiling', tree_fixture(groups=with_group(0, depth=255)), 'Limit',
+        'group depth budget', 'Group depth budget')
+    long_a, long_b = 'a' * 2100, 'b' * 2100
+    add('tree-path-over-ceiling', tree_fixture(groups=with_group(0, name=long_a)[:1] + [
+        (long_b, 1, [(10, 'Gain', 3)], [], [])] + with_group(0)[3:]), 'Limit', 'name budget', 'Name budget')
+    add('tree-count-sum-differs', tree_fixture(counts=[4, 6, 4, 1, 4, 1]), 'Catalog', 'catalog total entries',
+        'Catalog total entries')
+    add('tree-group-name-slash', tree_fixture(groups=with_group(1, name='channel/1')), 'Catalog',
+        'tree name character', 'Tree name character')
+    add('tree-group-name-backslash', tree_fixture(groups=with_group(3, name='metro\\logy')), 'Catalog',
+        'tree name character', 'Tree name character')
+    add('tree-endpoint-name-dot', tree_fixture(groups=with_group(2, fields=[(10, 'Gain.x', 3)])), 'Endpoint',
+        'tree name character', 'Tree name character')
+    add('tree-endpoint-name-bracket', tree_fixture(groups=with_group(0, commands=[(0, 'Reset[0]')])),
+        'Endpoint', 'tree name character', 'Tree name character')
+    add('tree-duplicate-across-families', tree_fixture(groups=with_group(0, commands=[(0, 'Status')])),
+        'DuplicateName', 'duplicate sibling name', 'Duplicate sibling name')
+    add('tree-duplicate-subgroup-and-endpoint',
+        tree_fixture(groups=with_group(1, name='Config')), 'DuplicateName', 'duplicate sibling name',
+        'Duplicate sibling name')
+    add('tree-duplicate-root-groups', tree_fixture(groups=with_group(3, name='adc')), 'DuplicateName',
+        'duplicate sibling name', 'Duplicate sibling name')
     return cases
 
 
@@ -267,6 +376,21 @@ def positive_cases():
         dict(name='every-tag-class-but-critical', hex=fixture(
             'mixed', attributes={('type', 15): attribute(0x04, b'r') + attribute(0x3F) + attribute(0x7F, b'z')}
         ).hex(), equals='mixed'),
+        # GroupTree: the tree, without type names (still minor 1), with an
+        # advisory attribute on a group record, and an empty folder and a deep
+        # chain (depths 0..7, the producer's default ceiling).
+        dict(name='tree', hex=tree_fixture().hex(), equals='tree'),
+        dict(name='tree-without-type-names', hex=tree_fixture(names={}).hex(), equals=None),
+        dict(name='tree-group-attribute', hex=tree_fixture(attributes={('group', 1): attribute(ADVISORY_A, b'g')}
+                                                           ).hex(), equals='tree'),
+        dict(name='tree-empty-folder-and-deep-chain', hex=tree_fixture(groups=TREE_GROUPS + [
+            ('empty', 0, [], [], [])] + [(f'level{depth}', depth, [], [], []) for depth in range(8)]
+        ).hex(), equals=None),
+        dict(name='tree-same-name-in-two-groups', hex=tree_fixture(groups=with_group(
+            3, fields=[(16, 'Config', 3), (10, 'Gain', 3)])).hex(), equals=None),
+        # The flat form keeps any UTF-8 in a group name, path characters included.
+        dict(name='flat-name-with-path-characters', hex=fixture('mixed', motor='a/b.c[0]\\d').hex(),
+             equals=None),
     ]
 
 
@@ -283,7 +407,7 @@ def write_table(path):
 
 if __name__ == '__main__':
     from pathlib import Path
-    for name in ('mixed', 'edge', 'empty', 'named', 'attrs'):
+    for name in ('mixed', 'edge', 'empty', 'named', 'attrs', 'tree'):
         data = fixture(name)
         path = Path(__file__).with_name(name + '.hex')
         path.write_text('\n'.join(data[i:i + 32].hex(' ') for i in range(0, len(data), 32)) + '\n')

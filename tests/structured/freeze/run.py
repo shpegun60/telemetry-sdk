@@ -28,7 +28,7 @@ LIMIT_NAMES = (
     'maxTypeDepth', 'maxTypeCount', 'maxStructMembers', 'maxArrayElements',
     'maxDescriptorBytes', 'maxStringBytes', 'maxEnumEntriesTotal',
     'maxCatalogCountTotal', 'maxEndpointCountTotal', 'maxValueWireBytes',
-    'maxExpandedValueNodes',
+    'maxExpandedValueNodes', 'maxGroupDepth', 'maxNameBytes', 'maxPathBytes',
 )
 DIAGNOSTICS = (
     'Structured field accepts name and bindings only; semantic metadata is not supported',
@@ -63,7 +63,7 @@ def verify_fixtures():
     if contract['format_version'] != 1:
         raise RuntimeError('Unsupported contract manifest version')
     if set(contract['limits']) != set(LIMIT_NAMES):
-        raise RuntimeError('The default v1 profile must specify all eleven ceilings')
+        raise RuntimeError('The default v1 profile must specify all fourteen ceilings')
     if any(type(contract['limits'][name]) is not int or contract['limits'][name] <= 0
            for name in LIMIT_NAMES):
         raise RuntimeError('Ceilings must be positive integers')
@@ -138,7 +138,8 @@ def manifest_assertions(contract):
     v31 = contract['wire_v3_1']
     lines += [f'static_assert(telemetry::descriptor::typeNamesMinor == {int(v31["minor"])});',
               f'static_assert(telemetry::descriptor::attributeHeaderBytes == {int(v31["attribute_header_bytes"])});']
-    for key, name in (('type_flags', 'TypeFlag'), ('record_flags', 'RecordFlag')):
+    lines.append(f'static_assert(telemetry::descriptor::groupCategory == {int(v31["group_category"])});')
+    for key, name in (('type_flags', 'TypeFlag'), ('record_flags', 'RecordFlag'), ('header_flags', 'HeaderFlag')):
         for entry, code in v31[key].items():
             lines.append(f'static_assert(static_cast<unsigned>(telemetry::descriptor::{name}::{entry}) == {int(code)});')
     tags = v31['attribute_tags']

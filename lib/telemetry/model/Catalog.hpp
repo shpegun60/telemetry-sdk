@@ -23,6 +23,7 @@
 #include <concepts>
 #include <cstdlib>
 #include <memory>
+#include <tuple>
 #include <type_traits>
 
 namespace telemetry {
@@ -38,12 +39,32 @@ struct TableGroup {
 };
 
 // The group borrows a stable local table. Its catalog position is its ID.
+// A table names its RootTypes; group branches and endpoint definitions do not,
+// so group(name, items...) in GroupTree.hpp takes those.
 template<class... Explicit, class Table>
-    requires(sizeof...(Explicit) == 0)
+    requires(sizeof...(Explicit) == 0 && requires { typename Table::RootTypes; })
 [[nodiscard]] constexpr auto group(detail::Name name, Table& table) noexcept
 {
 	return TableGroup<std::remove_cv_t<Table>>{name, std::addressof(table)};
 }
+
+// One group of the shared tree (descriptor v3.1): a validated name and its
+// items by value. Build it with group(name, items...) from GroupTree.hpp; a
+// branch is usually one inline constexpr expression per subsystem, mounted by
+// a top-level Model.
+template<class... Items>
+struct GroupBranch {
+	const char* name;
+	std::tuple<Items...> items;
+};
+
+namespace detail {
+template<class T>
+inline constexpr bool groupBranch = false;
+
+template<class... Items>
+inline constexpr bool groupBranch<GroupBranch<Items...>> = true;
+} // namespace detail
 
 // Field and Command each refer to one value/request TypeId per row.
 struct ValueTypeCatalog {

@@ -31,6 +31,7 @@ DESCRIPTOR = ROOT / 'tests/structured/descriptor'
 sys.path.insert(0, str(DESCRIPTOR))
 import golden  # noqa: E402
 from parser import InvalidDescriptor, fingerprint, parse  # noqa: E402
+from tools.telemetry_codegen.parser import endpoint_path, find_endpoint  # noqa: E402
 
 COMPILE_FAILURES = {
     1: r'duplicateTypeName', 2: r'duplicateTypeName', 3: r'duplicateTypeName',
@@ -115,6 +116,16 @@ def dump_python(data):
         for row in rows:
             lines.append(f'endpoint {category} {row["id"]} {row["type"]} {row.get("response", 0)} '
                          f'{row.get("capabilities", 0)} {hexed(row["name"])}')
+    for index, group in enumerate(model['groups'] or []):
+        parent = '-' if group['parent'] is None else group['parent']
+        lines.append(f'group {index} {group["depth"]} {parent} {hexed(group["path"])}')
+    for category, rows in enumerate(model['endpoints']):
+        for row in rows:
+            path = endpoint_path(model, category, row)
+            lines.append(f'path {category + 1} {row["id"]} {hexed(path)}')
+            found = find_endpoint(model, path)
+            if model['groups'] is not None and (found is None or found[1] is not row):
+                raise RuntimeError('Python find_endpoint misses ' + path)
     return lines
 
 
@@ -191,7 +202,7 @@ def main():
     run(host.argv(['--version']), 'compiler')
 
     # 1. Independent goldens and the shared decoder table.
-    for name in ('mixed', 'edge', 'empty', 'named', 'attrs'):
+    for name in ('mixed', 'edge', 'empty', 'named', 'attrs', 'tree'):
         if golden.fixture(name) != frozen(name):
             raise RuntimeError('golden.py disagrees with ' + name + '.hex')
     table = json.loads((DESCRIPTOR / 'v31_cases.json').read_text(encoding='utf-8'))
@@ -242,7 +253,7 @@ def main():
     # 3. Three decoders, one table: verdicts and model dumps.
     positives = [dict(name=case['name'], hex=case['hex'], equals=case['equals']) for case in table['positive']]
     positives += [dict(name='golden-' + name, hex=frozen(name).hex(), equals=None)
-                  for name in ('mixed', 'edge', 'empty', 'named', 'attrs')]
+                  for name in ('mixed', 'edge', 'empty', 'named', 'attrs', 'tree')]
     positives += [dict(name='producer-explicit', hex=produced['on']['explicit'].hex(), equals=None),
                   dict(name='producer-edge-named', hex=produced['on']['default-edge'].hex(), equals=None)]
     cases = positives + table['negative']

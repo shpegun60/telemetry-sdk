@@ -17,9 +17,10 @@
     "scalar_codes": {"Bool": 1, "U8": 2, "S8": 3, "U16": 4, "S16": 5, "U32": 6, "S32": 7, "U64": 8, "S64": 9, "F32": 10, "F64": 11}
   },
   "wire_v3_1": {
-    "status": "additive contract: optional type names and a skippable attribute area; v3.0 stays frozen as the stripped form",
+    "status": "additive contract: optional type names, a skippable attribute area and the GroupTree mode; v3.0 stays frozen as the stripped form",
     "minor": 1, "type_flags": {"Named": 1}, "named_type_kinds": ["Enum", "Struct"],
     "record_flags": {"Attributes": 1}, "attribute_header_bytes": 5,
+    "header_flags": {"GroupTree": 1}, "group_category": 0,
     "attribute_tags": {"sdk_advisory": ["01", "3f"], "application": ["40", "7f"],
                        "critical": ["81", "bf"], "reserved": ["00", "80", "c0-ff"],
                        "range": "01", "unit": "02", "default": "03"}
@@ -38,7 +39,10 @@
     "maxCatalogCountTotal": 65536,
     "maxEndpointCountTotal": 65536,
     "maxValueWireBytes": 1048576,
-    "maxExpandedValueNodes": 262144
+    "maxExpandedValueNodes": 262144,
+    "maxGroupDepth": 8,
+    "maxNameBytes": 64,
+    "maxPathBytes": 256
   },
   "dependencies": {
     "boost_pfr": {"tag": "boost-1.92.0", "commit": "401385c240027423acbb1eb6dea2abe0043db5aa", "headers": 44, "tree_sha256": "4c9837f5af31e83ef9e4d1c84a57588dcd7128ecfcc18a2445b24f82b246cfaf", "license_sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"},
@@ -50,6 +54,7 @@
     "tests/structured/descriptor/mixed.hex": {"bytes": 968, "sha256": "939ba312e6ad5ce9339a15f3544bca4f924b86bab980fe97bffe258797634b38"},
     "tests/structured/resources/values.hex": {"bytes": 73, "sha256": "e3e4137f0226251b5a0dbd4725987aaa0642d080e40c9d11d08051026db56ca6"},
     "tests/structured/descriptor/named.hex": {"bytes": 1027, "sha256": "f244f765841ad74cce0b79fc2f06ca20fc605bf47a0e1f8b942e24e97a3d53e6", "minor": 1},
-    "tests/structured/descriptor/attrs.hex": {"bytes": 1106, "sha256": "a721fcc6bf77fc0a163fe1b2473a8177ef24c29aeef1e3930155e98c9a5b3178", "minor": 1}
+    "tests/structured/descriptor/attrs.hex": {"bytes": 1106, "sha256": "a721fcc6bf77fc0a163fe1b2473a8177ef24c29aeef1e3930155e98c9a5b3178", "minor": 1},
+    "tests/structured/descriptor/tree.hex": {"bytes": 1130, "sha256": "f8ebd8f588cc54580ba53d3e45c2d1cabe747d05d81d8733b2b8b3648c52092e", "minor": 1}
   }
 }

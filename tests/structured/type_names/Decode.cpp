@@ -133,6 +133,33 @@ void dump(const rt::RuntimeSchema& schema, std::size_t typeCount)
 			            endpoint.responseTypeId, static_cast<unsigned>(endpoint.capabilities),
 			            hex(endpoint.name).c_str());
 	}
+	std::array<char, 8192> path{};
+	for (const auto& group : schema.groups()) {
+		const auto size = schema.groupPath(group.group, path);
+		const std::string_view text{path.data(), size};
+		std::printf("group %u %u ", group.group, group.depth);
+		if (group.parent == rt::noParentGroup)
+			std::printf("- %s\n", hex(text).c_str());
+		else
+			std::printf("%u %s\n", group.parent, hex(text).c_str());
+		check(schema.findGroup(text) == &group, "findGroup(groupPath) finds the group");
+	}
+	for (unsigned c = 1; c <= 3; ++c) {
+		const auto category = static_cast<telemetry::descriptor::Category>(c);
+		for (const auto& endpoint : schema.endpoints(category)) {
+			const auto size = schema.endpointPath(endpoint, path);
+			const std::string_view text{path.data(), size};
+			std::printf("path %u %u %s\n", c, endpoint.id, hex(text).c_str());
+			const auto* found = schema.findEndpoint(text);
+			check(!schema.groupTree() || found == &endpoint,
+			      "findEndpoint(endpointPath) finds the endpoint in a tree");
+			check(found == nullptr || found == &endpoint,
+			      "findEndpoint(endpointPath) finds this endpoint or none");
+			const auto target = schema.resolvePath(text);
+			check(found == nullptr || (target && target.value.endpoint == &endpoint),
+			      "resolvePath(endpointPath) finds the endpoint");
+		}
+	}
 	check(schema.findType({}) == nullptr, "findType(empty) finds nothing");
 	check(schema.findType("NoSuchTypeName") == nullptr, "findType(unknown) finds nothing");
 	check(schema.typeName(static_cast<telemetry::TypeId>(typeCount)).empty(),
@@ -156,7 +183,7 @@ int main(int argc, char** argv)
 	std::array<rt::RuntimeType, 64> types{};
 	std::array<rt::RuntimeMember, 64> members{};
 	std::array<rt::RuntimeEnumEntry, 64> enums{};
-	std::array<rt::RuntimeCatalog, 16> catalogs{};
+	std::array<rt::RuntimeCatalog, 64> catalogs{};
 	std::array<rt::RuntimeEndpoint, 64> endpoints{};
 	rt::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs, endpoints};
 
