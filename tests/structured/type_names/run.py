@@ -142,8 +142,11 @@ def main():
     parser.add_argument('--base-ref', help='git revision whose lib/telemetry is the decoder size baseline')
     args = parser.parse_args()
     out = args.build_dir.resolve()
-    if out == ROOT or ROOT in out.parents:
-        parser.error('--build-dir must be outside the checkout')
+    # Outside the checkout, or under its ignored build/ directory as CI uses.
+    ignored = ROOT / 'build'
+    if out in (ROOT, ignored) or out in ROOT.parents or (
+            ROOT in out.parents and ignored not in out.parents):
+        parser.error('--build-dir must be outside the checkout or under its ignored build/')
     out.mkdir(parents=True, exist_ok=True)
     commands, counts = [], dict(passed=0, rejected=0)
     summary = dict(passed=False, sanitize=args.sanitize, null_checks=args.null_checks)
