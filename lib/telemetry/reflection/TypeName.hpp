@@ -9,13 +9,19 @@
  * Names a native enum or aggregate for the descriptor's optional type name.
  *
  * typeName<T>() is the only entry point: device code and the type registry
- * never call a backend. The automatic name is the unqualified C++ name, kept
- * only when it is an ASCII identifier, so a template specialization or an
- * unnamed struct is left unnamed, silently and deterministically. An explicit
- * TypeReflection<T> overrides it: typeName("...") replaces the automatic name
- * with any valid UTF-8 label, and noTypeName() removes it. Explicit names win
- * over every automatic backend. Arrays, scalars and Void are never named.
- * Specialize TypeReflection<T> before first use, exactly like EnumReflection.
+ * never call a backend. The automatic name is the innermost enclosing scope
+ * and the type's own name, "adc::Config" for namespace adc or "Adc::Config"
+ * for a class Adc, and the name alone at global or anonymous-namespace scope;
+ * one scope level only, each part an ASCII identifier. A template
+ * specialization or an unnamed type is left unnamed, silently and
+ * deterministically; a local class is a build error, because a function scope
+ * is no stable name. An explicit TypeReflection<T> overrides it:
+ * typeName("...") replaces the automatic name and noTypeName() removes it.
+ * Every type name, automatic or explicit, has the shape [scope "::"] name:
+ * at most one "::", each part nonempty valid UTF-8 without ':', '/', '.',
+ * '[', ']' or '\\'. Explicit names win over every automatic backend. Arrays,
+ * scalars and Void are never named. Specialize TypeReflection<T> before first
+ * use, exactly like EnumReflection.
  */
 
 #ifndef TELEMETRY_TYPE_NAME_HPP
@@ -47,8 +53,8 @@ namespace telemetry::reflection {
 template<class T>
 struct TypeReflection {};
 
-// The backend dispatch point. Today's backend is magic_enum for enums and the
-// compiler's function signature for aggregates. A std::meta backend belongs
+// The backend dispatch point. Today's backend is the compiler's function
+// signature for enums and aggregates alike. A std::meta backend belongs
 // here once a compiler in the SDK's matrix announces both P2996 feature tests;
 // it must give the same bytes as today's backend for every type. No std::meta
 // code is written before such a compiler can build it.
@@ -93,6 +99,27 @@ template<class T>
 inline constexpr bool nameableType =
     std::is_enum_v<T> || (std::is_class_v<T> && !stdArray<T> && !std::is_union_v<T>);
 
+// One part of a type name: nonempty, without ':' and the path characters.
+constexpr bool typeNamePartValid(std::string_view part) noexcept
+{
+	if (part.empty())
+		return false;
+	for (const char c : part)
+		if (c == ':' || c == '/' || c == '.' || c == '[' || c == ']' || c == '\\')
+			return false;
+	return true;
+}
+
+// The shape of every type name on the wire: [scope "::"] name.
+constexpr bool typeNameShapeValid(std::string_view name) noexcept
+{
+	const auto separator = name.find("::");
+	if (separator == std::string_view::npos)
+		return typeNamePartValid(name);
+	return typeNamePartValid(name.substr(0, separator)) &&
+	       typeNamePartValid(name.substr(separator + 2));
+}
+
 template<class T>
 consteval std::string_view selectedTypeName() noexcept
 {
@@ -106,13 +133,19 @@ consteval std::string_view selectedTypeName() noexcept
 			return {};
 	} else {
 		// Today's backend; a std::meta backend would be selected here when
-		// standardReflectionAvailable, under the same identifier rule.
-		std::string_view name{};
-		if constexpr (std::is_enum_v<T>)
-			name = rawEnumTypeName<T>();
-		else
-			name = rawStructName<T>();
-		return automaticNameValid(name) ? name : std::string_view{};
+		// standardReflectionAvailable, under the same scope rule.
+		constexpr auto spelled = rawTypeName<T>();
+		if constexpr (!automaticNameValid(spelled.name)) {
+			return {}; // A template specialization or an unnamed type.
+		} else {
+			static_assert(spelled.scope != SpelledScope::Function,
+			              "A local class has no stable automatic type name: declare the type at "
+			              "namespace or class scope, where TypeReflection<T> can name it");
+			if constexpr (spelled.scope == SpelledScope::Template)
+				return {};
+			else
+				return automaticScopedNameValid(spelled.text) ? spelled.text : std::string_view{};
+		}
 	}
 }
 
@@ -133,7 +166,9 @@ struct TypeNameStorage {
 } // namespace detail
 
 // Own the name bytes, including when the caller used a temporary/local array,
-// and validate them like an explicit enum entry: 1..4096 bytes of UTF-8, no NUL.
+// and validate them like an explicit enum entry (1..4096 bytes of UTF-8, no
+// NUL) and by the type-name shape: [scope "::"] name, no ':', '/', '.', '[',
+// ']' or '\\' inside a part.
 template<class Char, std::size_t N>
     requires(std::is_same_v<Char, char> || std::is_same_v<Char, char8_t>)
 consteval auto typeName(const Char (&name)[N])
@@ -148,6 +183,8 @@ consteval auto typeName(const Char (&name)[N])
 	}
 	if (result.bytes[N - 1] != 0 || !detail::validUtf8(result.view()))
 		std::abort(); // Invalid UTF-8 or embedded NUL fails constant evaluation.
+	if (!detail::typeNameShapeValid(result.view()))
+		std::abort(); // Not [scope "::"] name, or a path character in a part.
 	return result;
 }
 

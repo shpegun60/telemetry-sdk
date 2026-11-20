@@ -28,7 +28,7 @@ async function readConfig(session, observedHeader) {
 }
 ```
 
-A descriptor v3.1 names its enums and structs: `type.name` on a kind 2/3 type,
+A descriptor v3.1 names its enums and structs (`adc::Config`, at most one `::`): `type.name` on a kind 2/3 type,
 undefined when unnamed. Names are unique, so `findType(schema, name)` from
 `telemetry.js`, or `client.findType(name)` for the admitted schema, returns
 that type or undefined; `schema.minor` is 0 for v3.0 and 1 for v3.1.

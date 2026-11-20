@@ -60,7 +60,7 @@ def enum_type(index, base, width, entries, **extra):
 
 
 # The mixed model's C++ types as the default (names on) producer spells them.
-MIXED_NAMES = {12: 'Mode', 14: 'State', 15: 'MotorConfig'}
+MIXED_NAMES = {12: 'fixture::Mode', 14: 'fixture::State', 15: 'fixture::MotorConfig'}
 
 # Unregistered SDK advisory tags and one application tag; v3.1 defines none.
 ADVISORY_A, ADVISORY_B, APPLICATION = 0x3E, 0x3F, 0x40
@@ -189,13 +189,19 @@ def negative_cases():
         'reserved bytes', 'Nonzero reserved')
     add('type-flags-named-and-bit-1', fixture('named', extra={('type', 14): dict(type_flags=3, name='State2')}),
         'Reserved', 'reserved bytes', 'Nonzero reserved')
-    add('duplicate-type-name', fixture('named', names={12: 'Mode', 14: 'Mode', 15: 'MotorConfig'}),
+    add('duplicate-type-name', fixture('named', names={12: 'adc::Mode', 14: 'adc::Mode', 15: 'Config'}),
         'DuplicateName', 'duplicate type name', 'Duplicate type name')
-    add('empty-type-name', fixture('named', names={12: '', 14: 'State', 15: 'MotorConfig'}), 'Limit',
+    for label, bad in (('two-scopes', 'a::b::c'), ('empty-scope', '::Config'), ('empty-name', 'adc::'),
+                       ('single-colon', 'adc:Config'), ('triple-colon', 'adc:::Config'),
+                       ('slash', 'adc/Config'), ('dot', 'adc.Config'), ('bracket', 'Config[0]'),
+                       ('backslash', 'adc\\Config')):
+        add(f'type-name-shape-{label}', fixture('named', names={12: bad, 14: 'State', 15: 'Config'}),
+            'TypeShape', 'type name shape', 'Type name shape')
+    add('empty-type-name', fixture('named', names={12: '', 14: 'State', 15: 'Config'}), 'Limit',
         'string budget', 'String budget')
-    add('nul-type-name', fixture('named', names={12: 'Mo\0de', 14: 'State', 15: 'MotorConfig'}), 'Utf8',
+    add('nul-type-name', fixture('named', names={12: 'Mo\0de', 14: 'State', 15: 'Config'}), 'Utf8',
         'embedded NUL', 'Embedded NUL')
-    add('invalid-utf8-type-name', fixture('named', names={12: b'Mo\xffde', 14: 'State', 15: 'MotorConfig'}),
+    add('invalid-utf8-type-name', fixture('named', names={12: b'Mo\xffde', 14: 'State', 15: 'Config'}),
         'Utf8', 'invalid UTF-8', 'Invalid UTF-8')
     # A Named flag whose name length runs past the end of its record.
     data = bytearray(fixture('named'))
@@ -254,6 +260,8 @@ def positive_cases():
             'mixed', names={12: 'Mode', 14: 'volts', 15: 'Config'}).hex(), equals=None),
         dict(name='utf8-type-name', hex=fixture('mixed', names={14: 'Стан'}).hex(),
              equals=None),
+        dict(name='scoped-utf8-type-name', hex=fixture(
+            'mixed', names={12: 'adc::Mode', 14: 'Вимір::Стан'}).hex(), equals=None),
         dict(name='empty-value-application-tag', hex=fixture(
             'mixed', attributes={('type', 15): attribute(APPLICATION)}).hex(), equals='mixed'),
         dict(name='every-tag-class-but-critical', hex=fixture(

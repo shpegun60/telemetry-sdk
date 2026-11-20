@@ -1,6 +1,6 @@
 /*
  * @file TypeNameAdapter.hpp
- * @brief Compiler-derived short names of enums and aggregates for descriptor v3.1.
+ * @brief Compiler-derived scoped names of enums and aggregates for descriptor v3.1.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  */
@@ -8,23 +8,23 @@
 /*
  * Contains every direct dependency on compiler type spellings.
  *
- * Enums use the pinned magic_enum backend, which already drops namespaces and
- * enclosing classes. Aggregates use the same __PRETTY_FUNCTION__ technique in
- * an owned probe: the spelling of T is cut after its last top-level "::" and
- * copied into an array of exactly that length, so the long function signature
- * never reaches an image. The public facade validates the result; a template
- * specialization or an unnamed struct yields no identifier and so no name.
- * GCC, MinGW and ARM GCC share one spelling format; Clang has its own; a
- * compiler that disagrees on a name gets this parser fixed, never a fallback.
+ * Enums and aggregates use one __PRETTY_FUNCTION__ probe (magic_enum's type
+ * name drops the scope, so it is not used). The automatic name is the type's
+ * innermost enclosing scope and its own name, "adc::Config", or the name
+ * alone at global or anonymous-namespace scope; only one scope level is kept.
+ * The result is a substring of the spelling and is copied by the facade into
+ * an array of exactly its length, so the long function signature never
+ * reaches an image. A template specialization or an unnamed type has no
+ * identifier and so no name; a type declared inside a function (a local
+ * class) has no stable scope and is reported as such. GCC, MinGW and ARM GCC
+ * share one spelling format; Clang has its own; a compiler that disagrees on
+ * a name gets this parser fixed, never a fallback.
  */
 
 #ifndef TELEMETRY_TYPE_NAME_ADAPTER_HPP
 #define TELEMETRY_TYPE_NAME_ADAPTER_HPP
 #pragma once
 
-#include <magic_enum.hpp>
-
-#include <array>
 #include <cstddef>
 #include <string_view>
 
@@ -84,7 +84,7 @@ consteval std::string_view typeSpelling(std::string_view signature) noexcept
 		return {};
 	auto spelling = signature.substr(begin + marker.size(),
 	                                 signature.size() - tail.size() - begin - marker.size());
-	for (std::string_view keyword : {"struct ", "class ", "union "})
+	for (std::string_view keyword : {"struct ", "class ", "union ", "enum "})
 		if (spelling.substr(0, keyword.size()) == keyword)
 			spelling.remove_prefix(keyword.size());
 	return spelling;
@@ -94,13 +94,27 @@ consteval std::string_view typeSpelling(std::string_view signature) noexcept
 #endif
 }
 
-// The segment after the last "::" outside <>, (), [] and {} groups. Groups
-// keep template arguments, GCC's {anonymous}, Clang's (anonymous namespace)
-// and (unnamed struct at file:line) from being split; such a segment is not
-// an identifier and the facade leaves the type unnamed.
-consteval std::string_view shortSpelling(std::string_view spelling) noexcept
+enum class SpelledScope : unsigned char {
+	None,     // the name alone: global scope or an anonymous namespace
+	Scoped,   // one enclosing namespace or class: "scope::name"
+	Template, // a class template specialization encloses it: no name
+	Function  // a function or lambda encloses it (a local class)
+};
+
+// The type's own name and its innermost enclosing scope, split at "::"
+// outside <>, (), [] and {} groups. Groups keep template arguments, GCC's
+// {anonymous} and localType(), and Clang's (anonymous namespace) and
+// (unnamed struct at file:line) from being split.
+struct SpelledName {
+	std::string_view text; // "name" or "scope::name", a substring of the spelling
+	std::string_view name; // the last segment
+	SpelledScope scope = SpelledScope::None;
+};
+
+consteval SpelledName spelledName(std::string_view spelling) noexcept
 {
-	std::size_t depth = 0, begin = 0;
+	std::size_t depth = 0, last = 0, previous = 0;
+	bool scoped = false;
 	for (std::size_t i = 0; i < spelling.size(); ++i) {
 		const char c = spelling[i];
 		if (c == '<' || c == '(' || c == '[' || c == '{')
@@ -108,23 +122,37 @@ consteval std::string_view shortSpelling(std::string_view spelling) noexcept
 		else if ((c == '>' || c == ')' || c == ']' || c == '}') && depth > 0)
 			--depth;
 		else if (depth == 0 && c == ':' && i + 1 < spelling.size() && spelling[i + 1] == ':') {
-			begin = i + 2;
+			previous = last;
+			last = i + 2;
+			scoped = true;
 			++i;
 		}
 	}
-	return spelling.substr(begin);
+	SpelledName result{spelling.substr(last), spelling.substr(last), SpelledScope::None};
+	if (!scoped)
+		return result;
+	const auto scope = spelling.substr(previous, last - 2 - previous);
+	if (scope == "{anonymous}" || scope == "(anonymous namespace)" ||
+	    scope == "`anonymous-namespace'")
+		return result;
+	if (scope.find('(') != std::string_view::npos) {
+		result.scope = SpelledScope::Function;
+		return result;
+	}
+	if (scope.find('<') != std::string_view::npos || scope.find('{') != std::string_view::npos ||
+	    scope.find('`') != std::string_view::npos) {
+		result.scope = SpelledScope::Template;
+		return result;
+	}
+	result.text = spelling.substr(previous);
+	result.scope = SpelledScope::Scoped;
+	return result;
 }
 
 template<class T>
-consteval std::string_view rawStructName() noexcept
+consteval SpelledName rawTypeName() noexcept
 {
-	return shortSpelling(typeSpelling(signatureText(TypeSignature<T>::text())));
-}
-
-template<class E>
-consteval std::string_view rawEnumTypeName() noexcept
-{
-	return magic_enum::enum_type_name<E>();
+	return spelledName(typeSpelling(signatureText(TypeSignature<T>::text())));
 }
 
 } // namespace telemetry::reflection::detail

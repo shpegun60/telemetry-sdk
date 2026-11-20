@@ -48,6 +48,17 @@ constexpr bool automaticNameValid(std::string_view name) noexcept
 	return true;
 }
 
+// An automatic type name is one ASCII identifier, or two joined by "::"
+// (the innermost scope and the type's own name); every part is checked.
+constexpr bool automaticScopedNameValid(std::string_view name) noexcept
+{
+	const auto separator = name.find("::");
+	if (separator == std::string_view::npos)
+		return automaticNameValid(name);
+	return automaticNameValid(name.substr(0, separator)) &&
+	       automaticNameValid(name.substr(separator + 2));
+}
+
 template<class T>
 inline constexpr std::size_t memberCount = detail::pfrMemberCount<T>;
 

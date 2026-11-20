@@ -45,18 +45,39 @@ enum class Level : std::int16_t {
 	High = 1
 };
 
-// Two short-name clashes, settled only when names are stripped.
+// Two types named Status in different scopes are distinct ("left::Status",
+// "right::Status"); one innermost scope used twice ("io::Status") is a clash,
+// settled only when names are stripped.
 namespace left {
 struct Status {
 	std::uint8_t code;
 };
+
+namespace io {
+struct Status {
+	std::uint8_t code;
+};
+} // namespace io
 } // namespace left
 
 namespace right {
 struct Status {
 	std::uint16_t code;
 };
+
+namespace io {
+struct Status {
+	std::uint16_t code;
+};
+} // namespace io
 } // namespace right
+
+// A nested class is named after its enclosing class.
+struct Outer {
+	struct Inner {
+		std::uint8_t value;
+	};
+};
 
 } // namespace names_fixture
 
@@ -93,22 +114,28 @@ inline constexpr ts::Model explicitModel{explicitCatalog, ts::emptyCommands, noS
 inline constexpr ::telemetry::descriptor::Descriptor explicitDescriptor{explicitModel};
 inline constexpr auto explicitBytes = ::telemetry::descriptor::packDescriptor<explicitDescriptor>();
 
-inline constexpr ts::FieldTable clashFields{ts::field<&read<left::Status>>("Left"),
-                                            ts::field<&read<right::Status>>("Right")};
+inline constexpr ts::FieldTable clashFields{ts::field<&read<left::io::Status>>("Left"),
+                                            ts::field<&read<right::io::Status>>("Right")};
 inline constexpr ts::FieldCatalogTable clashCatalog{ts::group("clash", clashFields)};
 inline constexpr ts::Model clashModel{clashCatalog, ts::emptyCommands, noServices};
 
-// The seam: automatic short names, explicit and removed names, no name on
-// arrays, scalars and Void, whatever the switch says about emission.
+// The seam: automatic scoped names (innermost scope only), explicit and removed
+// names, no name on arrays, scalars and Void, whatever the switch says about
+// emission.
 namespace tr = telemetry::reflection;
-static_assert(tr::typeName<fixture::MotorConfig>() == "MotorConfig");
-static_assert(tr::typeName<const fixture::Mode&>() == "Mode");
-static_assert(ts::Type<fixture::State>::name == "State");
-static_assert(tr::typeName<left::Status>() == "Status" &&
-              tr::typeName<right::Status>() == "Status");
+static_assert(tr::typeName<fixture::MotorConfig>() == "fixture::MotorConfig");
+static_assert(tr::typeName<const fixture::Mode&>() == "fixture::Mode");
+static_assert(ts::Type<fixture::State>::name == "fixture::State");
+static_assert(tr::typeName<left::Status>() == "left::Status" &&
+              tr::typeName<right::Status>() == "right::Status");
+static_assert(tr::typeName<left::io::Status>() == "io::Status" &&
+              tr::typeName<right::io::Status>() == "io::Status");
+static_assert(tr::typeName<Outer::Inner>() == "Outer::Inner" &&
+              tr::typeName<Outer>() == "names_fixture::Outer");
 static_assert(tr::typeName<Pair<float>>() == "PairF\xC2\xB2" && tr::typeName<Pair<int>>().empty());
 static_assert(tr::typeName<Internal>().empty() && ts::Type<Internal>::name.empty());
-static_assert(tr::typeName<Phase>() == "PhaseSelector" && tr::typeName<Level>() == "Level");
+static_assert(tr::typeName<Phase>() == "PhaseSelector" &&
+              tr::typeName<Level>() == "names_fixture::Level");
 static_assert(tr::typeName<std::array<Level, 2>>().empty() &&
               ts::Type<std::array<Level, 2>>::name.empty());
 static_assert(tr::typeName<float>().empty() && tr::typeName<void>().empty());
@@ -186,7 +213,7 @@ static_assert(::telemetry::descriptor::packDescriptor<strippedEmpty>() == df::em
 // A model without enums or structs is v3.0 even with names on.
 static_assert(::telemetry::descriptor::packDescriptor<defaultEmpty>() == df::emptyBytes);
 #if TELEMETRY_TYPE_NAMES
-static_assert(defaultMixed.size() == strippedMixed.size() + 4 * 3 + 4 + 5 + 11);
+static_assert(defaultMixed.size() == strippedMixed.size() + 4 * 3 + 13 + 14 + 20);
 static_assert(defaultMixed.fingerprint() != strippedMixed.fingerprint());
 #else
 static_assert(defaultMixed.fingerprint() == strippedMixed.fingerprint());

@@ -215,6 +215,16 @@ class Reader {
 	}
 }
 
+// v3.1 type names are [scope "::"] name: at most one "::", each part nonempty
+// and without ':' or the path characters / . [ ] \\.
+function typeNameShapeValid(name)
+{
+	const separator = name.indexOf('::');
+	const parts =
+	    separator < 0 ? [ name ] : [ name.slice(0, separator), name.slice(separator + 2) ];
+	return parts.every(part => part.length > 0 && !/[:/.[\]\\]/.test(part));
+}
+
 // v3.1 u8 attribute tag ranges: SDK advisory, application, critical; 0x00, 0x80
 // and 0xC0..0xFF are reserved.
 function attributeTagClass(tag)
@@ -297,6 +307,7 @@ export function parseDescriptor(input, overrides = {})
 			require(kind === TypeKind.Enum || kind === TypeKind.Struct,
 			        'Type name on a type other than Enum/Struct');
 			type.name = row.text();
+			require(typeNameShapeValid(type.name), 'Type name shape');
 			require(!typeNames.has(type.name), 'Duplicate type name');
 			typeNames.add(type.name);
 			extended = true;

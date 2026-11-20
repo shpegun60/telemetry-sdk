@@ -48,6 +48,12 @@ def fingerprint(data):
     return result
 
 
+def type_name_shape_valid(name):
+    """[scope "::"] name: at most one "::", each part nonempty, without ':' or / . [ ] \\."""
+    parts = name.split('::', 1) if '::' in name else [name]
+    return all(part and not any(c in part for c in ':/.[]\\') for part in parts)
+
+
 def attribute_tag_class(tag):
     """Reserved, advisory (SDK), application or critical, per the v3.1 u8 tag table."""
     if 0x01 <= tag <= 0x3F:
@@ -186,6 +192,7 @@ def parse(data, limits=Limits()):
         if type_flags == TYPE_NAMED:
             require(kind in (2, 3), 'type kind: name on a type other than Enum/Struct')
             name = row.text()
+            require(type_name_shape_valid(name), 'type kind: type name shape')
             require(name not in type_names, 'duplicate type name')
             type_names.add(name)
             item['name'] = name

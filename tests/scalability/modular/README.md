@@ -36,9 +36,6 @@ compiler dependencies and preprocessed consumer bytes rather than promising
 zero header parsing.
 
 The three Reading structs have the same shape but retain distinct C++ identities.
-Their automatic type name is the same short name, which one descriptor v3.1 must
-not repeat, so each module header names its own (`moduleA.Reading`, ...) with a
-`TypeReflection` specialization before first use.
 Their global TypeIds differ. Delta and Query are shared exact request types and
 deduplicate across modules. The single resulting registry has 17 types: the 12
 builtins, three Reading structs and two shared request structs. The linked image

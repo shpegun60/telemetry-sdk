@@ -96,10 +96,12 @@ the name, or an empty view when the type is unnamed and for every array,
 scalar and Void; it borrows the descriptor bytes like every other name.
 `typeName(id)` returns the same view and `minorVersion()` reports 0 for a
 v3.0 descriptor, 1 for v3.1. Type names are unique in a descriptor, so a
-name is a key:
+name is a key. A type name has the shape `[scope "::"] name` (an automatic
+name is the type's innermost namespace or class and its own name, or the name
+alone); anything else is refused with `TypeShape`:
 
 ```cpp
-const auto* config = parsed.schema.findType("Config"); // nullptr when absent
+const auto* config = parsed.schema.findType("adc::Config"); // nullptr when absent
 ```
 
 `findType` is exact and case-sensitive; an empty name finds nothing. An
@@ -239,7 +241,7 @@ applied to a different root or workspace, even when their type IDs coincide.
 
 Descriptor validation covers the fingerprint, strict header/version/flags
 (minor 0 or 1, minor 1 only with a type name or attribute area), v3.1 type
-names (Enum/Struct only, unique) and attribute areas (5-byte headers, strictly
+names (Enum/Struct only, unique, `[scope "::"] name`) and attribute areas (5-byte headers, strictly
 ascending tags, bounds, reserved and unknown critical tags), section and record bounds, reserved bytes, exact record exhaustion, positional
 IDs, canonical built-in types, backward type references, checked wire sizes,
 nesting and expanded-node budgets, UTF-8 strings, unique names within their

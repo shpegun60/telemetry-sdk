@@ -249,8 +249,15 @@ kind payload        // unchanged
   valid UTF-8, no NUL). It is unique among the descriptor's type names, by
   byte comparison; it may equal an endpoint, catalog or member name, which
   live in other namespaces.
+- The name has the shape `[scope "::"] name`: at most one `::`, and each
+  part nonempty and free of `:` and of the path characters `/ . [ ] \`
+  (`adc::Config`, `Config`, `Вимір::Стан`; not `a::b::c`, `::Config`,
+  `adc:Config` or `adc/Config`). A host can therefore split a type name and
+  place it in a path without escaping.
 - Hosts must not assume an identifier: an explicit name may be any valid
-  UTF-8. Automatic names are ASCII identifiers by construction.
+  UTF-8 of that shape. Automatic names are ASCII identifiers by construction:
+  the type's innermost enclosing namespace or class and its own name
+  (`adc::Config`), or the name alone at global or anonymous-namespace scope.
 
 ### Attribute area
 
@@ -299,7 +306,7 @@ as the same bytes without its attributes.
 | --- | --- |
 | minor other than 0 or 1; minor 1 without any name or attribute | `Header` |
 | `typeFlags` or record flags nonzero under minor 0; stray flag bits; a reserved tag | `Reserved` |
-| `Named` on Void, Scalar or Array; an area on Void or Scalar | `TypeShape` |
+| `Named` on Void, Scalar or Array; an area on Void or Scalar; a type name not of the shape `[scope "::"] name` | `TypeShape` |
 | two equal type names | `DuplicateName` |
 | empty or overlong name | `Limit` |
 | name with NUL or invalid UTF-8 | `Utf8` |
@@ -314,11 +321,20 @@ The JS and Python decoders refuse the same descriptors; the shared table is
 The C++ producer emits names when the project switch `TELEMETRY_TYPE_NAMES` in
 [Config.hpp](../lib/telemetry/Config.hpp) is 1 (the default); 0 compiles no
 name into the image and the bytes are v3.0's. Names come from
-`telemetry::reflection::typeName<T>()`: magic_enum for scoped enums, the
-compiler's function signature for aggregates (short name only; a template
-specialization or an unnamed struct gets none), or an explicit
-`TypeReflection<T>` with `typeName("...")` or `noTypeName()`. A repeated name
-is `DescriptorError::DuplicateName`. `withoutTypeNames(model)` strips names
+`telemetry::reflection::typeName<T>()`: the compiler's function signature for
+enums and aggregates alike, cut to the innermost scope and the type's own name
+(`adc::Config`, `Adc::Mode`; the name alone at global or anonymous-namespace
+scope). A template specialization, a class nested in one, or an unnamed struct
+gets no name; a class declared inside a function is a build error asking for
+an explicit name, because a function is no stable scope. GCC spells an inline
+namespace (`v2::Status`) and Clang does not (`adc::Status`), so a model built
+with both names such a type explicitly; Clang also prints a local class
+without its function, so only GCC builds see that error. An explicit
+`TypeReflection<T>` with `typeName("...")` or `noTypeName()` overrides the
+automatic name, and `typeName("...")` refuses a name of the wrong shape at
+compile time. A repeated name is `DescriptorError::DuplicateName`; one
+innermost scope used twice (`left::io::Status`, `right::io::Status`) is such
+a clash. `withoutTypeNames(model)` strips names
 from one descriptor for a program that must emit both forms. The producer
 emits no attribute.
 

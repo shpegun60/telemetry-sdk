@@ -37,10 +37,14 @@ COMPILE_FAILURES = {
     4: r'abort', 5: r'abort', 6: r'Type name length is outside 1\.\.4096 bytes',
     7: r'TypeReflection names apply to enums and structs only',
     8: r'TypeReflection<T>::name must be typeName', 9: r'invalidDescriptorName',
+    10: r'abort', 11: r'abort', 12: r'A local class has no stable automatic type name',
 }
-COMPILE_CONTROLS = {101: ['-DTELEMETRY_TYPE_NAMES=0'], 102: [], 103: [], 104: []}
-CROSS_NAMES = {'Mode', 'Config', 'Probe', 'Channel', 'Inner', 'Пара', 'Legacy',
-               'Level', 'Local'}
+COMPILE_CONTROLS = {101: ['-DTELEMETRY_TYPE_NAMES=0'], 102: [], 103: [], 104: [], 105: [],
+                    106: ['-DTELEMETRY_TYPE_NAMES=0'], 107: []}
+CROSS_NAMES = {'device::Mode', 'v2::Config', 'Board::Probe', 'Board::Channel', 'Пара',
+               'device::Legacy', 'device::Level', 'Sealed', 'Global'}
+# Rule 4 of plan 13.6: GCC spells an inline namespace, Clang does not.
+INLINE_SPELLING = {'gcc': 'v2::Status', 'clang': 'probe::Status'}
 ARM_FLAGS = ['-mcpu=cortex-m7', '-mthumb', '-mfpu=fpv5-d16', '-mfloat-abi=hard', '-fno-exceptions',
              '-fno-rtti', '-ffunction-sections', '-fdata-sections']
 
@@ -193,7 +197,7 @@ def main():
     table = json.loads((DESCRIPTOR / 'v31_cases.json').read_text(encoding='utf-8'))
     if table != json.loads(json.dumps(golden.table())):
         raise RuntimeError('golden.py disagrees with v31_cases.json')
-    if frozen('named')[6] != 1 or frozen('mixed')[6] != 0 or len(frozen('named')) != 968 + 32:
+    if frozen('named')[6] != 1 or frozen('mixed')[6] != 0 or len(frozen('named')) != 968 + 59:
         raise RuntimeError('named.hex is not mixed plus its three type names')
     attrs, named = frozen('attrs'), frozen('named')
     if fingerprint(attrs) != struct.unpack_from('<Q', attrs, 16)[0] or fingerprint(attrs) == fingerprint(named):
@@ -221,12 +225,16 @@ def main():
         raise RuntimeError('a model without enums/structs must stay v3.0 with names on')
     edge = parse(produced['on']['default-edge'])
     edge_names = {item['id']: item.get('name') for item in edge['types'] if item['kind'] >= 2}
-    if edge['minor'] != 1 or edge_names != {12: 'Mode', 13: None, 14: 'State', 15: 'MotorConfig', 16: 'Empty',
-                                             17: None, 18: None, 19: 'Box', 20: 'Signed', 21: 'Wide'}:
+    scope = 'descriptor_fixture::'
+    if edge['minor'] != 1 or edge_names != {12: 'fixture::Mode', 13: None, 14: 'fixture::State',
+                                             15: 'fixture::MotorConfig', 16: scope + 'Empty', 17: None,
+                                             18: None, 19: scope + 'Box', 20: scope + 'Signed',
+                                             21: scope + 'Wide'}:
         raise RuntimeError('default edge names differ: ' + repr(edge_names))
     explicit = {mode: parse(produced[mode]['explicit']) for mode in ('on', 'off')}
     explicit_names = [item.get('name') for item in explicit['on']['types'][12:]]
-    if explicit_names != ['PairF²', None, 'PhaseSelector', 'Level', None] or explicit['off']['minor'] != 0:
+    if (explicit_names != ['PairF²', None, 'PhaseSelector', 'names_fixture::Level', None]
+            or explicit['off']['minor'] != 0):
         raise RuntimeError('explicit/removed names differ: ' + repr(explicit_names))
     summary['producer'] = dict(named_bytes=len(named), stripped_bytes=len(frozen('mixed')),
                                edge_named_bytes=len(produced['on']['default-edge']))
@@ -332,15 +340,16 @@ def main():
     cross_model = parse(expected_cross)
     cross_names = {item.get('name') for item in cross_model['types'] if item['kind'] in (2, 3)}
     unnamed_structs = sum(1 for item in cross_model['types'] if item['kind'] == 3 and 'name' not in item)
-    if cross_names - {None} != CROSS_NAMES or unnamed_structs != 2:
+    if cross_names - {None} != CROSS_NAMES or unnamed_structs != 3:
         raise RuntimeError('cross.hex names differ from the fixture specification: ' + repr(cross_names))
     compilers = [host] + [Compiler(*item.split('=', 1)) for item in args.cross]
-    cross, aliases, backends = {}, {}, {}
+    cross, aliases, backends, families = {}, {}, {}, {}
     for compiler in compilers:
         label = compiler.label
         flags_cross = strict + include + ['-O2']
         program = out / f'cross-{label}{suffix}'
-        run(compiler.argv(['--version']), f'cross-{label}-version')
+        version = run(compiler.argv(['--version']), f'cross-{label}-version')
+        families[label] = 'clang' if 'clang' in version.lower() else 'gcc'
         run(compiler.argv([*flags_cross, HERE / 'CrossCompiler.cpp', '-o', program]), f'cross-{label}-build')
         produced_bytes = out / f'cross-{label}.bin'
         run(compiler.execute(program, produced_bytes), f'cross-{label}-execute')
@@ -358,7 +367,8 @@ def main():
         for stem in ('CrossCompiler', 'AliasProbe', 'Backend'):
             run(arm.argv([*arm_flags, '-c', HERE / (stem + '.cpp'), '-o', out / f'arm-{stem}.o']), f'arm-{stem}-build')
         sections = {'names': ('CrossCompiler', '.descriptor.names'), 'alias': ('AliasProbe', '.probe.alias'),
-                    'typedef': ('AliasProbe', '.probe.typedef'), 'backend': ('Backend', '.probe.backend')}
+                    'typedef': ('AliasProbe', '.probe.typedef'), 'inline': ('AliasProbe', '.probe.inline'),
+                    'backend': ('Backend', '.probe.backend')}
         extracted = {}
         for key, (stem, section) in sections.items():
             target = out / f'arm-{key}.bin'
@@ -366,11 +376,16 @@ def main():
                 f'arm-extract-{key}')
             extracted[key] = target.read_bytes()
         cross['arm'] = extracted['names']
-        aliases['arm'] = 'alias=[{}] typedef=[{}]'.format(*(extracted[k].rstrip(b'\0').decode() for k in ('alias', 'typedef')))
+        aliases['arm'] = 'alias=[{}] typedef=[{}] inline=[{}]'.format(
+            *(extracted[k].rstrip(b'\0').decode() for k in ('alias', 'typedef', 'inline')))
+        families['arm'] = 'gcc'
         backends['arm'] = extracted['backend'] == b'\x01'
     for label, data in cross.items():
         if data != expected_cross:
             raise RuntimeError(f'{label} packs other automatic names than cross.hex')
+    for label, text in aliases.items():
+        if f'typedef=[probe::Typedef] inline=[{INLINE_SPELLING[families[label]]}]' not in text:
+            raise RuntimeError(f'{label} ({families[label]}) spells the probes otherwise: {text}')
     summary['cross_compiler'] = {label: dict(bytes=len(data), sha256=sha(data), equal=True)
                                  for label, data in cross.items()}
     summary['alias_declared_unnamed_struct'] = aliases

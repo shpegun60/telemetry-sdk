@@ -13,7 +13,6 @@
 #include <telemetry/field/FieldTable.hpp>
 #include <telemetry/command/CommandTable.hpp>
 #include <telemetry/service/ServiceTable.hpp>
-#include <telemetry/reflection/TypeName.hpp>
 #include <resource/BytesFile.hpp>
 #include <cstdint>
 
@@ -22,16 +21,6 @@ namespace modular::moduleA {
 struct Reading {
 	std::uint32_t value;
 };
-} // namespace modular::moduleA
-
-// Type names are unique in one descriptor, so each module names its own
-// Reading before first use instead of three automatic "Reading" names.
-template<>
-struct telemetry::reflection::TypeReflection<modular::moduleA::Reading> {
-	static constexpr auto name = telemetry::reflection::typeName("moduleA.Reading");
-};
-
-namespace modular::moduleA {
 
 // Named thunks expose signatures to composition, not business implementation.
 Reading read() noexcept;

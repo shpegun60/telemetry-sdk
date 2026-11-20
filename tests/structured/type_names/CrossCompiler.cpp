@@ -4,18 +4,22 @@
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  *
- * The automatic struct names come from each compiler's own function-signature
+ * The automatic names come from each compiler's own function-signature
  * spelling, so a firmware image and a host build of the same model (emulator,
  * code generator input) must agree byte for byte. run.py compares every
  * compiler's packed bytes with the committed cross.hex: a host compiler runs
  * this program; an ARM compiler only builds the object, and the bytes are
  * taken from its .descriptor.names section. A disagreeing compiler gets the
- * name parser fixed. The model covers namespaces, inline namespaces, nested
- * classes, the anonymous namespace, a class nested in a specialization, a
- * typedef-named struct, scoped enums (nested and with an explicit
- * dictionary), an explicit UTF-8 name, a removed name and a specialization.
- * The alias-declared unnamed struct (using X = struct {...}) is measured
- * separately in AliasProbe.cpp: compilers disagree there.
+ * name parser fixed. An automatic name is the innermost scope and the type's
+ * own name. The model covers a namespace (device::Mode), nested classes
+ * (Board::Probe, Board::Channel), the global scope (Global), the anonymous
+ * namespace (Sealed), an inline namespace (v2::Config, named explicitly by
+ * rule 4 because Clang spells it device::Config), a class nested in a
+ * specialization (unnamed), a typedef-named struct, scoped enums (in a
+ * namespace, nested, with an explicit dictionary), an explicit UTF-8 name, a
+ * removed name and a specialization. The alias-declared unnamed struct
+ * (using X = struct {...}) and the inline namespace's automatic spelling are
+ * measured separately in AliasProbe.cpp: compilers disagree there.
  */
 
 #include <telemetry/Telemetry.hpp>
@@ -82,10 +86,21 @@ enum class Level : std::uint16_t {
 } // namespace device
 
 namespace {
-struct Local {
+struct Sealed {
 	std::uint16_t ticks;
 };
 } // namespace
+
+struct Global {
+	std::int32_t count;
+};
+
+// Rule 4: GCC and MSVC spell the inline namespace (v2::Config), Clang drops
+// it (device::Config); a model built with Clang names such a type itself.
+template<>
+struct telemetry::reflection::TypeReflection<device::Config> {
+	static constexpr auto name = telemetry::reflection::typeName("v2::Config");
+};
 
 template<>
 struct telemetry::reflection::TypeReflection<device::Pair<float>> {
@@ -111,7 +126,8 @@ T read() noexcept
 	return {};
 }
 
-// Every shape above, including two that stay unnamed (Pair<int>, Hidden).
+// Every shape above, including three structs that stay unnamed (Pair<int>,
+// Hidden, and Holder<std::uint8_t>::Inner, whose scope is a specialization).
 inline constexpr ts::FieldTable fields{ts::field<&read<Mode>>("mode"),
                                        ts::field<&read<Config>>("config"),
                                        ts::field<&read<Board::Probe>>("probe"),
@@ -122,7 +138,8 @@ inline constexpr ts::FieldTable fields{ts::field<&read<Mode>>("mode"),
                                        ts::field<&read<Legacy>>("legacy"),
                                        ts::field<&read<Hidden>>("hidden"),
                                        ts::field<&read<Level>>("level"),
-                                       ts::field<&read<Local>>("local"),
+                                       ts::field<&read<Sealed>>("sealed"),
+                                       ts::field<&read<Global>>("global"),
                                        ts::field<&read<std::array<Board::Probe, 2>>>("probes")};
 inline constexpr ts::FieldCatalogTable catalogs{ts::group("device", fields)};
 inline constexpr ts::ServiceCatalogTable<> noServices{};

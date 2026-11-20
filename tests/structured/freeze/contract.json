@@ -49,7 +49,7 @@
     "tests/structured/descriptor/empty.hex": {"bytes": 348, "sha256": "b1f3646ce3155305ca10a4312226fa1e92a3e39f3a0c2795b600a08b85b070e6"},
     "tests/structured/descriptor/mixed.hex": {"bytes": 968, "sha256": "939ba312e6ad5ce9339a15f3544bca4f924b86bab980fe97bffe258797634b38"},
     "tests/structured/resources/values.hex": {"bytes": 73, "sha256": "e3e4137f0226251b5a0dbd4725987aaa0642d080e40c9d11d08051026db56ca6"},
-    "tests/structured/descriptor/named.hex": {"bytes": 1000, "sha256": "80a0327931c0812a42d44782446ef391618e83240e314b17877e7aedf8c50cdb", "minor": 1},
-    "tests/structured/descriptor/attrs.hex": {"bytes": 1079, "sha256": "edecb212abae4947b6dc18735c5dfcdbe68fe5667fb337848e309356c1e1cb0d", "minor": 1}
+    "tests/structured/descriptor/named.hex": {"bytes": 1027, "sha256": "f244f765841ad74cce0b79fc2f06ca20fc605bf47a0e1f8b942e24e97a3d53e6", "minor": 1},
+    "tests/structured/descriptor/attrs.hex": {"bytes": 1106, "sha256": "a721fcc6bf77fc0a163fe1b2473a8177ef24c29aeef1e3930155e98c9a5b3178", "minor": 1}
   }
 }

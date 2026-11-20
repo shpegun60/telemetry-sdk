@@ -352,6 +352,28 @@ private:
 		return require(hash == fingerprint_, ParseError::Fingerprint);
 	}
 
+	// v3.1 type names are [scope "::"] name: at most one "::", each part
+	// nonempty and without ':' or the path characters / . [ ] and backslash.
+	// One pass and no substr, so no exception path reaches a device image.
+	static bool typeNameShapeValid(std::string_view name) noexcept
+	{
+		std::size_t part = 0;
+		bool scoped = false;
+		for (std::size_t i = 0; i < name.size(); ++i) {
+			const char c = name[i];
+			if (c == ':' && !scoped && part != 0 && i + 1 < name.size() && name[i + 1] == ':') {
+				scoped = true;
+				part = 0;
+				++i;
+			} else if (c == ':' || c == '/' || c == '.' || c == '[' || c == ']' || c == '\\') {
+				return false;
+			} else {
+				++part;
+			}
+		}
+		return part != 0;
+	}
+
 	bool typePrefix(SchemaReader& row, std::uint32_t index, RuntimeType& item) noexcept
 	{
 		item = {};
@@ -378,6 +400,7 @@ private:
 			require(item.kind == TypeKind::Enum || item.kind == TypeKind::Struct,
 			        ParseError::TypeShape);
 			item.name = row.text();
+			require(!good() || typeNameShapeValid(item.name), ParseError::TypeShape);
 		}
 		extended_ = extended_ || row.attributes() || !item.name.empty();
 		return good();
