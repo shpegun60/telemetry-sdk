@@ -6,9 +6,12 @@ STM32 model, structures, reflection, Encoded API, Descriptor/Values v3.0 and
 RPC v1.0 retain their existing contracts. Firmware does not run this tool.
 
 A v3.1 descriptor (type names, a group tree, attributes) generates additional
-symbols and, with `--client-runtime`, endpoint handles; a v3.0 descriptor gives
-byte-identical output. See [type names, group trees and endpoint
-handles](GeneratedNamesAndHandles.md).
+symbols and endpoint handles by path: C++ `device.read<"adc/Config">(callback)`
+and, with `--client-runtime`, TS/JS `await device.read('adc/Config')`. Clients
+address endpoints that way; the per-family symbols (`device_api::device::fields::Config`)
+are [being removed](user/APIOverview.md#виводиться-з-ужитку). A v3.0 descriptor gives byte-identical output. See
+[type names, group trees and endpoint handles](GeneratedNamesAndHandles.md) and
+the [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях).
 
 ## Generate an SDK
 

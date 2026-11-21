@@ -35,6 +35,8 @@ static ::telemetry::integration::encoded::RetryingEncodedBackend backend{
 static ::telemetry::integration::encoded::EncodedBackend backend{tx, response, clientClock};
 #endif
 static api::client::DeviceClient<4, 256> client{backend, clientClock};
+// The device's endpoints by path: device.read<"device/Config">(...), or a handle.
+static api::client::Device<api::client::DeviceClient<4, 256>> device{client};
 // Explicit cross-platform example profile; includes FIFO wait and every attempt.
 static constexpr std::uint32_t requestTimeoutMs = 30000;
 static unsigned completed = 0, failed = 0;
@@ -67,24 +69,28 @@ int main()
 	if (client.admitDescriptor(board_verifiedDescriptorHeader(), 1) != cl::Status::Ok)
 		return 1;
 	// Three logical requests share one active Encoded exchange and one byte pool.
-	auto one = client.read(
-	    api::device::fields::Config,
+	// The path is checked at compile time against the generated table.
+	auto one = device.read<"device/Config">(
 	    [](const auto& result) noexcept {
 		    if (!result.hasValue())
 			    ++failed;
 		    ++completed;
 	    },
 	    requestTimeoutMs);
-	api::device::types::Config config{};
+	// A handle keeps the endpoint for later calls.
+	const auto deviceConfig = api::client::endpoint<"device/Config">(device);
+	api::types::client_example::Config config{};
 	config.gain = 2.0f;
-	auto two = client.write(
-	    api::device::fields::Config, config,
+	auto two = deviceConfig.write(
+	    config,
 	    [](const auto& result) noexcept {
 		    if (!result)
 			    ++failed;
 		    ++completed;
 	    },
 	    requestTimeoutMs);
+	// The per-family constant api::device::fields::Config names the same
+	// endpoint; that form is being removed.
 	auto three = client.read(
 	    api::device::fields::Config,
 	    [](const auto& result) noexcept {

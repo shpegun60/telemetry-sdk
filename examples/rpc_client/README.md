@@ -5,8 +5,10 @@
 
 [`main.cpp`](main.cpp) is a complete C++20 program using the real `RpcClient`,
 Resource packet processor and `RpcMailbox`. It writes/reads a Field, calls a
-Command, and calls a typed `Add -> Report` Service. All endpoint IDs are packed
-u32 values. An explicit application handshake rejects a simulated offered
+Command, and calls a typed `Add -> Report` Service. The server's Model is one
+group, `demo`, holding the three side by side. Endpoint IDs are packed u32
+values taken from the paths (`ts::idOf<model, "demo/Add">()`); each family
+numbers its own entries, so all three are 0. An explicit application handshake rejects a simulated offered
 fingerprint mismatch before admission. Matching fingerprints admit the shared
 endpoint/schema mapping; the example does not fetch a remote descriptor.
 
@@ -26,7 +28,7 @@ exactly the same packet/ticket without a second application callback. Short
 example deadlines keep that simulation bounded; production defaults differ.
 
 ```cpp
-constexpr ::telemetry::client::rpc::ServiceEndpoint<Add, Report> add{0, ::telemetry::client::rpc::trustedRpcMapping};
+constexpr ::telemetry::client::rpc::ServiceEndpoint<Add, Report> add{ts::idOf<model, "demo/Add">(), ::telemetry::client::rpc::trustedRpcMapping};
 client.startSession(1); // after application schema agreement/admission
 client.beginService(add, Add{7});
 // Feed time, send acceptance and replies from your application event loop.

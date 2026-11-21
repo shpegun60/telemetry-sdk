@@ -13,6 +13,22 @@
 | [main.cpp](main.cpp) | Host клієнт і перевірки native/encoded/resource/stream шляхів |
 | [CMakeLists.txt](CMakeLists.txt) | Окремий executable прикладу з потрібними compiled sources бібліотеки |
 
+Модель цього прикладу ще в плоскій формі (local tables, каталоги, `makeId`),
+що [виводиться з ужитку](../../doc/user/APIOverview.md#виводиться-з-ужитку): її
+facade використовує runtime `readAs` і `writeAs` каталогів, які поки що не мають
+форми шляху. Новий пристрій описують групою, як у
+[QuickStart.cpp](../user_guide/QuickStart.cpp), і гілками, як у
+[group_tree](../group_tree/README.md):
+
+```cpp
+constexpr auto branch = ts::group("device",
+    ts::field<&Device::readPeriod, &Device::writePeriod>("Period", device),
+    ts::command<&Device::reset>("Reset", device),
+    ts::service<&Device::sample>("Sample", device));
+constexpr ts::Model model{branch};
+static_assert(ts::idOf<model, "device/Period">() == 0); // ID для власного протоколу
+```
+
 ## Зібрати й запустити
 
 З кореня репозиторію `telemetry`, із встановленими CMake, Ninja та C++20 compiler:

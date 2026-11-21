@@ -13,18 +13,33 @@ session. Independent remote clients still use separate `RpcSessionPool<N>`
 bindings; there is no server-global single-mailbox restriction.
 
 Generate a C++ SDK, include `device_api/ClientBindings.hpp`, provide a backend,
-and use owning `noexcept` callbacks:
+and address endpoints by path, with owning `noexcept` callbacks:
 
 ```cpp
 device_api::client::DeviceClient<8, 4096> client{backend, clock};
-auto submitted = client.read(device_api::device::fields::Config,
+device_api::client::Device<decltype(client)> device{client};
+auto submitted = device.read<"device/Config">(
     [](const auto& result) noexcept {
         if (result.hasValue()) consume(result.value());
     });
 if (!submitted) report(submitted.status);
+// A handle keeps the endpoint: the same as device.endpoint<"device/Config">().
+auto config = device_api::client::endpoint<"device/Config">(device);
+(void)config.write(nextConfig); // or write(value, callback, timeoutMs)
 // Owner loop:
 client.process(board_millis());
 ```
+
+The path is the descriptor's `group/.../endpoint`, checked at compile time
+against the generated table: a wrong path or value type is a build error that
+shows the path. A group tree also gives nested handles (`device.adc.Config`).
+Every handle forwards to the client's `read`, `write`, `command` and `service`
+below, with the same callbacks, timeouts and statuses. The per-family endpoint
+constants such as `device_api::device::fields::Config` in
+`client.read(endpoint, callback)` address the same endpoint and are
+[being removed](user/APIOverview.md#виводиться-з-ужитку). The same operation in the device, TS/JS and the Dynamic
+client: [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях);
+[handles](GeneratedNamesAndHandles.md#endpoint-handles-of-a-bound-device).
 
 Admission takes the actual observed 64-byte Descriptor header and a fresh
 nonzero session generation. The application first validates the full Descriptor

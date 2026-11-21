@@ -7,6 +7,15 @@ request through the existing Resource client/server, and decodes its Ready
 reply. The [RPC v1.0 contract](../../doc/RpcMailboxV1.md) owns the wire bytes,
 cursor, timeout and retry rules.
 
+The Model is one group, and the request carries the Service's ID taken from
+its path:
+
+```cpp
+inline constexpr auto branch = ts::group("counter", ts::service<&Counter::add>("Add", counter));
+inline constexpr ts::Model model{branch};
+inline constexpr auto AddId = ts::idOf<model, "counter/Add">(); // group 0, entry 0
+```
+
 The example has a small fixed queue and one owner. Ingress attaches peer
 identity and `connectionGeneration` to each complete packet. The owner checks
 both before `resource::protocol::process()`. The generation belongs to queue

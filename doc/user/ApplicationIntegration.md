@@ -4,6 +4,16 @@
 
 Автори: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 
+> **Одна форма — дерево груп, шляхи й handles.** Новий код кладе definitions
+> у `ts::group(name, items...)`, монтує гілки в `Model{branches...}` і
+> звертається до endpoints через `ts::endpoint<model, "path">` та
+> `ts::read/write/call<model, "path">()`
+> ([Model: group tree](Model.md#group-tree-модель-із-файлів-гілок),
+> [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях)).
+> Фрагменти цієї сторінки з local tables, catalogs і `makeId` описують плоску
+> форму, що [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); правила
+> owners, bindings, slots, validation і synchronization від форми Model не залежать.
+
 Цей маршрут починається там, де у прошивці вже є об'єкти з даними та методами.
 Він пояснює, де оголосити таблиці, хто володіє даними, як обрати binding і як
 обробити результат. Для першої збірки прочитайте

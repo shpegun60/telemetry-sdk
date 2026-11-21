@@ -15,9 +15,12 @@
 - [NativeOnly.cpp](../../examples/user_guide/NativeOnly.cpp): один local Field,
   Command і Service; без Model/Workspace, transport чи files.
 - [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp): перші Field,
-  Command і Service в одному файлі.
+  Command і Service в одній групі, named handles і шлях члена в одному файлі.
+- [group_tree](../../examples/group_tree/README.md): пристрій із файлів гілок,
+  вкладені групи, handles і descriptor, який отримує host.
 - [Device integration](../../examples/device_integration/README.md): клас,
-  каталоги, простий facade, файли та приймання порцій даних у різних файлах.
+  простий facade, файли та приймання порцій даних у різних файлах; його
+  модель ще в плоскій формі каталогів, що виводиться з ужитку.
 
 ## Навігація
 
@@ -25,29 +28,31 @@
 - [Крок 2. Підключіть source та include paths](#крок-2-підключіть-source-та-include-paths)
 - [Крок 3. Спочатку зберіть готову програму на хості](#крок-3-спочатку-зберіть-готову-програму-на-хості)
 - [Крок 4. Напишіть application methods](#крок-4-напишіть-application-methods)
-- [Крок 5. Оголосіть local tables](#крок-5-оголосіть-local-tables)
-- [Крок 6. Викличте native API й перевірте результат](#крок-6-викличте-native-api-й-перевірте-результат)
-- [Крок 7. Додайте каталоги, якщо потрібні global IDs](#крок-7-додайте-каталоги-якщо-потрібні-global-ids)
+- [Крок 5. Покладіть endpoints у групу](#крок-5-покладіть-endpoints-у-групу)
+- [Крок 6. Оголосіть handles і перевірте результат](#крок-6-оголосіть-handles-і-перевірте-результат)
+- [Крок 7. Розкладіть великий пристрій на гілки](#крок-7-розкладіть-великий-пристрій-на-гілки)
 - [Крок 8. Виберіть доступ залежно від наявної інформації](#крок-8-виберіть-доступ-залежно-від-наявної-інформації)
 - [Крок 9. Рознесіть application і metadata по своїх файлах](#крок-9-рознесіть-application-і-metadata-по-своїх-файлах)
 - [Крок 10. Підключіть transport або files](#крок-10-підключіть-transport-або-files)
 - [Контрольний список першої інтеграції](#контрольний-список-першої-інтеграції)
+- [Виводиться з ужитку: local tables, каталоги й makeId](#виводиться-з-ужитку)
 
 ## Крок 1. Оберіть, як застосунок звертатиметься до даних
 
 | Ваш сценарій | Що підключити | Перший виклик |
 | --- | --- | --- |
-| Бізнес-логіка у цій самій програмі | Local tables; каталоги, якщо потрібні global IDs | `localFields.read<0>()` |
-| Власний UART/TCP протокол передає ID та bytes | Каталоги + `index()` **або** `ModelView` adapter; buffers і Workspace | `fieldCatalogs.index().readEncoded(id, output, workspace)` |
+| Бізнес-логіка у цій самій програмі | Model із групи; named handles або шляхи | `config.read()`, `ts::read<model, "device/Config">()` |
+| Власний UART/TCP протокол передає ID та bytes | Model + `ModelView` adapter; buffers і Workspace | `ts::readFieldEncoded(model.view(), id, output, workspace)` |
 | Треба encode/decode DTO без endpoint-ів | `<telemetry/codec/Codec.hpp>`, object і bytes | `telemetry::decode(bytes, existingObject)` |
 | Клієнт читає файли або ви додаєте settings/log/calibration provider | `resource::FileSystem`; за потреби generic file protocol | `fs[0].read(cursor, output)` |
-| Клієнт має сам дізнатися структуру telemetry | `Model` + Descriptor provider; live доступ через Encoded/RPC або окремий Values provider | Отримати Descriptor; далі `DynamicClient::readField()` або READ `/telemetry/values.bin` |
+| Клієнт має сам дізнатися структуру telemetry | `Model` + Descriptor provider; live доступ через Encoded/RPC або окремий Values provider | Отримати Descriptor; далі `client.endpoint("device/Config")` або READ `/telemetry/values.bin` |
+| Клієнт без SDK, будь-якою мовою | TCP server пристрою; descriptor дає IDs і розміри | [Reading a Field without the SDK](ReadingAFieldByHand.md) |
 
 Можна використовувати всі ці варіанти в одному застосунку. Поле лишається
 прив'язаним до того самого getter/setter; спосіб звернення до нього вибираєте
 у місці виклику. Для звичайного C++ виклику файли й transport не потрібні.
 
-`Model` об'єднує каталоги й формує опис їхніх типів. Він не володіє об'єктом
+`Model` об'єднує групи й формує опис їхніх типів. Він не володіє об'єктом
 пристрою, не зберігає всі live values і не запускає окрему задачу.
 
 ## Крок 2. Підключіть source та include paths
@@ -80,7 +85,7 @@ lib/telemetry/model/Adapter.cpp
 ```
 
 `Adapter.cpp` реалізує чотири compiled encoded операції. Native виклики
-таблиць залишаються template API. `StructuredAbi.cpp` потрібний для ABI
+через handles і шляхи залишаються template API. `StructuredAbi.cpp` потрібний для ABI
 boundary, коли він використовується. Не додавайте ті самі sources двічі
 через власний список і `.pri` одночасно.
 
@@ -196,43 +201,47 @@ step, persistence і member metadata не є параметрами цього A
 Докладні [типи й форми binding](NativeApi.md) можна прочитати після першого
 працюючого прикладу.
 
-## Крок 5. Оголосіть local tables
+<a id="крок-5-оголосіть-local-tables"></a>
+
+## Крок 5. Покладіть endpoints у групу
 
 Цей фрагмент використовує `device` і methods із QuickStart:
 
 ```cpp
 namespace ts = telemetry;
 
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::read, &Device::write>("Config", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{
-    ts::service<&Device::sample>("Sample", device)};
+inline constexpr auto branch = ts::group("device",
+    ts::field<&Device::read, &Device::write>("Config", device),
+    ts::command<&Device::reset>("Reset", device),
+    ts::service<&Device::sample>("Sample", device));
+inline constexpr ts::Model model{branch};
 ```
 
 Не пишіть цей fragment вдруге поверх тих самих declarations у QuickStart.
 Він показує частину повної програми, яку треба замінити своїми methods.
 
-Кожний елемент table отримує **позицію за порядком оголошення**. У цій table
-Config має позицію 0. У більших таблицях дайте позиціям імена:
+Група тримає Fields, Commands і Services поруч, як папка — файли. Назва в
+групі унікальна серед усього, що група містить, і не має `/ . [ ] \`; тому
+кожен endpoint має один шлях: `device/Config`, `device/Reset`. Таблиць,
+позицій і IDs писати не треба: Model розгортає групи під час компіляції.
+Порушення правил назв — build error у тому `ts::group`, що його порушує.
 
-```cpp
-enum class LocalField : unsigned { Config = 0 };
-auto value = localFields.read<LocalField::Config>();
-```
-
-Об'єкт `device` має існувати довше за таблиці та виклики. Самі tables мають
-стабільні адреси: не переносіть їх у container, який переміщує elements.
-`inline constexpr` підходить для таблиць, оголошених у header; один named
+Об'єкт `device` має існувати довше за Model і виклики. Model не копіюють і
+не переміщують. `inline constexpr` підходить для header; один named
 `constexpr` у `.cpp` підходить для прихованої реалізації.
 
-## Крок 6. Викличте native API й перевірте результат
+<a id="крок-6-викличте-native-api-й-перевірте-результат"></a>
+
+## Крок 6. Оголосіть handles і перевірте результат
 
 ```cpp
-const auto changed = localFields.write<0>(Config{240.0f, true});
+inline constexpr auto config = ts::endpoint<model, "device/Config">;
+inline constexpr auto reset = ts::endpoint<model, "device/Reset">;
+inline constexpr auto sample = ts::endpoint<model, "device/Sample">;
+
+const auto changed = config.write(Config{240.0f, true});
 if (changed == ts::WriteResult::Applied) {
-    const auto value = localFields.read<0>();
+    const auto value = config.read();
     if (value) {
         const float voltage = value->voltage;
         // Використати voltage у application logic.
@@ -240,14 +249,22 @@ if (changed == ts::WriteResult::Applied) {
     }
 }
 
-const auto reply = localServices.call<0>();
+const auto reply = sample.call();
 if (reply.hasValue()) {
     const Snapshot& snapshot = reply.value();
     (void)snapshot;
 }
 
-const auto resetStatus = localCommands.call<0>();
+const auto resetStatus = reset.call();
+const auto voltage = ts::read<model, "device/Config.voltage">(); // член, без handle
 ```
+
+Handle розв'язує шлях один раз, там, де його оголошено: шлях, що нічого не
+називає, — build error у цьому рядку. Handle — порожній object; виклик
+компілюється в той самий код, що typed доступ за позицією, і текст шляху не
+потрапляє в image. `ts::read`, `ts::write` і `ts::call` із шляхом дають
+разовий доступ без handle. Член Field лише читається: getter виконується для
+всього Field, а запис члена був би прихованим read-modify-write.
 
 `read()` не повертає fake zero при unavailable getter. Перевіряйте optional
 або borrowed view. `ServiceResult` перевіряйте через `hasValue()` і `status()`;
@@ -258,51 +275,58 @@ const auto resetStatus = localCommands.call<0>();
 зупинитися. Немає потреби кодувати native виклик у wire bytes; синхронізація
 доступу між tasks залишається відповідальністю застосунку.
 
-## Крок 7. Додайте каталоги, якщо потрібні global IDs
+<a id="крок-7-додайте-каталоги-якщо-потрібні-global-ids"></a>
+
+## Крок 7. Розкладіть великий пристрій на гілки
+
+Кожна підсистема отримує свій файл гілки: один вираз `ts::group(...)`, у
+якому групи вкладаються. Один файл композиції монтує гілки й оголошує handles:
 
 ```cpp
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{
-    ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{
-    ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// adc/AdcTelemetry.hpp
+inline constexpr auto branch = ts::group("adc",
+    ts::group("channel1", ts::field<&gain<0>, &setGain<0>>("Gain")),
+    ts::field<&config, &setConfig>("Config"));
 
-inline constexpr auto ConfigId = ts::makeId<0, LocalField::Config>();
+// Telemetry.hpp
+inline constexpr ts::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;
 ```
 
-`0` у `makeId` — позиція групи в каталозі Fields. `LocalField::Config` —
-позиція в local table. Command і Service мають окремі ID spaces: однаковий
-packed integer може позначати Field 0, Command 0 і Service 0.
+Повна програма — [group_tree](../../examples/group_tree/README.md).
 
-Перестановка груп або елементів змінює IDs. Якщо PC client ще використовує
-стару схему, застосунок має узгодити новий descriptor перед операціями.
-Файлові індекси — ще один незалежний простір, не telemetry IDs.
+Клієнт адресує endpoint тим самим шляхом. На wire endpoint має PackedId:
+позицію групи в дереві (pre-order) і позицію endpoint серед endpoints його
+сімейства в цій групі. Код пристрою бере ID зі шляху, а не пише його:
+`ts::idOf<model, "adc/channel1/Gain">()` або `gain1.id` (тут `1:0`,
+`0x00010000`). Command і Service мають окремі ID spaces: однаковий packed
+integer може позначати Field, Command і Service.
+
+Додавання чи перестановка груп і endpoints змінює IDs після них. Клієнти
+порівнюють fingerprint descriptor перед операціями й знаходять endpoint за
+шляхом; [клієнт без SDK](ReadingAFieldByHand.md) зберігає ID разом із
+fingerprint. Файлові індекси — ще один незалежний простір, не telemetry IDs.
 
 ## Крок 8. Виберіть доступ залежно від наявної інформації
 
 | У цьому місці коду відомо | Приклад | Для чого |
 | --- | --- | --- |
-| Local position compile-time | `localFields.read<LocalField::Config>()` | Internal firmware logic поруч із table |
-| Global ID compile-time | `fields.read<ConfigId>()` | Internal logic, яка працює з усіма групами |
-| Runtime ID та exact C++ type | `fields.readAs<Config>(runtimeId)` | Runtime selection без wire encoding |
-| Runtime ID та numeric source value | `fields.writeAs(runtimeId, number)` | Checked numeric conversion до типу Field |
-| Runtime ID та конкретна definition | `fields.visit(runtimeId, visitor)` | Умовний typed branch з `if constexpr` |
+| Шлях compile-time, endpoint потрібен часто | `config.read()`, `config.write(next)`, `reset.call()` | Internal firmware logic через named handle |
+| Шлях compile-time, разовий доступ | `ts::read<model, "device/Config">()`, `ts::call<model, "device/Reset">()` | Той самий виклик без оголошення handle |
+| Член або елемент Field | `ts::read<model, "device/Config.voltage">()` | Одне значення зі struct чи масиву |
+| ID відомого endpoint | `ts::idOf<model, "device/Config">()`, `config.id` | Власний протокол, лог або клієнт без SDK |
 | Runtime ID та wire payload | `writeFieldEncoded(model.view(), runtimeId, bytes, workspace)` | Transport callback після складання frame |
 
-Для Config `writeAs` приймає exact `Config`, а не окремий number. Numeric row
-у таблиці стосується numeric Field. `readAs<T>` повертає owning copy навіть
-для borrowed getter. Для великого payload використайте його borrowed native
-read або encoded path, якщо копія не потрібна.
+Runtime ID приходить із пакета, тому його обробляє encoded API:
+`readFieldEncoded`, `writeFieldEncoded`, `executeCommandEncoded` і
+`callServiceEncoded` над `model.view()`. Вони перевіряють ID, точну довжину
+payload і scratch до виклику callback. [Encoded access](Model.md#encoded-api-catalog-index-або-modelview)
+описує результати; [WireV3](../WireV3.md#request-and-reply-frames-teq1-v1) —
+frames, які несуть ці операції.
 
-Коли runtime ID та exact native Request/Response відомі, Command викликайте
-через `commands.call(id, request)`, а Service — через
-`services.callAs<Reply>(id, request)`. Для операцій без Request аргумент
-`request` не потрібний. [Flat runtime API](FlatNative.md) описує статуси,
-перевірку сигнатур та borrowed result. `visit` лишається для generic обходу,
-а encoded API — для wire payload. Compile-time Command/Service викликаються
-через `call<Position>()` / `call<PackedId>(request)`.
+Runtime selection без wire encoding (`readAs`, `writeAs`, `visit`,
+`callAs` за runtime ID) поки що працює через каталоги плоскої форми; її
+описує розділ [Виводиться з ужитку](#виводиться-з-ужитку).
 
 ## Крок 9. Рознесіть application і metadata по своїх файлах
 
@@ -310,14 +334,14 @@ read або encoded path, якщо копія не потрібна.
 
 ```text
 Device.hpp / Device.cpp   — state та methods, прикладні перевірки
-Api.hpp / Api.cpp         — stable tables/catalogs/Model і public facade
+Api.hpp / Api.cpp         — stable Model (групи) і public facade
 main.cpp                 — host demonstration; у прошивці це ваші tasks
 ```
 
 У header facade можна віддати `ModelView`, `FileSystemView` або прості
 application functions. Таблиці та довгі template types лишаються у `.cpp`.
-Якщо інший модуль має викликати compile-time `fields.read<Id>()`, йому
-потрібна concrete table declaration; приховування її за `ModelView` залишає
+Якщо інший модуль має викликати handles чи `ts::read<model, path>()`, йому
+потрібна declaration constexpr Model; приховування її за `ModelView` залишає
 runtime API. Це вибір межі модуля, не втрата доступу до тих самих endpoints.
 
 Повний [multi-file example](../../examples/device_integration/README.md)
@@ -340,7 +364,7 @@ mutex за вас і не робить атомарним читання баг�
 1. Готовий QuickStart збирається вашим compiler і виконується без помилки.
 2. Клас пристрою й усі потрібні DTO звичайні C++ типи; callbacks `noexcept`.
 3. Getter і setter Field працюють з одним canonical `T`.
-4. Objects, names, tables, catalogs і Workspace backing storage мають
+4. Objects, names, Model і Workspace backing storage мають
    достатній lifetime; реальний caller перевіряє результати.
 5. Native читання, запис і потрібні Commands/Services працюють до додавання
    transport layer.
@@ -350,3 +374,73 @@ mutex за вас і не робить атомарним читання баг�
    stack і transport саме вашої прошивки. Host examples не виконують HAL.
 
 Розв'язання типових помилок: [питання та діагностика](Troubleshooting.md).
+
+<a id="виводиться-з-ужитку"></a>
+
+## Виводиться з ужитку: local tables, каталоги й makeId
+
+Плоска форма ще компілюється, але зникне в наступних кроках ROADMAP API-1.
+Новий код використовує групу, handles і шляхи з кроків 5-8. Для коду, який
+ще використовує стару форму, нижче збережено її опис.
+
+**Local tables.** Кожний елемент table отримує позицію за порядком
+оголошення:
+
+```cpp
+inline constexpr ts::FieldTable localFields{
+    ts::field<&Device::read, &Device::write>("Config", device)};
+inline constexpr ts::CommandTable localCommands{
+    ts::command<&Device::reset>("Reset", device)};
+inline constexpr ts::ServiceTable localServices{
+    ts::service<&Device::sample>("Sample", device)};
+
+enum class LocalField : unsigned { Config = 0 };
+auto value = localFields.read<LocalField::Config>();
+const auto changed = localFields.write<0>(Config{240.0f, true});
+const auto reply = localServices.call<0>();
+const auto resetStatus = localCommands.call<0>();
+```
+
+Самі tables мають стабільні адреси: не переносіть їх у container, який
+переміщує elements.
+
+**Каталоги й `makeId`.** Каталог дає групам позиції, а `makeId` пакує групу
+й позицію в global ID:
+
+```cpp
+inline constexpr ts::FieldCatalogTable fields{
+    ts::group("device", localFields)};
+inline constexpr ts::CommandCatalogTable commands{
+    ts::group("device", localCommands)};
+inline constexpr ts::ServiceCatalogTable services{
+    ts::group("device", localServices)};
+inline constexpr ts::Model model{fields, commands, services};
+
+inline constexpr auto ConfigId = ts::makeId<0, LocalField::Config>();
+```
+
+`0` у `makeId` — позиція групи в каталозі Fields. `LocalField::Config` —
+позиція в local table. Command і Service мають окремі ID spaces.
+
+**Доступ за позицією й ID:**
+
+| У цьому місці коду відомо | Приклад | Для чого |
+| --- | --- | --- |
+| Local position compile-time | `localFields.read<LocalField::Config>()` | Internal firmware logic поруч із table |
+| Global ID compile-time | `fields.read<ConfigId>()` | Internal logic, яка працює з усіма групами |
+| Runtime ID та exact C++ type | `fields.readAs<Config>(runtimeId)` | Runtime selection без wire encoding |
+| Runtime ID та numeric source value | `fields.writeAs(runtimeId, number)` | Checked numeric conversion до типу Field |
+| Runtime ID та конкретна definition | `fields.visit(runtimeId, visitor)` | Умовний typed branch з `if constexpr` |
+
+Для Config `writeAs` приймає exact `Config`, а не окремий number. Numeric row
+у таблиці стосується numeric Field. `readAs<T>` повертає owning copy навіть
+для borrowed getter. Для великого payload використайте його borrowed native
+read або encoded path, якщо копія не потрібна.
+
+Коли runtime ID та exact native Request/Response відомі, Command викликайте
+через `commands.call(id, request)`, а Service — через
+`services.callAs<Reply>(id, request)`. Для операцій без Request аргумент
+`request` не потрібний. [Flat runtime API](FlatNative.md) описує статуси,
+перевірку сигнатур та borrowed result. `visit` лишається для generic обходу,
+а encoded API — для wire payload. Compile-time Command/Service викликаються
+через `call<Position>()` / `call<PackedId>(request)`.

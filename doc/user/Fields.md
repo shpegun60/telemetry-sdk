@@ -3,6 +3,14 @@
 [API Overview](APIOverview.md) · [Native reference](NativeApi.md) ·
 [Native-only приклад](../../examples/user_guide/NativeOnly.cpp)
 
+> **Одна форма — дерево груп, шляхи й handles.** У Model із груп той самий
+> endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
+> `ts::endpoint<model, "adc/Config">` далі `.read()` і `.write(value)`, член — `ts::read<model, "adc/Config.rateHz">()`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
+> клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
+> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
+> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
+> lifetime rules самих Field, Command і Service від форми Model не залежать.
+
 `Field` відкриває одне прикладне значення через getter і, за потреби,
 setter. Це може бути напруга, лічильник, режим, масив коефіцієнтів або ціла
 структура налаштувань. Тип визначається C++-сигнатурою getter. Setter приймає

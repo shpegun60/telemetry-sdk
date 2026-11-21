@@ -8,6 +8,68 @@
 Model/Definitions нижче — спільна основа для endpoints та їхнього опису,
 а не обов'язковий runtime шар перед кожним викликом.
 
+## Одна форма: дерево груп, шляхи й handles
+
+Пристрій описують деревом груп. `ts::group(name, items...)` змішує підгрупи,
+Fields, Commands і Services; `Model{branches...}` монтує гілки в одну модель.
+Endpoint адресують шляхом `group/.../endpoint`, далі `.member` і `[i]`. Шлях
+однаковий на пристрої, у Static C++ клієнті, у TS/JS і в Dynamic клієнті.
+Handle — той самий шлях, розв'язаний один раз і збережений у змінній.
+
+```cpp
+namespace ts = telemetry;
+// Файл гілки: один вираз, без таблиць і IDs; клас Adc нічого не знає про telemetry.
+inline constexpr auto branch = ts::group("adc",
+    ts::group("channel1", ts::field<&gain<0>, &setGain<0>>("Gain")),
+    ts::field<&config, &setConfig>("Config"),
+    ts::command<&reset>("Reset"),
+    ts::service<&calibrate>("Calibrate"));
+
+// Файл композиції: Model із гілок, потім handles; шлях перевіряється тут.
+inline constexpr ts::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;
+```
+
+Повна програма з двома гілками, handles і descriptor —
+[group_tree](../../examples/group_tree/README.md).
+
+### Одна операція в чотирьох місцях
+
+| Операція | Пристрій: код самої Model | Static C++ клієнт: згенерований `device` | TS/JS: згенерований `bindDevice(client)` | Dynamic клієнт (C++; JS так само) |
+| --- | --- | --- | --- | --- |
+| Прочитати Field | `ts::read<model, "adc/Config">()` | `device.read<"adc/Config">(cb)` | `await device.read('adc/Config')` | `client.endpoint("adc/Config").handle.read(cb)` |
+| Записати Field | `ts::write<model, "adc/Config">(config)` | `device.write<"adc/Config">(config, cb)` | `await device.write('adc/Config', config)` | `client.endpoint("adc/Config").handle.write(bytes, cb)` |
+| Прочитати член | `ts::read<model, "adc/Config.rateHz">()` | шляху члена немає: прочитайте Field, далі `r.value().rateHz` | шляху члена немає: `(await device.read('adc/Config')).value.rateHz` | `client.endpoint("adc/Config.rateHz").handle.read(cb)` |
+| Викликати Command | `ts::call<model, "adc/Reset">()` | `device.call<"adc/Reset">()` | `await device.call('adc/Reset')` | `client.endpoint("adc/Reset").handle.call(cb)` |
+| Викликати Service | `ts::call<model, "adc/Calibrate">(adc::Reference{1.25f})` | `device.call<"adc/Calibrate">(api::types::adc::Reference{1.25f}, cb)` | `await device.call('adc/Calibrate', {volts: 1.25})` | `client.endpoint("adc/Calibrate").handle.call(bytes, cb)` |
+| Зберегти handle | `inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;` далі `gain1.read()` | `auto gain1 = device.adc.channel1.Gain;` або `api::client::endpoint<"adc/channel1/Gain">(device)`; далі `gain1.read(cb)` | `const gain1 = device.adc.channel1.Gain;` далі `await gain1.read()` | `auto gain1 = client.endpoint("adc/channel1/Gain").handle;` далі `gain1.read(cb)` |
+| ID для клієнта без SDK | `ts::idOf<model, "adc/channel1/Gain">()` або `gain1.id` | `gain1.id()` | `gain1.id` | `gain1.id()` |
+
+- `cb` — `noexcept` callback із результатом: `telemetry::client::Result<T>` у
+  Static C++, `DynamicResult` у Dynamic. Static C++ `write(value)` і `call()`
+  без callback ігнорують результат. TS/JS повертає `Promise`.
+- `config` — `adc::Config` на пристрої, `api::types::adc::Config` у Static C++
+  (`namespace api = device_api;`) і звичайний object у TS/JS. Dynamic C++
+  передає canonical bytes (`bytes`), Dynamic JS — звичайне значення.
+- Член читає лише цілий Field: getter виконується для всього Field. Запису
+  члена немає ніде, бо wire записує цілі Fields. Static клієнт не має шляху
+  члена; Dynamic клієнт і пристрій мають.
+- Dynamic JS: ті самі імена з `await`, наприклад
+  `await client.endpoint('adc/Config.rateHz').read()`, `.write(value)`,
+  `.call(request)`.
+- Хибний шлях на пристрої та в Static C++ — build error, що показує шлях; у
+  TS — помилка типу; у JS і Dynamic — відмова з текстом
+  `No endpoint at path "..."`.
+- ID — позиція в одному descriptor. Зберігайте його разом із fingerprint:
+  [Reading a Field without the SDK](ReadingAFieldByHand.md),
+  [WireV3: PackedId](../WireV3.md#packedid).
+
+Довідники кожного місця: [Model: group tree](Model.md#group-tree-модель-із-файлів-гілок),
+[handles згенерованих клієнтів і Dynamic `endpoint(path)`](../GeneratedNamesAndHandles.md),
+[DeviceClient](../AsyncClient.md), [DynamicClient](../DynamicClientUsage.md).
+Старі форми, які ще компілюються, зібрано в розділі
+[Виводиться з ужитку](#виводиться-з-ужитку).
+
 ## Вибір за хвилину
 
 | У вас є / потрібно | API | Необхідні об'єкти | Канонічний довідник | Повна програма |
@@ -16,7 +78,7 @@ Model/Definitions нижче — спільна основа для endpoints т
 | Runtime ID + canonical payload bytes | **Encoded** | Catalog index **або** ModelView; input/output buffers і Workspace | [Encoded access](Model.md#encoded-api-catalog-index-або-modelview) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) |
 | Самостійно перетворити DTO ↔ bytes, без endpoints | **Codec** | C++ object і byte span; Workspace лише для construction у scratch | [Codec and Workspace](CodecAndWorkspace.md) | [Codec.cpp](../../examples/user_guide/Codec.cpp) |
 | Названі файли, порційний READ/WRITE або LIST/STAT | **Resource** | Stable providers/paths + FileSystem; protocol за потреби | [Resource files](Resources.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |
-| Зібрати спільний structural registry і опис endpoints | **Model / Definitions** | Owner → definitions → tables → catalogs → Model | [Model](Model.md) | [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp) |
+| Зібрати спільний structural registry і опис endpoints | **Model / Definitions** | Owner → definitions у `ts::group` → `Model{branches...}` → шляхи й handles | [Model](Model.md#group-tree-модель-із-файлів-гілок) | [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp), [group_tree](../../examples/group_tree/README.md) |
 
 Перший приклад Native не створює Model, Workspace чи files. Standalone Codec
 не потребує навіть Field/Command/Service. Generic Resource працює без telemetry;
@@ -114,7 +176,22 @@ const auto response = services.callAs<Reply>(position, request);
 
 Два чинні входи використовують ті самі checked endpoint boundaries.
 
-**Catalog indexes, без створення Model:**
+**ModelView, для Model із дерева груп і compiled forwarding:**
+
+```cpp
+auto read = telemetry::readFieldEncoded(view, fieldId, output, workspace);
+auto write = telemetry::writeFieldEncoded(view, fieldId, input, workspace);
+auto execute = telemetry::executeCommandEncoded(view, commandId, input, workspace);
+auto call = telemetry::callServiceEncoded(view, serviceId, input, output, workspace);
+```
+
+`view` зазвичай отримують через `model.view()`. ModelView позичає indexes і
+metadata; transport може отримувати цю маленьку view через application facade.
+ID приходить із пакета; код пристрою, якому потрібен ID відомого endpoint,
+бере його зі шляху: `ts::idOf<model, "adc/Config">()` або `handle.id`.
+
+**Catalog indexes, без створення Model** (плоска форма каталогів;
+[виводиться з ужитку](#виводиться-з-ужитку)):
 
 ```cpp
 auto fieldIndex = fields.index();       // FieldCatalogTable.
@@ -126,19 +203,8 @@ auto write = fieldIndex.writeEncoded(fieldId, input, workspace);
 auto execute = commandIndex.executeEncoded(commandId, input, workspace);
 auto call = serviceIndex.callEncoded(serviceId, input, output, workspace);
 ```
-
-**ModelView, для прихованих у `.cpp` таблиць і compiled forwarding:**
-
-```cpp
-auto read = telemetry::readFieldEncoded(view, fieldId, output, workspace);
-auto write = telemetry::writeFieldEncoded(view, fieldId, input, workspace);
-auto execute = telemetry::executeCommandEncoded(view, commandId, input, workspace);
-auto call = telemetry::callServiceEncoded(view, serviceId, input, output, workspace);
-```
-
-`view` зазвичай отримують через `model.view()`. ModelView позичає indexes і
-metadata; transport може отримувати цю маленьку view через application facade.
-Runtime PackedId — u32: high 16 bits catalog, low 16 bits entry. Адресні простори
+Runtime PackedId — u32: high 16 bits група (catalog), low 16 bits entry
+([WireV3: PackedId](../WireV3.md#packedid)). Адресні простори
 Field/Command/Service окремі. Lookup перевіряє межі й прямо індексує масиви.
 
 Спочатку перевірте `dispatch`, потім application outcome там, де він існує:
@@ -228,28 +294,30 @@ Fingerprint описує telemetry descriptor identity, не checksum live value
 ## Model / Definitions: спільна основа
 
 ```cpp
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{adc::tlm::branch, metrology::tlm::branch};
 auto view = model.view();
 auto types = model.types();
-constexpr auto typeId = model.typeId<Config>();
+constexpr auto typeId = model.typeId<adc::Config>();
+constexpr auto gainId = model.idOf<"adc/channel1/Gain">();
 ```
 
-Тут `fields`, `commands`, `services` — catalog tables. Definition прив'язує
-назву до getter/setter/callable; table зберігає concrete definitions і erased
-rows; catalogs вводять global positions; Model об'єднує типи в один registry.
-Всі ці borrowed зв'язки мають зберігати lifetime своїх sources.
+Definition прив'язує назву до getter/setter/callable; `ts::group` збирає
+definitions і підгрупи; Model розгортає дерево під час компіляції, призначає
+позиції й об'єднує типи в один registry. Всі ці borrowed зв'язки мають
+зберігати lifetime своїх sources.
 
 TypeRegistry описує structural shape, а не units, limits, defaults чи persistence.
 `RootTypes` зберігає positional roots із повторами; deduplicated registry roots
 не змінюють кількість Fields або Values tokens. Для application API
-користуйтеся таблицями/каталогами, `model.types()` і `model.typeId<T>()`.
+користуйтеся шляхами й handles, `model.types()` і `model.typeId<T>()`.
 
-Модель із файлів гілок монтує дерево груп: `Model{adc::tlm::branch, ...}`.
-Тоді endpoint адресують шляхом, а не позицією:
+Endpoint адресують шляхом, а не позицією:
 `telemetry::endpoint<model, "adc/channel1/Gain">` оголошує handle
-(`gain1.read()`, `gain1.write(2.5f)`), розв'язаний під час компіляції в той
-самий PackedId. Кожен enum і struct у descriptor має ім'я типу з коду
-(`adc::Config`); `TELEMETRY_TYPE_NAMES 0` прибирає імена.
+(`gain1.read()`, `gain1.write(2.5f)`), розв'язаний під час компіляції в
+PackedId. Кожен enum і struct у descriptor має ім'я типу з коду
+(`adc::Config`); `TELEMETRY_TYPE_NAMES 0` прибирає імена. Плоска
+`Model{fields, commands, services}` із catalog tables
+[виводиться з ужитку](#виводиться-з-ужитку).
 
 **Деталі:** [Model](Model.md), [Tables/Catalogs](TablesAndCatalogs.md),
 [bindings/slots](NativeApi.md), [імена типів](Fields.md#8-імена-типів-у-descriptor),
@@ -284,7 +352,8 @@ Header-only тут описує compiled-source requirement. Native headers мо
 | Encoded | [Model.md](Model.md#encoded-api-catalog-index-або-modelview) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) | Той самий runner: callbacks, exact lengths, refusals, large/borrowed responses |
 | Codec | [CodecAndWorkspace.md](CodecAndWorkspace.md) | [Codec.cpp](../../examples/user_guide/Codec.cpp) | Той самий runner: golden bytes, три decode forms, validation, lifetime/LIFO |
 | Resource | [Resources.md](Resources.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp), [ResourceClient.cpp](../../examples/user_guide/ResourceClient.cpp) | Той самий runner: provider operations, packet processing, client parsing |
-| Model / Definitions | [Model.md](Model.md) | [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp) | Той самий runner: declarations/native calls + exact README/source parity |
+| Model / Definitions | [Model.md](Model.md) | [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp), [group_tree](../../examples/group_tree/main.cpp) | Той самий runner: declarations, handles і шляхи + exact README/source parity |
+| Клієнт без SDK | [WireV3.md](../WireV3.md), [Reading a Field without the SDK](ReadingAFieldByHand.md) | [field_by_hand](../../tests/field_by_hand/main.cpp) | `tests/field_by_hand/run.py`: кожен hex-блок walkthrough дорівнює байтам справжнього server |
 
 Команда з кореня репозиторію:
 
@@ -295,3 +364,21 @@ python tests/docs/run.py --cxx g++ --build-dir /tmp/telemetry-doc-examples
 [Runner documentation](../../tests/docs/README.md) містить фактичні перевірені
 toolchain modes, результати та межі доказу. Host execution, sanitizer execution
 і ARM compile/link — різні перевірки; ARM docs runner не запускає плату.
+
+## Виводиться з ужитку
+
+Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1.
+Новий код їх не використовує; кожна має заміну з таблиці
+[одна операція в чотирьох місцях](#одна-операція-в-чотирьох-місцях).
+
+| Форма, що виводиться | Замість неї |
+| --- | --- |
+| Плоска `Model{fields, commands, services}`: `FieldCatalogTable`, `CommandCatalogTable`, `ServiceCatalogTable`, `ts::group(name, table)`, `emptyFields`, `emptyCommands` | `Model{branches...}` із `ts::group(name, items...)` |
+| Публічний `ts::makeId<group, entry>()` і typed доступ за ID: `fields.read<id>()`, `commands.call<id>()`, `services.call<id>()` | `ts::read/write/call<model, "path">()` і `ts::endpoint<model, "path">`; ID — `ts::idOf<model, "path">()` або `handle.id` |
+| Catalog indexes `fields.index()`, `commands.index()`, `services.index()` | `model.view()` і compiled adapter |
+| Згенеровані символи за сімействами: `api::device::fields::Config`, `client.read(api::device::fields::Config, cb)`, `device.motor.fields.Config` | `device.read<"motor/Config">(cb)`, `api::client::endpoint<"motor/Config">(device)`, `device.adc.Config` |
+
+PackedId лишається у wire та в descriptor:
+[WireV3: PackedId](../WireV3.md#packedid). Сторінки
+[Tables and catalogs](TablesAndCatalogs.md), [Native API](NativeApi.md) та
+приклади з плоскими каталогами описують старі форми, доки їх не перенесуть.

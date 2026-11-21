@@ -4,6 +4,14 @@
 [Generated C++](GeneratedCppApi.md) · [Generated JS/TS](GeneratedTsJsApi.md) ·
 [Wire v3.1](WireV3.md) · [DynamicClient](DynamicClient.md) · [Dynamic JS](DynamicJsClient.md)
 
+Clients address endpoints by path and through handles: `device.read<"adc/Config">(cb)`
+and `device.adc.Config` in C++, `await device.read('adc/Config')` in TS/JS, and
+`client.endpoint("adc/Config")` in the Dynamic clients
+([handles](#endpoint-handles-of-a-bound-device),
+[the same operation in four places](user/APIOverview.md#одна-операція-в-чотирьох-місцях)).
+The per-family symbols (`fields::`, `commands::`, `services::`) still generate
+but are [being removed](user/APIOverview.md#виводиться-з-ужитку).
+
 Descriptor v3.1 adds three things to a device's descriptor: a unique type name on
 an enum or struct (`adc::Config`), a group tree (groups inside groups, each holding
 Fields, Commands and Services side by side) and a skippable attribute area. The
@@ -65,7 +73,8 @@ await client.write(adc.channel1.Gain, 2.5);          // adc.channel1.Gain === ad
 The flat form's `fields::`, `commands::`, `services::` and per-group `types::`
 constants are generated in every group as well (plan section 15.5), so code written
 for a flat model compiles unchanged after the device moves to the group form with the
-same group names (`tests/codegen`, `names-aliases-*`). Names in one group share one
+same group names (`tests/codegen`, `names-aliases-*`). These aliases are
+[being removed](user/APIOverview.md#виводиться-з-ужитку) with the per-family symbols. Names in one group share one
 scope; a support name such as `Status` gets the same `_value` suffix it gets in the
 flat `fields::` namespace (`adc::Status_value`). Every JS/TS endpoint object of a tree
 carries its `path`.

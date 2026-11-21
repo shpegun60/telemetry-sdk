@@ -103,9 +103,30 @@ device::calibrate.call(adc::Reference{1.25f});         // the Service's own argu
 
 A handle is an empty object whose type carries the PackedId and the value
 type: a call compiles to the same code as `telemetry::read<model, path>()`
-or as `model.fields().read<id>()` with an ID from `makeId`, and no path text
-reaches the image (the [group-tree suite](../../tests/structured/group_tree/README.md)
-compares the ARM code). The free functions `read`, `write`, `call` and
-`idOf` with the path as a template argument stay available for a one-off
-access. The full grammar and every rule are in
+or as typed access by ID, and no path text reaches the image (the
+[group-tree suite](../../tests/structured/group_tree/README.md) compares the
+ARM code). The free functions `read`, `write`, `call` and `idOf` with the
+path as a template argument stay available for a one-off access. The full
+grammar and every rule are in
 [Model](../../doc/user/Model.md#group-tree-модель-із-файлів-гілок).
+
+## The same paths in the clients
+
+A host reaches these endpoints by the same paths: the generated Static C++
+client (`device.read<"adc/Config">(cb)`, `device.adc.channel1.Gain`), TS/JS
+(`await device.read('adc/Config')`) and the Dynamic client
+(`client.endpoint("adc/Config.rateHz")`). The
+[API map](../../doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях)
+shows one operation in all four places.
+
+## The IDs a client shows
+
+The groups are numbered in pre-order: `adc` 0, `adc/channel1` 1,
+`adc/channel2` 2, `metrology` 3. A PackedId is the group and the endpoint's
+position among that group's endpoints of its family, so `adc/channel1/Gain`
+is `1:0`, `0x00010000`, as the client's Details shows it, and
+`adc/Calibrate` is Service `0:0`. [main.cpp](main.cpp) checks both with
+`device::gain1.id` and `telemetry::idOf<model, "adc/Calibrate">()`.
+[Reading a Field without the SDK](../../doc/user/ReadingAFieldByHand.md)
+reads `adc/channel1/Gain` from this Model over TCP byte by byte; an ID is
+valid for its descriptor's fingerprint.

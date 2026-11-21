@@ -3,10 +3,19 @@
 Програми використовують поточний C++20 API без Qt, мережі та приладу. Вони
 містять готові declarations і перевіряють результати викликів.
 
+Почніть із [QuickStart.cpp](QuickStart.cpp): Field, Command і Service в одній
+групі `ts::group("device", ...)`, named handles (`config.read()`,
+`reset.call()`) і шлях члена `ts::read<model, "device/Config.voltage">()`.
+Модель із кількох файлів гілок показує [group_tree](../group_tree/README.md).
+Native, Encoded, Ergonomics і FlatNative ще показують local tables, catalogs і
+`makeId` — плоску форму, що [виводиться з ужитку](../../doc/user/APIOverview.md#виводиться-з-ужитку);
+їхні runtime-ID виклики (`readAs`, `visit`, `callAs`) поки що не мають форми
+шляху.
+
 | Програма | Що показує | Compiled sources |
 | --- | --- | --- |
 | [NativeOnly.cpp](NativeOnly.cpp) | Один local Field/Command/Service, static/runtime native calls, checked conversions і exact signatures; без Model/Workspace | Header-only; compiled sources відсутні |
-| [QuickStart.cpp](QuickStart.cpp) | Мінімальна mixed Model з головної сторінки | `StructuredAbi.cpp`, `Adapter.cpp` |
+| [QuickStart.cpp](QuickStart.cpp) | Мінімальна Model з однієї групи з головної сторінки: named handles і шлях члена | `StructuredAbi.cpp`, `Adapter.cpp` |
 | [Native.cpp](Native.cpp) | Field/Command/Service; типи, всі slots, owning/borrowed outputs, typed та erased traversal | `StructuredAbi.cpp`, `Adapter.cpp` |
 | [Resources.cpp](Resources.cpp) | Flat filesystem, lazy FileView, custom R/W provider, порційний LIST/STAT/READ/WRITE | `Protocol.cpp` |
 | [Encoded.cpp](Encoded.cpp) | Власний complete-frame adapter без файлів, business validation, великі/borrowed responses | `StructuredAbi.cpp`, `Adapter.cpp` |

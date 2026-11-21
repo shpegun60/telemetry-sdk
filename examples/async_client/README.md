@@ -5,6 +5,22 @@ Qt adapter in an ordinary main loop. It has no Qt, HAL, RTOS, mutex or thread
 dependency. Generate `device_api` from the example descriptor first (the test
 runner does this from the actual native model).
 
+The example addresses the device's Field by path, as every client does:
+
+```cpp
+static api::client::Device<api::client::DeviceClient<4, 256>> device{client};
+auto one = device.read<"device/Config">(callback, requestTimeoutMs);
+const auto deviceConfig = api::client::endpoint<"device/Config">(device); // a handle
+auto two = deviceConfig.write(config, callback, requestTimeoutMs);
+```
+
+The path is checked at compile time against the generated table, and the
+handle forwards to the same `DeviceClient` queue. The third request still uses
+the per-family constant `api::device::fields::Config`, which names the same
+endpoint; that form is [being removed](../../doc/user/APIOverview.md#виводиться-з-ужитку).
+The same operation in the device, TS/JS and the Dynamic client:
+[API map](../../doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях).
+
 Implement the `board_*` functions for your board. The application obtains and
 fully validates the remote Descriptor, binds it to the peer/session, and passes
 its observed 64-byte header through `board_verifiedDescriptorHeader()`. Matching

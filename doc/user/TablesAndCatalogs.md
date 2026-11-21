@@ -5,6 +5,15 @@
 [API Overview](APIOverview.md) · [Посібник](README.md) · [Native reference](NativeApi.md) ·
 [API шпаргалка](API-CHEATSHEET.md) · [Архітектура](../Architecture.md)
 
+> **Ця сторінка описує плоску форму, що [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку).**
+> Новий код описує пристрій деревом груп (`ts::group(name, items...)`,
+> `Model{branches...}`) і адресує endpoints шляхом і handles
+> ([Model: group tree](Model.md#group-tree-модель-із-файлів-гілок),
+> [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях)).
+> Позиції, групи й PackedId нижче лишаються тими самими під деревом: група
+> дерева — це рядок кожного catalog, а `ts::idOf<model, "path">()` дає той
+> самий PackedId, що `makeId` ([WireV3: PackedId](../WireV3.md#packedid)).
+
 Необов'язковий рівень над catalogs — [Model](Model.md). Local native access
 не потребує catalogs або Model; global native IDs потребують catalogs, але
 також не Model. Canonical byte operations і caller-owned scratch описує

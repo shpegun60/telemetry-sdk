@@ -22,14 +22,12 @@ auto status = client.admit(schema, observedPeerHeader, session);
 if (status != cl::Status::Ok)
     return;
 
-const auto* field = schema.findField("device", "Config");
-if (!field)
-    return;
-auto read = client.bind(cl::Operation::FieldRead, field->id);
-if (!read)
-    return;
+// The path is the descriptor's group/.../endpoint; .member and [i] read a part.
+const auto config = client.endpoint("device/Config");
+if (!config)
+    return; // config.status names the reason; describePath() writes it.
 
-auto submitted = client.readField(read.endpoint,
+auto submitted = config.handle.read(
     [](const dyn::DynamicResult& result) noexcept {
         // Check operation independently: stale metadata does not erase a
         // successful operation, Accepted, timeout or uncertain outcome.
@@ -42,6 +40,16 @@ auto submitted = client.readField(read.endpoint,
         }
     });
 ```
+
+`endpoint(path)` resolves the path once against the admitted descriptor;
+the handle's `write(payload, callback)` and `call(request, callback)` take
+canonical bytes, and after another admission a kept handle refuses with
+`NotAdmitted` ([handles](GeneratedNamesAndHandles.md#the-dynamic-clients-endpointpath),
+[the same operation in four places](user/APIOverview.md#одна-операція-в-чотирьох-місцях)).
+Looking the Field up by group and name and binding its ID
+(`schema.findField("device", "Config")`, `client.bind(cl::Operation::FieldRead,
+field->id)`, `client.readField(bound.endpoint, callback)`) is the lower
+level; it stays available.
 
 Check `submitted.status` immediately. A rejected submission invokes no callback.
 An accepted submission gets one callback while the owner processes the client.

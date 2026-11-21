@@ -565,6 +565,15 @@ jobs:
             build/docs/*.log
             build/docs/summary.json
           if-no-files-found: error
+      - name: Reading a Field without the SDK, byte for byte
+        env:
+          CXX: ${{ matrix.cxx }}
+          MODE: ${{ matrix.mode }}
+        shell: bash
+        run: |
+          flags=()
+          if [ "$MODE" = sanitized ]; then flags+=(--sanitize); fi
+          python3 tests/field_by_hand/run.py --build-dir build/field-by-hand "${flags[@]}"
       - name: C++20 structured reflection backend
         if: matrix.standard == 'c++20' && matrix.mode == 'release'
         env:

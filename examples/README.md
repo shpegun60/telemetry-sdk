@@ -18,9 +18,11 @@ required only by the examples that explicitly select them.
 | Task | Example and build entry point |
 | --- | --- |
 | Connect a browser to the reference WebSocket server with an owned Session | [Connection Session](connection_session/README.md), no GUI package required |
-| Local Native Field, Command and Service | [User-guide programs](user_guide/README.md); start with `NativeOnly.cpp`, no Qt or transport |
-| Integrate your device class and receive complete requests | [Device integration](device_integration/README.md), `device_integration/CMakeLists.txt` |
-| Build the Model from one file per subsystem, with named handles and type names | [Group tree](group_tree/README.md), `group_tree/CMakeLists.txt` |
+| Build the Model from one file per subsystem, with named handles, paths and type names | [Group tree](group_tree/README.md), `group_tree/CMakeLists.txt` |
+| A first Model: one group, handles and a member path | [User-guide programs](user_guide/README.md); start with `QuickStart.cpp`, no Qt or transport |
+| Local Native Field, Command and Service without a Model | [User-guide programs](user_guide/README.md), `NativeOnly.cpp` |
+| Integrate your device class and receive complete requests | [Device integration](device_integration/README.md), `device_integration/CMakeLists.txt`; its Model is still in the flat form, which is being removed |
+| Read a Field without the SDK, byte by byte | [Reading a Field without the SDK](../doc/user/ReadingAFieldByHand.md), checked by [field_by_hand](../tests/field_by_hand/README.md) |
 | Inspect or transactionally edit unknown DTO bytes offline | [Runtime schema](runtime_schema/README.md); standalone reader/writer commands |
 | Call unknown runtime endpoints | [DynamicClient](dynamic_client/README.md), `dynamic_client/CMakeLists.txt` |
 | Write, execute Commands/Services and read in one ordered request | [Mixed Batch](batch/README.md), `batch/CMakeLists.txt` |
@@ -49,7 +51,10 @@ provides metadata browsing, not live device values.
 | [JS/TS async client](client_web/README.md) | Shared runtime, typed callbacks and application transport |
 
 The [generator](../tools/README.md) is a Python host tool. Native API and a typed
-client with an application Codec do not require a Generated SDK.
+client with an application Codec do not require a Generated SDK. Generated
+clients address endpoints by path and handle (`device.read<"adc/Config">(cb)`,
+`await device.read('adc/Config')`); see the
+[API map](../doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях).
 
 ## Resource and transport integration
 

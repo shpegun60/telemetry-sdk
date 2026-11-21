@@ -1,9 +1,9 @@
 /*
  * Small native Fields, Commands and Services application.
  *
- * Start with ordinary owner methods and bind names directly to their signatures.
- * The static owner and tables satisfy borrowing lifetimes; semantic validation
- * stays in Device rather than the structural Model.
+ * Start with ordinary owner methods, put them in one group and reach them by
+ * path through named handles. The static owner and Model satisfy borrowing
+ * lifetimes; semantic validation stays in Device rather than the structural Model.
  *
  * Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
  */
@@ -59,25 +59,28 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::read, &Device::write>("Config", device)};
-inline constexpr ts::CommandTable localCommands{ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::sample>("Sample", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// One group holds its Field, Command and Service side by side: no tables, no IDs.
+inline constexpr auto branch = ts::group(
+    "device", ts::field<&Device::read, &Device::write>("Config", device),
+    ts::command<&Device::reset>("Reset", device), ts::service<&Device::sample>("Sample", device));
+inline constexpr ts::Model model{branch};
+// Named handles: each path is checked here, once.
+inline constexpr auto config = ts::endpoint<model, "device/Config">;
+inline constexpr auto reset = ts::endpoint<model, "device/Reset">;
+inline constexpr auto sample = ts::endpoint<model, "device/Sample">;
 
 int main()
 {
-	assert(localFields.write<0>(Config{240.0f, true}) == ts::WriteResult::Applied);
-	const auto value = fields.read<ts::makeId<0, 0>()>();
+	assert(config.write(Config{240.0f, true}) == ts::WriteResult::Applied);
+	const auto value = config.read();
 	assert(value && value->voltage == 240.0f);
-	assert(localFields.write<0>(Config{std::numeric_limits<float>::quiet_NaN(), false}) ==
+	assert(config.write(Config{std::numeric_limits<float>::quiet_NaN(), false}) ==
 	       ts::WriteResult::InvalidValue);
-	const auto unchanged = localFields.read<0>();
+	const auto unchanged = config.read();
 	assert(unchanged && unchanged->voltage == 240.0f && unchanged->enabled);
-	const auto response = services.call<ts::makeId<0, 0>()>();
+	const auto voltage = ts::read<model, "device/Config.voltage">(); // One member, by path.
+	assert(voltage && *voltage == 240.0f);
+	const auto response = sample.call();
 	assert(response.hasValue() && response.value().voltage == 240.0f);
-	assert(localCommands.call<0>() == ts::CommandResult::Executed);
+	assert(reset.call() == ts::CommandResult::Executed);
 }

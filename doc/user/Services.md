@@ -3,6 +3,14 @@
 [API Overview](APIOverview.md) · [Native reference](NativeApi.md) ·
 [Native-only приклад](../../examples/user_guide/NativeOnly.cpp)
 
+> **Одна форма — дерево груп, шляхи й handles.** У Model із груп той самий
+> endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
+> `ts::call<model, "adc/Calibrate">(adc::Reference{1.25f})` або handle `calibrate.call(request)`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
+> клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
+> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
+> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
+> lifetime rules самих Field, Command і Service від форми Model не залежать.
+
 `Service` відкриває прикладну операцію з відповіддю: одержати snapshot,
 запитати дані каналу, прочитати large cached block, перевірити стан або
 обчислити результат за одним request. Callback має no request або одну
