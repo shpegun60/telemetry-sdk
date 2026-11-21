@@ -1,6 +1,10 @@
 /*
  * @file Fixture.hpp
- * @brief Frozen v3 models: mixed endpoints, shared types, UTF-8 and empty shapes.
+ * @brief Frozen v3.0 models: mixed endpoints, shared types, UTF-8 and empty shapes.
+ *
+ * Catalog models of telemetry/testing/V30Model.hpp, the producer of the frozen
+ * descriptor v3.0 goldens mixed.hex, edge.hex and empty.hex; tree.hex is the
+ * group-tree suite's.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  */
@@ -11,6 +15,7 @@
 
 #include "../endpoints/MixedFixture.hpp"
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 namespace descriptor_fixture {
 namespace ts = telemetry;
@@ -72,19 +77,21 @@ inline constexpr ts::FieldTable extraFields{
     ts::field("Late", getter, setter)};
 inline constexpr ts::FieldTable<> noFields{};
 inline constexpr ts::ServiceTable extraServices{ts::service<&ping>("Ping")};
-inline constexpr ts::FieldCatalogTable fields{ts::group("motor", fixture::mixedFields),
-                                              ts::group("empty", noFields),
-                                              ts::group("\xCE\xBC", extraFields)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("motor", fixture::localServices),
-                                                  ts::group("extra", extraServices)};
-inline constexpr ts::Model model{fields, fixture::commands, services};
+inline constexpr ts::testing::FieldCatalogTable fields{
+    ts::testing::group("motor", fixture::mixedFields), ts::testing::group("empty", noFields),
+    ts::testing::group("\xCE\xBC", extraFields)};
+inline constexpr ts::testing::ServiceCatalogTable services{
+    ts::testing::group("motor", fixture::localServices),
+    ts::testing::group("extra", extraServices)};
+inline constexpr ts::testing::V30Model model{fields, fixture::v30Commands, services};
 // Frozen v3.0 goldens: the profile strips type names on every build, so these
 // bytes never depend on TELEMETRY_TYPE_NAMES; programs that include this file
 // may also build named (v3.1) descriptors of the same models.
-inline constexpr auto mixed = ::telemetry::descriptor::withoutTypeNames(fixture::model);
+inline constexpr auto mixed = ::telemetry::descriptor::withoutTypeNames(fixture::v30Model);
 inline constexpr auto edge = ::telemetry::descriptor::withoutTypeNames(model);
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model emptyModel{ts::emptyFields, ts::emptyCommands, noServices};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model emptyModel{ts::testing::emptyFields,
+                                                  ts::testing::emptyCommands, noServices};
 inline constexpr auto empty = ::telemetry::descriptor::withoutTypeNames(emptyModel);
 inline constexpr auto mixedBytes = ::telemetry::descriptor::packDescriptor<mixed>();
 inline constexpr auto edgeBytes = ::telemetry::descriptor::packDescriptor<edge>();
@@ -94,8 +101,9 @@ static_assert(decltype(model)::typeId<fixture::MotorConfig>() == 15);
 
 // Explicit decltype preserves each constexpr catalog's const qualification.
 // Classification must match the deduced Model without changing wire identity.
-using ExactCvModel = ts::Model<decltype(fields), decltype(fixture::commands), decltype(services)>;
-inline constexpr ExactCvModel exactCvModel{fields, fixture::commands, services};
+using ExactCvModel =
+    ts::testing::V30Model<decltype(fields), decltype(fixture::v30Commands), decltype(services)>;
+inline constexpr ExactCvModel exactCvModel{fields, fixture::v30Commands, services};
 inline constexpr auto exactCvDescriptor = ::telemetry::descriptor::withoutTypeNames(exactCvModel);
 static_assert(exactCvDescriptor.valid() && exactCvDescriptor.fingerprint() == edge.fingerprint());
 static_assert(::telemetry::descriptor::packDescriptor<exactCvDescriptor>() == edgeBytes);

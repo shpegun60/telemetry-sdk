@@ -141,7 +141,8 @@ def main() -> None:
                          str(SOURCES / "ArmModelCodegen.cpp"), "-o", str(obj)],
                 f"compile-{optimization}-ArmModelCodegen")
             usage = obj.with_suffix(".su").read_text(encoding="utf-8")
-            for symbol in ("model_direct", "model_local", "model_global", "model_encoded"):
+            for symbol in ("model_direct", "model_local", "model_handle", "model_path",
+                           "model_encoded"):
                 match = re.search(rf"\b{symbol}\([^\n]*\)\s*\t(\d+)\tstatic", usage)
                 if match is None or int(match.group(1)) > 192:
                     raise RuntimeError(f"{optimization} {symbol} exceeds 192 B stack")
@@ -149,15 +150,15 @@ def main() -> None:
 
             if optimization in ("O2", "Os") and not args.null_checks:
                 images = []
-                for symbol in ("model_direct", "model_local", "model_global"):
+                for symbol in ("model_direct", "model_local", "model_handle", "model_path"):
                     image = output / f"{optimization}-{symbol}.bin"
                     run([str(objcopy), "--dump-section",
                          f".text.{symbol}={image}", str(obj)],
                         f"codegen-{optimization}-{symbol}")
                     images.append(image.read_bytes())
-                if not images[0] or images[0] != images[1] or images[0] != images[2]:
-                    raise RuntimeError(f"{optimization}: local/global native call differs from direct")
-                print(f"{optimization}: direct/local/global each {len(images[0])} identical bytes",
+                if not images[0] or any(images[0] != image for image in images[1:]):
+                    raise RuntimeError(f"{optimization}: local/handle/path native call differs from direct")
+                print(f"{optimization}: direct/local/handle/path each {len(images[0])} identical bytes",
                       flush=True)
 
         arm_link = ["-nostdlib", "-Wl,-e,main", "-Wl,--gc-sections", "-lc", "-lgcc"]

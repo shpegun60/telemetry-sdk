@@ -1,6 +1,6 @@
 /*
  * @file MixedFixture.hpp
- * @brief One mixed Field table and a type shared by all three endpoint families.
+ * @brief One mixed group of all three endpoint families and a type they share.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  */
@@ -10,6 +10,7 @@
 #pragma once
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 
 namespace fixture {
@@ -131,23 +132,44 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr ts::FieldTable mixedFields{
-    ts::field<&Device::enabled>("Enabled", device),
-    ts::field<&Device::rpm>("RPM", device),
-    ts::field<&Device::temperature>("Temperature", device),
-    ts::field<&Device::precise>("Precise", device),
-    ts::field<&Device::mode>("Mode", device),
-    ts::field<&Device::samples>("Samples", device),
-    ts::field<&Device::state>("State", device),
-    ts::field<&Device::config, &Device::setConfig>("Config", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::configure>("Configure", device),
-    ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::echo>("Echo", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("motor", mixedFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("motor", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("motor", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// The endpoint definitions, shared by the device's tree and the catalog twin.
+inline constexpr auto enabledField = ts::field<&Device::enabled>("Enabled", device);
+inline constexpr auto rpmField = ts::field<&Device::rpm>("RPM", device);
+inline constexpr auto temperatureField = ts::field<&Device::temperature>("Temperature", device);
+inline constexpr auto preciseField = ts::field<&Device::precise>("Precise", device);
+inline constexpr auto modeField = ts::field<&Device::mode>("Mode", device);
+inline constexpr auto samplesField = ts::field<&Device::samples>("Samples", device);
+inline constexpr auto stateField = ts::field<&Device::state>("State", device);
+inline constexpr auto configField =
+    ts::field<&Device::config, &Device::setConfig>("Config", device);
+inline constexpr auto configureCommand = ts::command<&Device::configure>("Configure", device);
+inline constexpr auto resetCommand = ts::command<&Device::reset>("Reset", device);
+inline constexpr auto echoService = ts::service<&Device::echo>("Echo", device);
+
+// The device: one group, motor, holding its eight Fields, two Commands and a
+// Service. Every family's IDs are group 0 and the declaration position.
+inline constexpr ts::Model model{
+    ts::group("motor", enabledField, rpmField, temperatureField, preciseField, modeField,
+              samplesField, stateField, configField, configureCommand, resetCommand, echoService)};
+inline constexpr auto config = ts::endpoint<model, "motor/Config">;
+inline constexpr auto configure = ts::endpoint<model, "motor/Configure">;
+inline constexpr auto reset = ts::endpoint<model, "motor/Reset">;
+inline constexpr auto echo = ts::endpoint<model, "motor/Echo">;
+
+// The same endpoints in per-family local tables, and the catalog twin over
+// them: the producer of the frozen descriptor v3.0 golden mixed.hex
+// (telemetry/testing/V30Model.hpp). It has the tree's IDs, one catalog per family.
+inline constexpr ts::FieldTable mixedFields{enabledField, rpmField,   temperatureField,
+                                            preciseField, modeField,  samplesField,
+                                            stateField,   configField};
+inline constexpr ts::CommandTable localCommands{configureCommand, resetCommand};
+inline constexpr ts::ServiceTable localServices{echoService};
+inline constexpr ts::testing::FieldCatalogTable v30Fields{ts::testing::group("motor", mixedFields)};
+inline constexpr ts::testing::CommandCatalogTable v30Commands{
+    ts::testing::group("motor", localCommands)};
+inline constexpr ts::testing::ServiceCatalogTable v30Services{
+    ts::testing::group("motor", localServices)};
+inline constexpr ts::testing::V30Model v30Model{v30Fields, v30Commands, v30Services};
 } // namespace fixture
 
 #endif // TELEMETRY_TESTS_STRUCTURED_ENDPOINTS_MIXEDFIXTURE_HPP

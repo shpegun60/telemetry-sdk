@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <array>
 #include <cstddef>
@@ -48,14 +49,20 @@ inline constexpr ts::ServiceTable local{
     ts::service<&Device::readCalibration>("ReadCalibration", device),
     ts::service<&Device::readCalibration>("LateRead", ownerSlot)};
 
-inline constexpr ts::ServiceCatalogTable services{ts::group("calibration", local)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, services};
+// The device: one group of two Services, the second behind an owner slot.
+inline constexpr ts::Model model{
+    ts::group("calibration", ts::service<&Device::readCalibration>("ReadCalibration", device),
+              ts::service<&Device::readCalibration>("LateRead", ownerSlot))};
+inline constexpr auto readCalibration = ts::endpoint<model, "calibration/ReadCalibration">;
 
-// decltype on the inline constexpr empty markers retains const. Explicit
-// Model arguments must support those same live objects as deduction does.
+// The catalog engine under the tree, through the testing header: decltype on
+// the inline constexpr empty markers retains const, and explicit Model
+// arguments must support those same live objects as deduction does.
+namespace v30 = ts::testing;
+inline constexpr v30::ServiceCatalogTable services{v30::group("calibration", local)};
 using ConstEmptyModel =
-    ts::Model<decltype(ts::emptyFields), decltype(ts::emptyCommands), decltype(services)>;
-inline constexpr ConstEmptyModel constEmptyModel{ts::emptyFields, ts::emptyCommands, services};
+    v30::V30Model<decltype(v30::emptyFields), decltype(v30::emptyCommands), decltype(services)>;
+inline constexpr ConstEmptyModel constEmptyModel{v30::emptyFields, v30::emptyCommands, services};
 inline constexpr auto constEmptyView = constEmptyModel.view();
 static_assert(constEmptyModel.fieldIndex().count() == 0);
 static_assert(constEmptyModel.commandIndex().count() == 0);
@@ -64,7 +71,7 @@ static_assert(constEmptyView.fields.count() == 0 && constEmptyView.fieldTypes ==
 static_assert(constEmptyView.commands.count() == 0 && constEmptyView.commandTypes == nullptr &&
               constEmptyView.commandCatalogCount == 0);
 static_assert(constEmptyView.serviceCatalogCount == services.size());
-static_assert(constEmptyView.serviceTypeIds(telemetry::makeId<0, 0>())->requestTypeId ==
+static_assert(constEmptyView.serviceTypeIds(readCalibration.id)->requestTypeId ==
               model.typeId<ReadCalibrationRequest>());
 static_assert(constEmptyModel.maxScratch() == model.maxScratch());
 
@@ -80,20 +87,18 @@ ts::CommandResult execute() noexcept
 
 inline constexpr ts::FieldTable constLocalFields{ts::field<&readValue>("Value")};
 inline constexpr ts::CommandTable constLocalCommands{ts::command<&execute>("Execute")};
-inline constexpr ts::FieldCatalogTable constFields{ts::group("fields", constLocalFields)};
-inline constexpr ts::CommandCatalogTable constCommands{ts::group("commands", constLocalCommands)};
+inline constexpr v30::FieldCatalogTable constFields{v30::group("fields", constLocalFields)};
+inline constexpr v30::CommandCatalogTable constCommands{v30::group("commands", constLocalCommands)};
 using ConstFullModel =
-    ts::Model<decltype(constFields), decltype(constCommands), decltype(services)>;
+    v30::V30Model<decltype(constFields), decltype(constCommands), decltype(services)>;
 inline constexpr ConstFullModel constFullModel{constFields, constCommands, services};
 inline constexpr auto constFullView = constFullModel.view();
 static_assert(constFullView.fields.count() == 1 && constFullView.fieldCatalogCount == 1);
 static_assert(constFullView.commands.count() == 1 && constFullView.commandCatalogCount == 1);
 static_assert(constFullView.serviceCatalogCount == services.size());
-static_assert(constFullView.fieldTypeId(telemetry::makeId<0, 0>()) ==
-              constFullModel.typeId<std::uint32_t>());
-static_assert(constFullView.commandTypeId(telemetry::makeId<0, 0>()) ==
-              constFullModel.typeId<void>());
-static_assert(constFullView.serviceTypeIds(telemetry::makeId<0, 0>())->responseTypeId ==
+static_assert(constFullView.fieldTypeId(0u) == constFullModel.typeId<std::uint32_t>());
+static_assert(constFullView.commandTypeId(0u) == constFullModel.typeId<void>());
+static_assert(constFullView.serviceTypeIds(0u)->responseTypeId ==
               constFullModel.typeId<ReadCalibrationResponse>());
 static_assert(constFullModel.maxFieldWireSize() == sizeof(std::uint32_t));
 
@@ -105,6 +110,9 @@ static_assert(model.template typeId<ReadCalibrationRequest>() !=
 static_assert(model.maxServiceResponseWireSize() == 5);
 static_assert(!std::is_copy_constructible_v<decltype(local)>);
 static_assert(!std::is_move_constructible_v<decltype(services)>);
+static_assert(!std::is_copy_constructible_v<decltype(model)>);
+// A tree has a row per group in every family; this one holds Services only.
+static_assert(model.view().fieldCatalogCount == 1 && model.fieldIndex().find(0u) == nullptr);
 
 } // namespace probe
 
@@ -112,14 +120,17 @@ int main()
 {
 	using Request = probe::ReadCalibrationRequest;
 	using Response = probe::ReadCalibrationResponse;
-	constexpr auto id = telemetry::makeId<0, 0>();
-	constexpr auto slotId = telemetry::makeId<0, 1>();
+	constexpr auto id = probe::readCalibration.id;
+	constexpr auto slotId = ts::idOf<probe::model, "calibration/LateRead">();
 	const Request request{7, true};
 
 	auto local = probe::local.call<0>(request);
-	auto global = probe::services.call<id>(request);
-	if (local.value().scale != 107 || global.value().scale != 107 || probe::calls != 2)
+	auto byHandle = probe::readCalibration.call(request);
+	auto byPath = ts::call<probe::model, "calibration/ReadCalibration">(request);
+	if (local.value().scale != 107 || byHandle.value().scale != 107 ||
+	    byPath.value().scale != 107 || probe::calls != 3)
 		return 1;
+	probe::calls = 2;
 
 	std::array<std::byte, ts::wireSize<Request>> input{};
 	std::array<std::byte, ts::wireSize<Response>> output{};

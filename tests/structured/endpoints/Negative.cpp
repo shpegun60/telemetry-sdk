@@ -108,11 +108,11 @@ auto invalid = ts::command<&Owner::call, const Owner>("bad", {});
 #elif CASE == 17
 auto invalid = mixedFields.read<8>();
 #elif CASE == 18
-auto invalid = fields.read<telemetry::makeId<1, 0>()>();
+auto invalid = v30Fields.read<ts::detail::makeId<1, 0>()>();
 #elif CASE == 19
 auto invalid = localCommands.call<2>();
 #elif CASE == 20
-auto invalid = commands.call<telemetry::makeId<1, 0>()>();
+auto invalid = v30Commands.call<ts::detail::makeId<1, 0>()>();
 #elif CASE == 21
 auto invalid = mixedFields.write<7>(12.0f);
 #elif CASE == 22
@@ -120,13 +120,13 @@ auto invalid = localCommands.call<0>(12.0f);
 #elif CASE == 23
 auto invalid = mixedFields;
 #elif CASE == 24
-auto invalid = commands;
+auto invalid = model;
 #elif CASE == 25
-auto invalid = ts::group("bad", ts::FieldTable{ts::field<&get>("f")});
+auto invalid = ts::testing::group("bad", ts::FieldTable{ts::field<&get>("f")});
 #elif CASE == 26
-auto invalid = ts::FieldCatalogTable{ts::group("bad", localCommands)};
+auto invalid = ts::testing::FieldCatalogTable{ts::testing::group("bad", localCommands)};
 #elif CASE == 27
-auto invalid = fields.read<Position::Config>();
+auto invalid = v30Fields.read<Position::Config>();
 #elif CASE == 28
 auto invalid = ts::field("bad", "V", &get);
 #elif CASE == 29
@@ -143,22 +143,26 @@ auto invalid = ts::command<static_cast<CR (*)() noexcept>(nullptr)>("bad");
 #elif CASE == 33
 auto invalid = ts::field<&Owner::read, &Owner::write, const Owner>("bad", {Owner{}});
 #elif CASE == 34
-auto invalid = ts::Model{fields, commands, ts::ServiceCatalogTable{}};
+auto invalid = ts::testing::V30Model{v30Fields, v30Commands, ts::testing::ServiceCatalogTable{}};
 #elif CASE == 35
 auto invalid = model.fieldIndex().find<std::uint16_t>(65537);
 #elif CASE == 36
 auto invalid = model.commandIndex().executeEncoded<std::uint16_t>(
     65537, {}, *static_cast<ts::Workspace*>(nullptr));
 #elif CASE == 37
-auto invalid = ts::group<const ts::FieldTable<>>("bad", ts::FieldTable<>{});
+auto invalid = ts::testing::group<const ts::FieldTable<>>("bad", ts::FieldTable<>{});
 #elif CASE == 38
-auto invalid = ts::group<const ts::CommandTable<>>("bad", {ts::CommandTable<>{}});
+auto invalid = ts::testing::group<const ts::CommandTable<>>("bad", {ts::CommandTable<>{}});
 #elif CASE == 39
-ts::Model<ts::FieldCatalogTable<>, ts::CommandCatalogTable<>, ts::ServiceCatalogTable<>> invalid{
-    {ts::FieldCatalogTable<>{}}, {ts::CommandCatalogTable<>{}}, {ts::ServiceCatalogTable<>{}}};
+ts::testing::V30Model<ts::testing::FieldCatalogTable<>, ts::testing::CommandCatalogTable<>,
+                      ts::testing::ServiceCatalogTable<>>
+    invalid{{ts::testing::FieldCatalogTable<>{}},
+            {ts::testing::CommandCatalogTable<>{}},
+            {ts::testing::ServiceCatalogTable<>{}}};
 #elif CASE == 40
-ts::Model<ts::EmptyEndpointCatalog, ts::EmptyEndpointCatalog, std::remove_cv_t<decltype(services)>>
-    invalid{{}, ts::emptyCommands, services};
+ts::testing::V30Model<ts::testing::EmptyEndpointCatalog, ts::testing::EmptyEndpointCatalog,
+                      std::remove_cv_t<decltype(v30Services)>>
+    invalid{{}, ts::testing::emptyCommands, v30Services};
 #else
 #error Select a negative case
 #endif

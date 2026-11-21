@@ -16,8 +16,8 @@ telemetry::WriteResult missingSet(std::uint32_t) noexcept __attribute__((weak));
 telemetry::CommandResult missingCall(const Request&) noexcept __attribute__((weak));
 inline constexpr ts::FieldTable fields{ts::field<&missingGet, &missingSet>("missing")};
 inline constexpr ts::CommandTable commands{ts::command<&missingCall>("missing")};
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group("test", fields)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group("test", commands)};
+inline constexpr ts::Model model{ts::group("test", ts::field<&missingGet, &missingSet>("missing"),
+                                           ts::command<&missingCall>("call"))};
 
 int main()
 {
@@ -28,12 +28,14 @@ int main()
 	std::array<std::byte, 64> scratch{};
 	std::array<std::byte, 4> bytes{};
 	ts::Workspace workspace{scratch};
-	if (fieldCatalogs.index().readEncoded(0, bytes, workspace).dispatch !=
+	if (model.fieldIndex().readEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::Unavailable ||
-	    fieldCatalogs.index().writeEncoded(0, bytes, workspace).dispatch !=
+	    model.fieldIndex().writeEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::Unavailable ||
-	    commandCatalogs.index().executeEncoded(0, bytes, workspace).dispatch !=
-	        ts::DispatchStatus::Unavailable)
+	    model.commandIndex().executeEncoded(0, bytes, workspace).dispatch !=
+	        ts::DispatchStatus::Unavailable ||
+	    ts::read<model, "test/missing">() ||
+	    ts::call<model, "test/call">(Request{}) != telemetry::CommandResult::Unavailable)
 		return 2;
 	return 0;
 }

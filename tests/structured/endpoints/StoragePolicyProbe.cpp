@@ -52,10 +52,10 @@ int checkValue()
 	Device<Bytes> device;
 	ts::FieldTable fields{ts::field<&Device<Bytes>::read, &Device<Bytes>::write>("Value", device)};
 	ts::CommandTable commands{ts::command<&Device<Bytes>::command>("Set", device)};
-	ts::FieldCatalogTable fieldCatalogs{ts::group("fields", fields)};
-	ts::CommandCatalogTable commandCatalogs{ts::group("commands", commands)};
-	ts::ServiceCatalogTable services{};
-	ts::Model model{fieldCatalogs, commandCatalogs, services};
+	// The same endpoints in one group of a runtime tree: both IDs are 0.
+	ts::Model model{
+	    ts::group("device", ts::field<&Device<Bytes>::read, &Device<Bytes>::write>("Value", device),
+	              ts::command<&Device<Bytes>::command>("Set", device))};
 	constexpr bool local = Bytes <= ts::maxLocalObjectBytes;
 	constexpr auto expectedScratch = local ? 0 : ts::scratchBytes<Value>;
 	if (fields.data()[0].readScratchBytes != expectedScratch ||
@@ -117,10 +117,8 @@ int checkService()
 	using Request = Payload<RequestBytes>;
 	using Result = ts::ServiceResult<Payload<ResponseBytes>>;
 	Responder<RequestBytes, ResponseBytes> owner;
-	ts::ServiceTable services{
-	    ts::service<&Responder<RequestBytes, ResponseBytes>::call>("Call", owner)};
-	ts::ServiceCatalogTable catalogs{ts::group("services", services)};
-	ts::Model model{ts::emptyFields, ts::emptyCommands, catalogs};
+	ts::Model model{ts::group(
+	    "services", ts::service<&Responder<RequestBytes, ResponseBytes>::call>("Call", owner))};
 
 	// The independent expectation uses the actual wrapper, not just Response.
 	constexpr bool requestLocal = sizeof(Request) <= ts::maxLocalObjectBytes;
@@ -170,14 +168,13 @@ telemetry::WriteResult writeAligned(const Aligned& value) noexcept
 
 int checkAlignment()
 {
-	ts::FieldTable fields{ts::field<&readAligned, &writeAligned>("Aligned")};
-	ts::FieldCatalogTable catalogs{ts::group("test", fields)};
+	ts::Model model{ts::group("test", ts::field<&readAligned, &writeAligned>("Aligned"))};
 	std::array<std::byte, 4> bytes{};
 	std::array<std::byte, ts::scratchBytes<Aligned> + 32> storage{};
 	for (std::size_t offset = 0; offset < 32; ++offset) {
 		ts::Workspace workspace{std::span{storage}.subspan(offset, ts::scratchBytes<Aligned>)};
-		const auto read = catalogs.index().readEncoded(0u, bytes, workspace);
-		const auto write = catalogs.index().writeEncoded(0u, bytes, workspace);
+		const auto read = model.fieldIndex().readEncoded(0u, bytes, workspace);
+		const auto write = model.fieldIndex().writeEncoded(0u, bytes, workspace);
 		if (read.dispatch != ts::DispatchStatus::Ok || write.dispatch != ts::DispatchStatus::Ok ||
 		    write.endpointStatus != telemetry::WriteResult::Applied || workspace.used() != 0)
 			return 9;

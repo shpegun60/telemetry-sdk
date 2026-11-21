@@ -19,16 +19,17 @@ inline Owner<Blob<4096>> kib4{};
 inline Owner<Blob<65536>> kib64{};
 inline ts::FunctionSlot<Config() noexcept> absentOwn;
 inline ts::FunctionSlot<const Config&() noexcept> absentBorrow;
-inline constexpr ts::FieldTable ownTable{
-    ts::field<&Owner<Config>::own, &Owner<Config>::set>("Config", config),
-    ts::field<&Owner<Blob<4096>>::own, &Owner<Blob<4096>>::set>("Kib4", kib4),
-    ts::field<&Owner<Blob<65536>>::own, &Owner<Blob<65536>>::set>("Kib64", kib64),
-    ts::field("Absent", absentOwn)};
-inline constexpr ts::FieldTable borrowTable{
-    ts::field<&Owner<Config>::get, &Owner<Config>::set>("Config", config),
-    ts::field<&Owner<Blob<4096>>::get, &Owner<Blob<4096>>::set>("Kib4", kib4),
-    ts::field<&Owner<Blob<65536>>::get, &Owner<Blob<65536>>::set>("Kib64", kib64),
-    ts::field("Absent", absentBorrow)};
+// Owning and borrowing getters of the same Fields, as group expressions.
+inline constexpr auto ownFields =
+    ts::group("fields", ts::field<&Owner<Config>::own, &Owner<Config>::set>("Config", config),
+              ts::field<&Owner<Blob<4096>>::own, &Owner<Blob<4096>>::set>("Kib4", kib4),
+              ts::field<&Owner<Blob<65536>>::own, &Owner<Blob<65536>>::set>("Kib64", kib64),
+              ts::field("Absent", absentOwn));
+inline constexpr auto borrowFields =
+    ts::group("fields", ts::field<&Owner<Config>::get, &Owner<Config>::set>("Config", config),
+              ts::field<&Owner<Blob<4096>>::get, &Owner<Blob<4096>>::set>("Kib4", kib4),
+              ts::field<&Owner<Blob<65536>>::get, &Owner<Blob<65536>>::set>("Kib64", kib64),
+              ts::field("Absent", absentBorrow));
 
 inline ts::ServiceResult<Config> ownService(const Request&) noexcept
 {
@@ -45,17 +46,15 @@ inline ts::BorrowedServiceResult<Config> wrappedService(const Request&) noexcept
 	return ts::BorrowedServiceResult<Config>::success(config.value);
 }
 
-inline constexpr ts::ServiceTable ownServices{ts::service<&ownService>("Read")};
-inline constexpr ts::ServiceTable borrowServices{ts::service<&borrowService>("Read")};
-inline constexpr ts::ServiceTable wrappedServices{ts::service<&wrappedService>("Read")};
-inline constexpr ts::FieldCatalogTable ownFields{ts::group("fields", ownTable)};
-inline constexpr ts::FieldCatalogTable borrowFields{ts::group("fields", borrowTable)};
-inline constexpr ts::ServiceCatalogTable ownCatalogs{ts::group("services", ownServices)};
-inline constexpr ts::ServiceCatalogTable borrowCatalogs{ts::group("services", borrowServices)};
-inline constexpr ts::ServiceCatalogTable wrappedCatalogs{ts::group("services", wrappedServices)};
-inline constexpr ts::Model ownModel{ownFields, ts::emptyCommands, ownCatalogs};
-inline constexpr ts::Model borrowModel{borrowFields, ts::emptyCommands, borrowCatalogs};
-inline constexpr ts::Model wrappedModel{borrowFields, ts::emptyCommands, wrappedCatalogs};
+inline constexpr ts::Model ownModel{ownFields,
+                                    ts::group("services", ts::service<&ownService>("Read"))};
+inline constexpr ts::Model borrowModel{borrowFields,
+                                       ts::group("services", ts::service<&borrowService>("Read"))};
+inline constexpr ts::Model wrappedModel{
+    borrowFields, ts::group("services", ts::service<&wrappedService>("Read"))};
+// The Service sits in the second group: its ID is 1:0 in every model.
+inline constexpr auto readId = ts::idOf<ownModel, "services/Read">();
+static_assert(readId == ts::idOf<wrappedModel, "services/Read">() && readId == 0x00010000u);
 inline constexpr ::telemetry::descriptor::Descriptor ownDescriptor{ownModel};
 inline constexpr ::telemetry::descriptor::Descriptor borrowDescriptor{borrowModel};
 inline constexpr ::telemetry::descriptor::Descriptor wrappedDescriptor{wrappedModel};
@@ -105,14 +104,14 @@ int main(int argc, char** argv)
 	check(ownModel.typeId<Config>() == borrowModel.typeId<Config>() &&
 	      ownModel.typeId<Blob<4096>>() == borrowModel.typeId<Blob<4096>>() &&
 	      ownModel.typeId<Blob<65536>>() == borrowModel.typeId<Blob<65536>>());
-	check(ownModel.view().serviceTypeIds(0u)->requestTypeId ==
-	          borrowModel.view().serviceTypeIds(0u)->requestTypeId &&
-	      ownModel.view().serviceTypeIds(0u)->responseTypeId ==
-	          borrowModel.view().serviceTypeIds(0u)->responseTypeId &&
-	      ownModel.view().serviceTypeIds(0u)->requestTypeId ==
-	          wrappedModel.view().serviceTypeIds(0u)->requestTypeId &&
-	      ownModel.view().serviceTypeIds(0u)->responseTypeId ==
-	          wrappedModel.view().serviceTypeIds(0u)->responseTypeId);
+	check(ownModel.view().serviceTypeIds(readId)->requestTypeId ==
+	          borrowModel.view().serviceTypeIds(readId)->requestTypeId &&
+	      ownModel.view().serviceTypeIds(readId)->responseTypeId ==
+	          borrowModel.view().serviceTypeIds(readId)->responseTypeId &&
+	      ownModel.view().serviceTypeIds(readId)->requestTypeId ==
+	          wrappedModel.view().serviceTypeIds(readId)->requestTypeId &&
+	      ownModel.view().serviceTypeIds(readId)->responseTypeId ==
+	          wrappedModel.view().serviceTypeIds(readId)->responseTypeId);
 	check(ownDescriptor.valid() && borrowDescriptor.valid() &&
 	      ownDescriptor.size() == borrowDescriptor.size() &&
 	      ownDescriptor.fingerprint() == borrowDescriptor.fingerprint() &&
@@ -184,11 +183,11 @@ int main(int argc, char** argv)
 	std::array<std::byte, 64> requestScratch{};
 	ts::Workspace serviceWorkspace{requestScratch};
 	const auto service =
-	    ts::callServiceEncoded(borrowModel.view(), 0u, input, adapterOutput, serviceWorkspace);
+	    ts::callServiceEncoded(borrowModel.view(), readId, input, adapterOutput, serviceWorkspace);
 	check(service.dispatch == DS::Ok && service.endpointStatus == SS::Ok && service.written == 5 &&
 	      configBytes(adapterOutput, config.value) && serviceWorkspace.used() == 0);
 	const auto wrappedService =
-	    ts::callServiceEncoded(wrappedModel.view(), 0u, input, adapterOutput, serviceWorkspace);
+	    ts::callServiceEncoded(wrappedModel.view(), readId, input, adapterOutput, serviceWorkspace);
 	check(wrappedService.dispatch == DS::Ok && wrappedService.endpointStatus == SS::Ok &&
 	      wrappedService.written == 5 && configBytes(adapterOutput, config.value) &&
 	      serviceWorkspace.used() == 0);

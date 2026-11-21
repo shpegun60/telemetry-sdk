@@ -61,12 +61,11 @@ inline telemetry::ContextFunctionSlot<Response(const Request&) noexcept> context
 inline telemetry::DelegateRefSlot<Response(const Request&) noexcept> reference;
 inline telemetry::DelegateSlot<Response(const Request&) noexcept> value;
 
-inline constexpr ts::ServiceTable table{
-    ts::service<&Device::read>("Owner", owner), ts::service("Function", function),
-    ts::service("Context", context), ts::service("Reference", reference),
-    ts::service("Value", value)};
-inline constexpr ts::ServiceCatalogTable catalogs{ts::group("slots", table)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, catalogs};
+// One group of Services, each bound through a different slot form.
+inline constexpr ts::Model model{
+    ts::group("slots", ts::service<&Device::read>("Owner", owner),
+              ts::service("Function", function), ts::service("Context", context),
+              ts::service("Reference", reference), ts::service("Value", value))};
 
 } // namespace slots
 
@@ -80,7 +79,7 @@ int main()
 
 	for (std::uint16_t i = 0; i < 5; ++i) {
 		const auto result =
-		    index.callEncoded(telemetry::makeId(0, i), request, response, workspace);
+		    index.callEncoded(ts::detail::makeId(0, i), request, response, workspace);
 		if (result.dispatch != ts::DispatchStatus::Unavailable || slots::calls != 0)
 			return 1;
 	}
@@ -98,7 +97,7 @@ int main()
 
 	for (std::uint16_t i = 0; i < 5; ++i) {
 		const auto result =
-		    index.callEncoded(telemetry::makeId(0, i), request, response, workspace);
+		    index.callEncoded(ts::detail::makeId(0, i), request, response, workspace);
 		const std::byte expected = i == 1 ? std::byte{4} : std::byte{13};
 		if (result.dispatch != ts::DispatchStatus::Ok ||
 		    result.endpointStatus != ts::ServiceStatus::Ok || result.written != 1 ||
@@ -107,8 +106,8 @@ int main()
 	}
 
 	slots::function.bind(&slots::alternate);
-	if (index.callEncoded(telemetry::makeId<0, 1>(), request, response, workspace).dispatch !=
-	        ts::DispatchStatus::Ok ||
+	if (index.callEncoded(ts::idOf<slots::model, "slots/Function">(), request, response, workspace)
+	            .dispatch != ts::DispatchStatus::Ok ||
 	    response[0] != std::byte{5} || slots::calls != 6)
 		return 3;
 
@@ -118,7 +117,7 @@ int main()
 	slots::reference.reset();
 	slots::value.reset();
 	for (std::uint16_t i = 0; i < 5; ++i) {
-		if (index.callEncoded(telemetry::makeId(0, i), request, response, workspace).dispatch !=
+		if (index.callEncoded(ts::detail::makeId(0, i), request, response, workspace).dispatch !=
 		        ts::DispatchStatus::Unavailable ||
 		    slots::calls != 6)
 			return 4;

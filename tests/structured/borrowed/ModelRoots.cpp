@@ -6,13 +6,11 @@ using namespace borrowed_fixture;
 namespace model_roots_fixture {
 inline Owner<Blob<4096>> kib4{};
 inline Owner<Blob<65536>> kib64{};
-inline constexpr ts::FieldTable fields{ts::field<&Owner<Blob<4096>>::get>("Kib4", kib4),
-                                       ts::field<&Owner<Blob<65536>>::get>("Kib64", kib64)};
-inline constexpr ts::ServiceTable services{ts::service<&Owner<Blob<4096>>::get>("Kib4", kib4),
-                                           ts::service<&Owner<Blob<65536>>::get>("Kib64", kib64)};
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group("fields", fields)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("services", services)};
-inline constexpr ts::Model model{fieldCatalogs, ts::emptyCommands, serviceCatalogs};
+inline constexpr ts::Model model{
+    ts::group("fields", ts::field<&Owner<Blob<4096>>::get>("Kib4", kib4),
+              ts::field<&Owner<Blob<65536>>::get>("Kib64", kib64)),
+    ts::group("services", ts::service<&Owner<Blob<4096>>::get>("Kib4", kib4),
+              ts::service<&Owner<Blob<65536>>::get>("Kib64", kib64))};
 } // namespace model_roots_fixture
 
 // The adapter accepts ModelView by value. These wrappers intentionally retain

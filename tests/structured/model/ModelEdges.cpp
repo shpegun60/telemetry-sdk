@@ -88,10 +88,12 @@ inline constexpr ts::ServiceTable first{
     ts::service<&acknowledge>("Acknowledge"), ts::ServiceDefinition{"Snapshot", SnapshotBinding{}},
     ts::service<&give>("Give")};
 
-inline constexpr ts::ServiceTable second{ts::service<&answer>("OtherAnswer")};
-inline constexpr ts::ServiceCatalogTable catalogs{ts::group("first", first),
-                                                  ts::group("second", second)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, catalogs};
+// Two groups of Services: first holds five, second one.
+inline constexpr ts::Model model{
+    ts::group("first", ts::service<&answer>("Answer"), ts::service<&reset>("Reset"),
+              ts::service<&acknowledge>("Acknowledge"),
+              ts::ServiceDefinition{"Snapshot", SnapshotBinding{}}, ts::service<&give>("Give")),
+    ts::group("second", ts::service<&answer>("OtherAnswer"))};
 
 static_assert(model.typeId<void>() == 0);
 static_assert(model.types().count == 14);
@@ -105,16 +107,17 @@ static_assert(ts::maxLocalObjectBytes < sizeof(Request) + sizeof(ts::ServiceResu
 
 int main()
 {
-	constexpr auto answerId = telemetry::makeId<0, 0>();
-	constexpr auto resetId = telemetry::makeId<0, 1>();
-	constexpr auto acknowledgeId = telemetry::makeId<0, 2>();
-	constexpr auto snapshotId = telemetry::makeId<0, 3>();
-	constexpr auto giveId = telemetry::makeId<0, 4>();
-	constexpr auto otherId = telemetry::makeId<1, 0>();
+	constexpr auto answerId = ts::idOf<edge::model, "first/Answer">();
+	constexpr auto resetId = ts::idOf<edge::model, "first/Reset">();
+	constexpr auto acknowledgeId = ts::idOf<edge::model, "first/Acknowledge">();
+	constexpr auto snapshotId = ts::idOf<edge::model, "first/Snapshot">();
+	constexpr auto giveId = ts::idOf<edge::model, "first/Give">();
+	constexpr auto otherId = ts::idOf<edge::model, "second/OtherAnswer">();
+	static_assert(giveId == 4 && otherId == 0x00010000u);
 
 	if (edge::first.call<edge::Local::Answer>(edge::Request{2}).value().value != 102)
 		return 1;
-	if (edge::catalogs.call<otherId>(edge::Request{2}).value().value != 102)
+	if (ts::call<edge::model, "second/OtherAnswer">(edge::Request{2}).value().value != 102)
 		return 2;
 
 	std::array<std::byte, 1> request{std::byte{0}};
@@ -166,8 +169,8 @@ int main()
 	    edge::calls != beforeBad + 5 || output[0] != std::byte{42})
 		return 15;
 
-	if (index.find(telemetry::makeId<2, 0>()) != nullptr ||
-	    index.find(telemetry::makeId<0, 5>()) != nullptr || index.find(-1) != nullptr ||
+	if (index.find(ts::detail::makeId(2, 0)) != nullptr ||
+	    index.find(ts::detail::makeId(0, 5)) != nullptr || index.find(-1) != nullptr ||
 	    index.find(std::uint64_t{0x100000000ULL}) != nullptr)
 		return 10;
 	if (edge::model.view().serviceTypeIds(otherId)->requestTypeId !=

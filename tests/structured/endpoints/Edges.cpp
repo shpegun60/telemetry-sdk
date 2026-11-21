@@ -1,6 +1,6 @@
 /*
  * @file Edges.cpp
- * @brief Empty catalogs, u32 routing, buffer aliasing and exact input sizes.
+ * @brief Empty groups, u32 routing, buffer aliasing and exact input sizes.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  */
@@ -8,21 +8,20 @@
 namespace ts = telemetry;
 using namespace fixture;
 
-inline constexpr ts::FieldTable emptyFieldTable{};
-inline constexpr ts::CommandTable emptyCommandTable{};
-inline constexpr ts::FieldCatalogTable emptyFields{};
-inline constexpr ts::CommandCatalogTable emptyCommands{};
-inline constexpr ts::ServiceCatalogTable emptyServices{};
-inline constexpr ts::Model emptyModel{emptyFields, emptyCommands, emptyServices};
+// A tree of one empty group holds no endpoint of any family.
+inline constexpr ts::Model emptyModel{ts::group("empty")};
 static_assert(emptyModel.maxScratch() == 0);
 static_assert(!emptyModel.fieldIndex().find(0) && !emptyModel.commandIndex().find(0));
-inline constexpr ts::FieldCatalogTable groupedFields{ts::group("empty", emptyFieldTable),
-                                                     ts::group("meter", mixedFields)};
-inline constexpr ts::CommandCatalogTable groupedCommands{ts::group("empty", emptyCommandTable),
-                                                         ts::group("meter", localCommands)};
-inline constexpr ts::Model grouped{groupedFields, groupedCommands, services};
-static_assert(grouped.view().fieldTypeId(telemetry::makeId<1, 7>()) == model.typeId<MotorConfig>());
-static_assert(grouped.view().commandTypeId(telemetry::makeId<1, 0>()) ==
+// An empty group first moves meter's endpoints to group 1 in every family.
+inline constexpr ts::Model grouped{
+    ts::group("empty"),
+    ts::group("meter", enabledField, rpmField, temperatureField, preciseField, modeField,
+              samplesField, stateField, configField, configureCommand, resetCommand, echoService)};
+static_assert(ts::idOf<grouped, "meter/Config">() == 0x00010007u &&
+              ts::idOf<grouped, "meter/Configure">() == 0x00010000u);
+static_assert(grouped.view().fieldTypeId(ts::idOf<grouped, "meter/Config">()) ==
+              model.typeId<MotorConfig>());
+static_assert(grouped.view().commandTypeId(ts::idOf<grouped, "meter/Configure">()) ==
               model.typeId<MotorConfig>());
 
 int main()
@@ -32,8 +31,8 @@ int main()
 	ts::Workspace workspace{storage};
 	const auto f = grouped.fieldIndex();
 	const auto c = grouped.commandIndex();
-	constexpr auto fieldId = telemetry::makeId<1, 7>();
-	constexpr auto commandId = telemetry::makeId<1, 0>();
+	constexpr auto fieldId = ts::idOf<grouped, "meter/Config">();
+	constexpr auto commandId = ts::idOf<grouped, "meter/Configure">();
 	const auto unchanged = [] {
 		return device.reads + device.writes + device.commands == 0;
 	};
@@ -94,10 +93,10 @@ int main()
 	        telemetry::WriteResult::Applied ||
 	    c.executeEncoded(commandId, std::span{input}.first(7), workspace).endpointStatus !=
 	        telemetry::CommandResult::Executed ||
-	    groupedFields.read<fieldId>()->rpm != 19 || workspace.used() != 0)
+	    ts::read<grouped, "meter/Config.rpm">() != std::uint16_t{19} || workspace.used() != 0)
 		return 9;
 	ts::Workspace noStorage{std::span<std::byte>{}};
-	if (c.executeEncoded(telemetry::makeId<1, 1>(), {}, noStorage).dispatch !=
+	if (c.executeEncoded(ts::idOf<grouped, "meter/Reset">(), {}, noStorage).dispatch !=
 	    ts::DispatchStatus::Ok)
 		return 10;
 	return 0;

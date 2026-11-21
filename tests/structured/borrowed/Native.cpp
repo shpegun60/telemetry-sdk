@@ -31,10 +31,9 @@ void fieldType(T initial, T alternate)
 	auto view = definition.read();
 	check(view && view.valueOrNull() == std::addressof(owner.value) && view.value() == initial);
 	ts::FieldTable table{definition};
-	ts::FieldCatalogTable catalogs{ts::group("group", table)};
+	ts::Model model{ts::group("group", definition)};
 	check(table.template read<0>().valueOrNull() == std::addressof(owner.value) &&
-	      catalogs.template read<ts::makeId<0, 0>()>().valueOrNull() ==
-	          std::addressof(owner.value));
+	      model.fields().template readBorrowed<T>(0u).valueOrNull() == std::addressof(owner.value));
 	auto copied = definition.template readAs<T>();
 	static_assert(std::same_as<decltype(copied), std::optional<T>>);
 	owner.value = alternate;
@@ -232,9 +231,9 @@ int main()
 	      byValueField.read().valueOrNull() == std::addressof(byValue.value) &&
 	      byValue.value == Config{23, false});
 	ts::FieldTable byValueTable{byValueField};
-	ts::FieldCatalogTable byValueCatalogs{ts::group("values", byValueTable)};
+	ts::Model byValueModel{ts::group("values", byValueField)};
 	auto tableCopy = byValueTable.readAs<Config>(0u);
-	auto catalogCopy = byValueCatalogs.readAs<Config>(0u);
+	auto catalogCopy = byValueModel.fields().readAs<Config>(0u);
 	byValue.value = {31, true};
 	check(tableCopy && catalogCopy && *tableCopy == Config{23, false} &&
 	      *catalogCopy == Config{23, false} && byValueTable.read<0>().value() == Config{31, true});

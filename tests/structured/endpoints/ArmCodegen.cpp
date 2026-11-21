@@ -1,6 +1,6 @@
 /*
  * @file ArmCodegen.cpp
- * @brief Direct/local/global native codegen and actual runtime entry layouts.
+ * @brief Direct/local/handle/path native codegen and actual runtime entry layouts.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  */
@@ -13,7 +13,7 @@ struct Request {
 	std::uint32_t value;
 };
 
-// Counted native owner supplies direct, local-table and global-catalog ARM roots.
+// Counted native owner supplies direct, local-table, handle and path ARM roots.
 // API: get(), set(), call().
 struct Device {
 	std::uint32_t value = 9;
@@ -39,8 +39,11 @@ struct Device {
 Device device;
 inline constexpr ts::FieldTable fields{ts::field<&Device::get, &Device::set>("value", device)};
 inline constexpr ts::CommandTable commands{ts::command<&Device::call>("set", device)};
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group("test", fields)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group("test", commands)};
+inline constexpr ts::Model model{ts::group("test",
+                                           ts::field<&Device::get, &Device::set>("value", device),
+                                           ts::command<&Device::call>("set", device))};
+inline constexpr auto value = ts::endpoint<model, "test/value">;
+inline constexpr auto set = ts::endpoint<model, "test/set">;
 } // namespace probe
 
 #define PROBE extern "C" __attribute__((noinline))
@@ -55,9 +58,14 @@ PROBE std::optional<std::uint32_t> read_local() noexcept
 	return probe::fields.read<0>();
 }
 
-PROBE std::optional<std::uint32_t> read_global() noexcept
+PROBE std::optional<std::uint32_t> read_handle() noexcept
 {
-	return probe::fieldCatalogs.read<0>();
+	return probe::value.read();
+}
+
+PROBE std::optional<std::uint32_t> read_path() noexcept
+{
+	return ts::read<probe::model, "test/value">();
 }
 
 PROBE telemetry::WriteResult write_direct(std::uint32_t value) noexcept
@@ -70,9 +78,14 @@ PROBE telemetry::WriteResult write_local(std::uint32_t value) noexcept
 	return probe::fields.write<0>(value);
 }
 
-PROBE telemetry::WriteResult write_global(std::uint32_t value) noexcept
+PROBE telemetry::WriteResult write_handle(std::uint32_t value) noexcept
 {
-	return probe::fieldCatalogs.write<0>(value);
+	return probe::value.write(value);
+}
+
+PROBE telemetry::WriteResult write_path(std::uint32_t value) noexcept
+{
+	return ts::write<probe::model, "test/value">(value);
 }
 
 PROBE telemetry::CommandResult command_direct(const probe::Request& value) noexcept
@@ -85,14 +98,19 @@ PROBE telemetry::CommandResult command_local(const probe::Request& value) noexce
 	return probe::commands.call<0>(value);
 }
 
-PROBE telemetry::CommandResult command_global(const probe::Request& value) noexcept
+PROBE telemetry::CommandResult command_handle(const probe::Request& value) noexcept
 {
-	return probe::commandCatalogs.call<0>(value);
+	return probe::set.call(value);
+}
+
+PROBE telemetry::CommandResult command_path(const probe::Request& value) noexcept
+{
+	return ts::call<probe::model, "test/set">(value);
 }
 
 // Return-type and data-shape differences must not reintroduce runtime type
 // switches when the position and binding are known to the compiler.
-#define MIXED_READ(label, index, method, Value)                                                    \
+#define MIXED_READ(label, index, path, method, Value)                                              \
 	PROBE std::optional<Value> label##_direct() noexcept                                           \
 	{                                                                                              \
 		return fixture::device.method();                                                           \
@@ -101,19 +119,23 @@ PROBE telemetry::CommandResult command_global(const probe::Request& value) noexc
 	{                                                                                              \
 		return fixture::mixedFields.read<index>();                                                 \
 	}                                                                                              \
-	PROBE std::optional<Value> label##_global() noexcept                                           \
+	PROBE std::optional<Value> label##_handle() noexcept                                           \
 	{                                                                                              \
-		return fixture::fields.read<index>();                                                      \
+		return ts::endpoint<fixture::model, path>.read();                                          \
+	}                                                                                              \
+	PROBE std::optional<Value> label##_path() noexcept                                             \
+	{                                                                                              \
+		return ts::read<fixture::model, path>();                                                   \
 	}
-MIXED_READ(boolean, 0, enabled, bool)
-MIXED_READ(u16, 1, rpm, std::uint16_t)
-MIXED_READ(f32, 2, temperature, float)
-MIXED_READ(f64, 3, precise, double)
-MIXED_READ(enumeration, 4, mode, fixture::Mode)
+MIXED_READ(boolean, 0, "motor/Enabled", enabled, bool)
+MIXED_READ(u16, 1, "motor/RPM", rpm, std::uint16_t)
+MIXED_READ(f32, 2, "motor/Temperature", temperature, float)
+MIXED_READ(f64, 3, "motor/Precise", precise, double)
+MIXED_READ(enumeration, 4, "motor/Mode", mode, fixture::Mode)
 using Samples = std::array<std::uint16_t, 3>;
-MIXED_READ(array, 5, samples, Samples)
-MIXED_READ(state, 6, state, fixture::State)
-MIXED_READ(config, 7, config, fixture::MotorConfig)
+MIXED_READ(array, 5, "motor/Samples", samples, Samples)
+MIXED_READ(state, 6, "motor/State", state, fixture::State)
+MIXED_READ(config, 7, "motor/Config", config, fixture::MotorConfig)
 
 #define ENTRY_LAYOUT(T, Context) sizeof(ts::T), alignof(ts::T), offsetof(ts::T, Context)
 extern "C" __attribute__((used, section(".rodata.endpoint_layout")))

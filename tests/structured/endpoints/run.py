@@ -145,13 +145,13 @@ def main():
                 for operation in ('read', 'write', 'command', 'boolean', 'u16', 'f32', 'f64',
                                   'enumeration', 'array', 'state', 'config'):
                     code = []
-                    for route in ('direct', 'local', 'global'):
+                    for route in ('direct', 'local', 'handle', 'path'):
                         symbol = operation+'_'+route
                         path = output / (opt+'-'+symbol+'.bin')
                         run([objcopy, '--dump-section', f'.text.{symbol}={path}', obj], 'bytes-'+opt+'-'+symbol)
                         code.append(path.read_bytes())
-                    if not code[0] or code[0] != code[1] or code[0] != code[2]:
-                        raise RuntimeError(f'{opt}: {operation} direct/local/global code differs')
+                    if not code[0] or any(code[0] != other for other in code[1:]):
+                        raise RuntimeError(f'{opt}: {operation} direct/local/handle/path code differs')
                     results[opt][operation+'_identical_bytes'] = len(code[0])
             usage = (output/(opt+'-LargeEndpoints.su')).read_text()
             frames = re.findall(r':static [^\n]*(?:FieldTable|CommandTable)[^\n]*::(?:readOne|writeOne|invokeOne)\([^\n]*\t(\d+)\tstatic', usage)
@@ -161,7 +161,7 @@ def main():
             print(opt, results[opt], flush=True)
         (output/'arm-results.json').write_text(json.dumps(results, indent=2)+'\n')
         sections = run([objdump, '-h', output/'O2-MixedProbe.o'], 'table-storage')
-        for name in ('mixedFields', 'localCommands', 'localServices'):
+        for name in ('mixedFields', 'localCommands', 'localServices', 'model'):
             if re.search(r'\.rodata\.[^\s]*'+name+r'E\b', sections) is None:
                 raise RuntimeError(name+' did not remain in read-only storage')
         if re.search(r'\.(?:init_array|preinit_array|ctors)\b', sections):

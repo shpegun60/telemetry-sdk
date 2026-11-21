@@ -36,7 +36,7 @@ telemetry::WriteResult set(T value) noexcept
 template<class T>
 inline constexpr ts::FieldTable rows{ts::field<&get<T>, &set<T>>("leaf")};
 template<class T>
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("test", rows<T>)};
+inline constexpr ts::Model model{ts::group("test", ts::field<&get<T>, &set<T>>("leaf"))};
 
 template<class T>
 bool check(T value)
@@ -52,7 +52,7 @@ bool check(T value)
 	                                                             : std::span{storage}};
 	if (ts::encode(value, bytes) != ts::CodecStatus::Ok)
 		return false;
-	auto index = catalogs<T>.index();
+	auto index = model<T>.fieldIndex();
 	auto written = index.writeEncoded(0, bytes, workspace);
 	if (written.dispatch != ts::DispatchStatus::Ok ||
 	    written.endpointStatus != telemetry::WriteResult::Applied || writes<T> != 1)
@@ -86,7 +86,8 @@ std::array<std::uint8_t, 1> getArray() noexcept
 
 inline constexpr ts::FieldTable composites{ts::field<&getOne>("one"),
                                            ts::field<&getArray>("array")};
-inline constexpr ts::FieldCatalogTable compositeCatalogs{ts::group("test", composites)};
+inline constexpr ts::Model compositeModel{
+    ts::group("test", ts::field<&getOne>("one"), ts::field<&getArray>("array"))};
 static_assert(composites.data()[0].readScratchBytes ==
               (ts::maxLocalObjectBytes ? 0 : ts::scratchBytes<One>));
 static_assert(composites.data()[1].readScratchBytes == composites.data()[0].readScratchBytes);
@@ -111,13 +112,13 @@ int main()
 	std::array<std::byte, 1> bytes{};
 	for (auto invalid : {2u, 255u}) {
 		bytes[0] = std::byte(invalid);
-		if (catalogs<bool>.index().writeEncoded(0, bytes, workspace).dispatch !=
+		if (model<bool>.fieldIndex().writeEncoded(0, bytes, workspace).dispatch !=
 		        ts::DispatchStatus::InvalidPayload ||
 		    writes<bool> != 1)
 			return 2;
 	}
 	for (unsigned index = 0; index != 2; ++index) {
-		if (compositeCatalogs.index().readEncoded(index, bytes, none).dispatch !=
+		if (compositeModel.fieldIndex().readEncoded(index, bytes, none).dispatch !=
 		    (ts::maxLocalObjectBytes ? ts::DispatchStatus::Ok
 		                             : ts::DispatchStatus::WorkspaceTooSmall))
 			return 3;

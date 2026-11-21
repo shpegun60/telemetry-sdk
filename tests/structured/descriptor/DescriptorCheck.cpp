@@ -86,10 +86,10 @@ int main(int argc, char** argv)
 	const ts::FieldTable originalFields{
 	    ts::field<&fixture::Device::config, &fixture::Device::setConfig>("Config",
 	                                                                     fixture::device)};
-	const ts::FieldCatalogTable a{ts::group("motor", otherFields)};
-	const ts::FieldCatalogTable b{ts::group("motor", originalFields)};
-	const ts::Model ma{a, ts::emptyCommands, df::noServices};
-	const ts::Model mb{b, ts::emptyCommands, df::noServices};
+	const ts::testing::FieldCatalogTable a{ts::testing::group("motor", otherFields)};
+	const ts::testing::FieldCatalogTable b{ts::testing::group("motor", originalFields)};
+	const ts::testing::V30Model ma{a, ts::testing::emptyCommands, df::noServices};
+	const ts::testing::V30Model mb{b, ts::testing::emptyCommands, df::noServices};
 	const ::telemetry::descriptor::Descriptor da{ma}, db{mb};
 	assert(da.fingerprint() == db.fingerprint() && readAll(da) == readAll(db));
 	assert(other.reads == 0);
@@ -107,15 +107,17 @@ int main(int argc, char** argv)
 	assert(df::calls == 0);
 
 	const ts::FieldTable ro{ts::field<&fixture::Device::config>("Config", fixture::device)};
-	const ts::FieldCatalogTable rc{ts::group("motor", ro)};
-	const ts::Model rm{rc, ts::emptyCommands, df::noServices};
+	const ts::testing::FieldCatalogTable rc{ts::testing::group("motor", ro)};
+	const ts::testing::V30Model rm{rc, ts::testing::emptyCommands, df::noServices};
 	const ::telemetry::descriptor::Descriptor rd{rm};
 	assert(rd.fingerprint() != da.fingerprint());
 
 	// Duplicate names are scoped to category/catalog. Runtime construction
 	// returns an invalid descriptor without publishing partially built data.
-	const ts::FieldCatalogTable duplicate{ts::group("same", ro), ts::group("same", otherFields)};
-	const ts::Model duplicateModel{duplicate, ts::emptyCommands, df::noServices};
+	const ts::testing::FieldCatalogTable duplicate{ts::testing::group("same", ro),
+	                                               ts::testing::group("same", otherFields)};
+	const ts::testing::V30Model duplicateModel{duplicate, ts::testing::emptyCommands,
+	                                           df::noServices};
 	const ::telemetry::descriptor::Descriptor invalid{duplicateModel};
 	assert(invalid.error() == ::telemetry::descriptor::DescriptorError::DuplicateName &&
 	       invalid.size() == 0 && invalid.fingerprint() == 0);
@@ -128,8 +130,9 @@ int main(int argc, char** argv)
 	// and remain immutable throughout each descriptor's lifetime.
 	char label[32] = "renamed";
 	const ts::FieldTable renamed{ts::field<&fixture::Device::config>(label, fixture::device)};
-	const ts::FieldCatalogTable renamedCatalogs{ts::group("motor", renamed)};
-	const ts::Model renamedModel{renamedCatalogs, ts::emptyCommands, df::noServices};
+	const ts::testing::FieldCatalogTable renamedCatalogs{ts::testing::group("motor", renamed)};
+	const ts::testing::V30Model renamedModel{renamedCatalogs, ts::testing::emptyCommands,
+	                                         df::noServices};
 	const ::telemetry::descriptor::Descriptor renamedDescriptor{renamedModel};
 	assert(renamedDescriptor.fingerprint() != rd.fingerprint());
 
@@ -137,8 +140,8 @@ int main(int argc, char** argv)
 	std::array<char, ts::Limits::maxStringBytes + 1> longName{};
 	std::fill(longName.begin(), longName.end() - 1, 'x');
 	const ts::FieldTable longRow{ts::field<&df::read<std::uint32_t>>(longName.data())};
-	const ts::FieldCatalogTable longCatalog{ts::group("long", longRow)};
-	const ts::Model longModel{longCatalog, ts::emptyCommands, df::noServices};
+	const ts::testing::FieldCatalogTable longCatalog{ts::testing::group("long", longRow)};
+	const ts::testing::V30Model longModel{longCatalog, ts::testing::emptyCommands, df::noServices};
 	const ::telemetry::descriptor::Descriptor longDescriptor{longModel};
 	for (auto cursor = longDescriptor.size() - ts::Limits::maxStringBytes;
 	     cursor < longDescriptor.size(); ++cursor) {

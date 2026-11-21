@@ -22,9 +22,9 @@ void fields()
 		input[i] = static_cast<std::byte>((i * 37u + 23u) & 255u);
 	ts::FieldTable table{ts::field<&Owner<Blob<N>>::get, &Owner<Blob<N>>::set>("Writable", owner),
 	                     ts::field<&Owner<Blob<N>>::get>("Readonly", owner)};
-	ts::FieldCatalogTable catalogs{ts::group("large", table)};
-	ts::ServiceCatalogTable<> services;
-	ts::Model model{catalogs, ts::emptyCommands, services};
+	ts::Model model{
+	    ts::group("large", ts::field<&Owner<Blob<N>>::get, &Owner<Blob<N>>::set>("Writable", owner),
+	              ts::field<&Owner<Blob<N>>::get>("Readonly", owner))};
 	const auto& entry = table[0];
 	check(entry.readScratchBytes == 0 && entry.writeScratchBytes == N &&
 	      table[1].readScratchBytes == 0 && table[1].writeScratchBytes == 0);
