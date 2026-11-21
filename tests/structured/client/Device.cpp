@@ -51,7 +51,7 @@ static void generate(const std::filesystem::path& directory)
 		throw std::runtime_error("Request fixture failed");
 	save(directory / "request.bin", request);
 	std::array<std::byte, ts::wireSize<ex::Response>> response;
-	const auto call = ex::services.index().callEncoded(0u, request, response, ex::workspace);
+	const auto call = ex::model.serviceIndex().callEncoded(0u, request, response, ex::workspace);
 	if (call.dispatch != ts::DispatchStatus::Ok || call.endpointStatus != ts::ServiceStatus::Ok)
 		throw std::runtime_error("Response fixture failed");
 	save(directory / "response.bin", response);
@@ -78,19 +78,20 @@ int main(int argc, char** argv)
 		std::uint32_t written = 0;
 		const std::string_view operation{argv[1]};
 		if (operation == "service") {
-			const auto result = ex::services.index().callEncoded(id, input, output, ex::workspace);
+			const auto result =
+			    ex::model.serviceIndex().callEncoded(id, input, output, ex::workspace);
 			dispatch = result.dispatch;
 			endpoint = static_cast<unsigned>(result.endpointStatus);
 			written = result.written;
 		} else if (operation == "write") {
-			const auto result = ex::fields.index().writeEncoded(id, input, ex::workspace);
+			const auto result = ex::model.fieldIndex().writeEncoded(id, input, ex::workspace);
 			dispatch = result.dispatch;
 			endpoint = static_cast<unsigned>(result.endpointStatus);
 			if (dispatch == ts::DispatchStatus::Ok &&
 			    result.endpointStatus == telemetry::WriteResult::Applied)
-				written = ex::fields.index().readEncoded(id, output, ex::workspace).written;
+				written = ex::model.fieldIndex().readEncoded(id, output, ex::workspace).written;
 		} else if (operation == "command") {
-			const auto result = ex::commands.index().executeEncoded(id, input, ex::workspace);
+			const auto result = ex::model.commandIndex().executeEncoded(id, input, ex::workspace);
 			dispatch = result.dispatch;
 			endpoint = static_cast<unsigned>(result.endpointStatus);
 		} else

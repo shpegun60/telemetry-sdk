@@ -77,20 +77,17 @@ telemetry::OwnerSlot<Device> absent;
 
 constexpr telemetry::FieldTable measure{telemetry::field<&Device::readCount>("Count", device),
                                         telemetry::field<&Device::readStatus>("Status", device)};
-constexpr telemetry::FieldTable settings{telemetry::field<&Device::readGain>("Gain", device),
-                                         telemetry::field<&Device::readCount>("Spare", absent)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("measure", measure),
-                                              telemetry::group("device", settings)};
-constexpr telemetry::CommandCatalogTable commands{};
-constexpr telemetry::ServiceCatalogTable services{};
-constexpr telemetry::Model model{fields, commands, services};
+constexpr telemetry::Model model{
+    telemetry::group("measure", telemetry::field<&Device::readCount>("Count", device),
+                     telemetry::field<&Device::readStatus>("Status", device)),
+    telemetry::group("device", telemetry::field<&Device::readGain>("Gain", device),
+                     telemetry::field<&Device::readCount>("Spare", absent))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto packed = telemetry::descriptor::packDescriptor<descriptor>();
 
 // Another device: its descriptor has another fingerprint.
-constexpr telemetry::FieldTable fewer{telemetry::field<&Device::readCount>("Count", device)};
-constexpr telemetry::FieldCatalogTable otherFields{telemetry::group("measure", fewer)};
-constexpr telemetry::Model otherModel{otherFields, commands, services};
+constexpr telemetry::Model otherModel{
+    telemetry::group("measure", telemetry::field<&Device::readCount>("Count", device))};
 constexpr telemetry::descriptor::Descriptor otherDescriptor{otherModel};
 constexpr auto otherPacked = telemetry::descriptor::packDescriptor<otherDescriptor>();
 

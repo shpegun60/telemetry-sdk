@@ -46,13 +46,9 @@ struct Device {
 };
 
 static Device device;
-static constexpr ts::FieldTable fields{ts::field<&Device::read, &Device::write>("Value", device)};
-static constexpr ts::CommandTable commands{ts::command<&Device::add>("Add", device)};
-static constexpr ts::ServiceTable services{ts::service<&Device::twice>("Twice", device)};
-static constexpr ts::FieldCatalogTable fg{ts::group("device", fields)};
-static constexpr ts::CommandCatalogTable cg{ts::group("device", commands)};
-static constexpr ts::ServiceCatalogTable sg{ts::group("device", services)};
-static constexpr ts::Model model{fg, cg, sg};
+static constexpr ts::Model model{ts::group(
+    "device", ts::field<&Device::read, &Device::write>("Value", device),
+    ts::command<&Device::add>("Add", device), ts::service<&Device::twice>("Twice", device))};
 static constexpr ts::descriptor::Descriptor descriptor{model};
 static constexpr auto descriptorBytes = ts::descriptor::packDescriptor<descriptor>();
 

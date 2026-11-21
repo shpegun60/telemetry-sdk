@@ -119,17 +119,13 @@ struct Device {
 
 inline Device device;
 inline telemetry::FunctionSlot<Response(const Request&) noexcept> offline;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::readConfig, &Device::writeConfig>("Config", device)};
-inline constexpr ts::CommandTable localCommands{ts::command<&Device::apply>("Apply", device),
-                                                ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::inspect>("Inspect", device),
-                                                ts::service<&Device::ping>("Ping", device),
-                                                ts::service("Offline", offline)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// One group, device: a Field, two Commands and three Services.
+inline constexpr auto deviceGroup = ts::group(
+    "device", ts::field<&Device::readConfig, &Device::writeConfig>("Config", device),
+    ts::command<&Device::apply>("Apply", device), ts::command<&Device::reset>("Reset", device),
+    ts::service<&Device::inspect>("Inspect", device), ts::service<&Device::ping>("Ping", device),
+    ts::service("Offline", offline));
+inline constexpr ts::Model model{deviceGroup};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = ::telemetry::descriptor::packDescriptor<descriptor>();
 

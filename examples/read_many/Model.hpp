@@ -24,15 +24,10 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable measures{
-    telemetry::field<&Device::voltage>("Voltage_mV", device),
-    telemetry::field<&Device::energy>("Energy", device)};
-inline constexpr telemetry::FieldTable controls{
-    telemetry::field<&Device::enabled>("Enabled", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("measure", measures),
-                                                     telemetry::group("control", controls)};
-inline constexpr telemetry::ServiceCatalogTable<> services{};
-inline constexpr telemetry::Model model{fields, telemetry::emptyCommands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("measure", telemetry::field<&Device::voltage>("Voltage_mV", device),
+                     telemetry::field<&Device::energy>("Energy", device)),
+    telemetry::group("control", telemetry::field<&Device::enabled>("Enabled", device))};
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace peer

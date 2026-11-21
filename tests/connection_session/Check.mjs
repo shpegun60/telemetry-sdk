@@ -418,7 +418,7 @@ for (const mode of ['static', 'dynamic']) {
 	await test(mode, 'empty aggregate is a value; void and codec failures remain distinct',
 	           async () => {
 		           const h = harness(mode), session = await h.connect();
-		           for (const [endpoint, value, status] of [[ S.Empty, {}, 'Ok' ],
+		           for (const [endpoint, value, status] of [[ S.EmptyService, {}, 'Ok' ],
 		                                                    [ S.Ping, undefined, 'NoValue' ]]) {
 			           const request = h.service(session, endpoint, undefined);
 			           await flush();

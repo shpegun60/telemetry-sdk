@@ -74,10 +74,8 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::echo>("Echo", device),
-                                                ts::service<&Device::read>("Read", device)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("uart", localServices)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, services};
+inline constexpr ts::Model model{ts::group("uart", ts::service<&Device::echo>("Echo", device),
+                                           ts::service<&Device::read>("Read", device))};
 inline constexpr auto view = model.view();
 
 struct Policy {

@@ -87,46 +87,25 @@ struct Device {
 
 static std::array<Device, 4> devices{{{0}, {1}, {2}, {3}}};
 
-static constexpr auto fieldTable(Device& device) noexcept
+// Four groups of one owner each, every group with F0..F3, C0..C3 and S0..S3.
+static constexpr auto branch(const char* name, Device& device) noexcept
 {
-	return ts::FieldTable{ts::field<&Device::read<0>, &Device::write<0>>("F0", device),
-	                      ts::field<&Device::read<1>, &Device::write<1>>("F1", device),
-	                      ts::field<&Device::read<2>, &Device::write<2>>("F2", device),
-	                      ts::field<&Device::read<3>, &Device::write<3>>("F3", device)};
+	return ts::group(name, ts::field<&Device::read<0>, &Device::write<0>>("F0", device),
+	                 ts::field<&Device::read<1>, &Device::write<1>>("F1", device),
+	                 ts::field<&Device::read<2>, &Device::write<2>>("F2", device),
+	                 ts::field<&Device::read<3>, &Device::write<3>>("F3", device),
+	                 ts::command<&Device::command<0>>("C0", device),
+	                 ts::command<&Device::command<1>>("C1", device),
+	                 ts::command<&Device::command<2>>("C2", device),
+	                 ts::command<&Device::command<3>>("C3", device),
+	                 ts::service<&Device::service<0>>("S0", device),
+	                 ts::service<&Device::service<1>>("S1", device),
+	                 ts::service<&Device::service<2>>("S2", device),
+	                 ts::service<&Device::service<3>>("S3", device));
 }
 
-static constexpr auto commandTable(Device& device) noexcept
-{
-	return ts::CommandTable{ts::command<&Device::command<0>>("C0", device),
-	                        ts::command<&Device::command<1>>("C1", device),
-	                        ts::command<&Device::command<2>>("C2", device),
-	                        ts::command<&Device::command<3>>("C3", device)};
-}
-
-static constexpr auto serviceTable(Device& device) noexcept
-{
-	return ts::ServiceTable{ts::service<&Device::service<0>>("S0", device),
-	                        ts::service<&Device::service<1>>("S1", device),
-	                        ts::service<&Device::service<2>>("S2", device),
-	                        ts::service<&Device::service<3>>("S3", device)};
-}
-
-static constexpr std::array fields{fieldTable(devices[0]), fieldTable(devices[1]),
-                                   fieldTable(devices[2]), fieldTable(devices[3])};
-static constexpr std::array commands{commandTable(devices[0]), commandTable(devices[1]),
-                                     commandTable(devices[2]), commandTable(devices[3])};
-static constexpr std::array services{serviceTable(devices[0]), serviceTable(devices[1]),
-                                     serviceTable(devices[2]), serviceTable(devices[3])};
-static constexpr ts::FieldCatalogTable fg{ts::group("decoy", fields[0]),
-                                          ts::group("one", fields[1]), ts::group("two", fields[2]),
-                                          ts::group("three", fields[3])};
-static constexpr ts::CommandCatalogTable cg{
-    ts::group("decoy", commands[0]), ts::group("one", commands[1]), ts::group("two", commands[2]),
-    ts::group("three", commands[3])};
-static constexpr ts::ServiceCatalogTable sg{
-    ts::group("decoy", services[0]), ts::group("one", services[1]), ts::group("two", services[2]),
-    ts::group("three", services[3])};
-static constexpr ts::Model model{fg, cg, sg};
+static constexpr ts::Model model{branch("decoy", devices[0]), branch("one", devices[1]),
+                                 branch("two", devices[2]), branch("three", devices[3])};
 static constexpr ts::descriptor::Descriptor descriptor{model};
 static constexpr auto descriptorBytes = ts::descriptor::packDescriptor<descriptor>();
 
@@ -160,21 +139,21 @@ int main()
 		}
 	}
 	const auto* field = schema.findField("one", "F3");
-	CHECK(field && field->id == ts::makeId<1, 3>());
+	CHECK(field && field->id == ts::idOf<model, "one/F3">());
 
 	const std::array<bt::Endpoint, 12> selected{{
-	    {cl::Operation::FieldRead, ts::makeId<3, 2>()},
-	    {cl::Operation::FieldWrite, ts::makeId<1, 3>()},
-	    {cl::Operation::Command, ts::makeId<2, 1>()},
-	    {cl::Operation::Service, ts::makeId<1, 3>()},
-	    {cl::Operation::FieldRead, ts::makeId<1, 3>()},
-	    {cl::Operation::FieldRead, ts::makeId<2, 1>()},
-	    {cl::Operation::Command, ts::makeId<1, 3>()},
-	    {cl::Operation::Service, ts::makeId<3, 0>()},
-	    {cl::Operation::Service, ts::makeId<2, 1>()},
-	    {cl::Operation::FieldRead, ts::makeId<1, 3>()},
-	    {cl::Operation::FieldWrite, ts::makeId<3, 0>()},
-	    {cl::Operation::FieldRead, ts::makeId<3, 0>()},
+	    {cl::Operation::FieldRead, ts::idOf<model, "three/F2">()},
+	    {cl::Operation::FieldWrite, ts::idOf<model, "one/F3">()},
+	    {cl::Operation::Command, ts::idOf<model, "two/C1">()},
+	    {cl::Operation::Service, ts::idOf<model, "one/S3">()},
+	    {cl::Operation::FieldRead, ts::idOf<model, "one/F3">()},
+	    {cl::Operation::FieldRead, ts::idOf<model, "two/F1">()},
+	    {cl::Operation::Command, ts::idOf<model, "one/C3">()},
+	    {cl::Operation::Service, ts::idOf<model, "three/S0">()},
+	    {cl::Operation::Service, ts::idOf<model, "two/S1">()},
+	    {cl::Operation::FieldRead, ts::idOf<model, "one/F3">()},
+	    {cl::Operation::FieldWrite, ts::idOf<model, "three/F0">()},
+	    {cl::Operation::FieldRead, ts::idOf<model, "three/F0">()},
 	}};
 	// Literal oracle does not derive routing or order from the request builder.
 	const std::array<Event, 12> expected{{
@@ -232,7 +211,7 @@ int main()
 		          result.count == expected.size());
 		    for (std::size_t i = 0; i < expected.size(); ++i) {
 			    const auto& item = result.items[i];
-			    CHECK(item.id == ts::makeId(expected[i].group, expected[i].index));
+			    CHECK(item.id == ts::detail::makeId(expected[i].group, expected[i].index));
 			    CHECK(item.operation.operation == expected[i].operation);
 			    CHECK(item.operation.status == cl::Status::Ok && item.operation.dispatch == 0 &&
 			          item.operation.endpointStatus == 0 && item.operation.succeeded());
@@ -264,7 +243,7 @@ int main()
 	const auto wire = bt::wire::parseRequest(envelope.payload);
 	CHECK(wire && wire.count == expected.size());
 	for (std::size_t i = 0; i < expected.size(); ++i) {
-		CHECK(wire.items[i].id == ts::makeId(expected[i].group, expected[i].index));
+		CHECK(wire.items[i].id == ts::detail::makeId(expected[i].group, expected[i].index));
 		CHECK(static_cast<unsigned>(wire.items[i].operation) ==
 		      static_cast<unsigned>(expected[i].operation));
 		CHECK(std::equal(wire.items[i].payload.begin(), wire.items[i].payload.end(),

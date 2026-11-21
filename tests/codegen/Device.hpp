@@ -87,18 +87,13 @@ struct EdgeDevice {
 };
 
 inline EdgeDevice edge;
-inline constexpr ts::FieldTable edgeFields{ts::field<&EdgeDevice::read>("Scalars", edge)};
-inline constexpr ts::CommandTable edgeCommands{ts::command<&EdgeDevice::accepted>("Accept", edge)};
-inline constexpr ts::ServiceTable edgeServices{ts::service<&EdgeDevice::good>("Good", edge),
-                                               ts::service<&EdgeDevice::fail>("Fail", edge),
-                                               ts::service<&EdgeDevice::consume>("Consume", edge)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", ex::localFields),
-                                              ts::group("edge", edgeFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", ex::localCommands),
-                                                  ts::group("edge", edgeCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", ex::localServices),
-                                                  ts::group("edge", edgeServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// The client example's device group and an edge group: a tree of two groups.
+inline constexpr ts::Model model{ex::deviceGroup,
+                                 ts::group("edge", ts::field<&EdgeDevice::read>("Scalars", edge),
+                                           ts::command<&EdgeDevice::accepted>("Accept", edge),
+                                           ts::service<&EdgeDevice::good>("Good", edge),
+                                           ts::service<&EdgeDevice::fail>("Fail", edge),
+                                           ts::service<&EdgeDevice::consume>("Consume", edge))};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = ::telemetry::descriptor::packDescriptor<descriptor>();
 inline std::array<std::byte, model.maxScratch()> scratch{};

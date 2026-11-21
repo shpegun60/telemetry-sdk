@@ -8,8 +8,7 @@
     defined(MODULE_BATCH_SERVER)
 #include <telemetry/Telemetry.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
-static constexpr telemetry::ServiceCatalogTable services{};
-static constexpr telemetry::Model model{telemetry::emptyFields, telemetry::emptyCommands, services};
+static constexpr telemetry::Model model{telemetry::group("empty")};
 #endif
 #if defined(MODULE_RUNTIME) || defined(MODULE_VALUES_READER)
 #include <telemetry/runtime/RuntimeSchema.hpp>

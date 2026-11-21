@@ -89,14 +89,11 @@ struct Mixed {
 
 static Mixed mixed;
 static ts::OwnerSlot<Mixed> absent;
-static constexpr ts::FieldTable mixedFields{
-    ts::field<&Mixed::enabled>("Bool", mixed),   ts::field<&Mixed::wide>("U64", mixed),
+static constexpr ts::Model mixedModel{ts::group(
+    "mixed", ts::field<&Mixed::enabled>("Bool", mixed), ts::field<&Mixed::wide>("U64", mixed),
     ts::field<&Mixed::signedWide>("S64", mixed), ts::field<&Mixed::real>("F32", mixed),
-    ts::field<&Mixed::real64>("F64", mixed),     ts::field<&Mixed::mode>("Enum", mixed),
-    ts::field<&Mixed::record>("Struct", mixed),  ts::field<&Mixed::wide>("Unavailable", absent)};
-static constexpr ts::FieldCatalogTable mixedCatalogs{ts::group("mixed", mixedFields)};
-static constexpr ts::ServiceCatalogTable<> noServices{};
-static constexpr ts::Model mixedModel{mixedCatalogs, ts::emptyCommands, noServices};
+    ts::field<&Mixed::real64>("F64", mixed), ts::field<&Mixed::mode>("Enum", mixed),
+    ts::field<&Mixed::record>("Struct", mixed), ts::field<&Mixed::wide>("Unavailable", absent))};
 static constexpr ts::descriptor::Descriptor mixedDescriptor{mixedModel};
 static constexpr auto mixedBytes = ts::descriptor::packDescriptor<mixedDescriptor>();
 using Data = read_comparison::Sparse8of32;

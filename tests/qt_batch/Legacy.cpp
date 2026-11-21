@@ -4,10 +4,8 @@
 
 int main()
 {
-	constexpr telemetry::FieldCatalogTable fields{};
-	constexpr telemetry::CommandCatalogTable commands{};
-	constexpr telemetry::ServiceCatalogTable services{};
-	const telemetry::Model model{fields, commands, services};
+	// A tree of one empty group: the server serves no endpoint.
+	const telemetry::Model model{telemetry::group("empty")};
 	std::array<std::byte, 256> scratch{}, rx{}, tx{};
 	telemetry::Workspace workspace{scratch};
 	telemetry::integration::tcp::Server server{model.view(), workspace, resource::FileSystemView{},

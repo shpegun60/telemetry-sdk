@@ -104,7 +104,7 @@ static void zeroWire() noexcept
 	const auto request = bt::items(bt::command(api::control::commands::Reset),
 	                               bt::command(api::control::commands::EmptyArgument, empty),
 	                               bt::service(api::control::services::Ping),
-	                               bt::service(api::control::services::Empty),
+	                               bt::service(api::control::services::EmptyService),
 	                               bt::service(api::control::services::Consume, data),
 	                               bt::service(api::control::services::EmptyRequest, empty),
 	                               bt::read(api::control::fields::Empty));

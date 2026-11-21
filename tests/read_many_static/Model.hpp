@@ -152,30 +152,27 @@ struct Owner {
 
 inline Owner owner;
 inline ts::OwnerSlot<Owner> absent;
-inline constexpr ts::FieldTable ordinaryFields{ts::field<&Owner::ordinary>("Value", owner)};
-inline constexpr ts::FieldTable mixedFields{
-    ts::field<&Owner::flag>("Bool", owner),     ts::field<&Owner::u8>("U8", owner),
-    ts::field<&Owner::s8>("S8", owner),         ts::field<&Owner::u16>("U16", owner),
-    ts::field<&Owner::s16>("S16", owner),       ts::field<&Owner::u32>("U32", owner),
-    ts::field<&Owner::s32>("S32", owner),       ts::field<&Owner::u64>("U64", owner),
-    ts::field<&Owner::s64>("S64", owner),       ts::field<&Owner::f32>("F32", owner),
-    ts::field<&Owner::f64>("F64", owner),       ts::field<&Owner::mode>("Enum", owner),
-    ts::field<&Owner::record>("Struct", owner), ts::field<&Owner::u64>("Unavailable", absent)};
 
 template<std::size_t Offset, std::size_t... I>
-constexpr auto scalarFields(std::index_sequence<I...>) noexcept
+constexpr auto scalarGroup(const char* name, std::index_sequence<I...>) noexcept
 {
-	return ts::FieldTable{
-	    ts::field<&Owner::template scalar<Offset + I>>(names[Offset + I], owner)...};
+	return ts::group(name,
+	                 ts::field<&Owner::template scalar<Offset + I>>(names[Offset + I], owner)...);
 }
 
-inline constexpr auto leftFields = scalarFields<0>(std::make_index_sequence<16>{});
-inline constexpr auto rightFields = scalarFields<16>(std::make_index_sequence<16>{});
-inline constexpr ts::FieldCatalogTable catalogs{
-    ts::group("ordinary", ordinaryFields), ts::group("mixed", mixedFields),
-    ts::group("left", leftFields), ts::group("right", rightFields)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+// Four Fields-only groups: ordinary, mixed and two of sixteen scalars.
+inline constexpr ts::Model model{
+    ts::group("ordinary", ts::field<&Owner::ordinary>("Value", owner)),
+    ts::group("mixed", ts::field<&Owner::flag>("Bool", owner), ts::field<&Owner::u8>("U8", owner),
+              ts::field<&Owner::s8>("S8", owner), ts::field<&Owner::u16>("U16", owner),
+              ts::field<&Owner::s16>("S16", owner), ts::field<&Owner::u32>("U32", owner),
+              ts::field<&Owner::s32>("S32", owner), ts::field<&Owner::u64>("U64", owner),
+              ts::field<&Owner::s64>("S64", owner), ts::field<&Owner::f32>("F32", owner),
+              ts::field<&Owner::f64>("F64", owner), ts::field<&Owner::mode>("Enum", owner),
+              ts::field<&Owner::record>("Struct", owner),
+              ts::field<&Owner::u64>("Unavailable", absent)),
+    scalarGroup<0>("left", std::make_index_sequence<16>{}),
+    scalarGroup<16>("right", std::make_index_sequence<16>{})};
 inline constexpr ts::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = ts::descriptor::packDescriptor<descriptor>();
 } // namespace static_many_fixture

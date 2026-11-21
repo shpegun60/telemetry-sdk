@@ -64,10 +64,19 @@ constexpr auto scalarFields(std::index_sequence<I...>) noexcept
 
 inline constexpr auto left = scalarFields<0>(std::make_index_sequence<16>{});
 inline constexpr auto right = scalarFields<16>(std::make_index_sequence<16>{});
-inline constexpr ts::FieldCatalogTable scalarCatalogs{ts::group("left", left),
-                                                      ts::group("right", right)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model scalarModel{scalarCatalogs, ts::emptyCommands, noServices};
+
+// A group of sixteen scalar Fields, and any further endpoints of the group.
+template<std::size_t Offset, std::size_t... I, class... Extra>
+constexpr auto scalarGroup(const char* name, std::index_sequence<I...>,
+                           const Extra&... extra) noexcept
+{
+	return ts::group(name,
+	                 ts::field<&ScalarOwner::template read<Offset + I>>(names[I], scalarOwner)...,
+	                 extra...);
+}
+
+inline constexpr ts::Model scalarModel{scalarGroup<0>("left", std::make_index_sequence<16>{}),
+                                       scalarGroup<16>("right", std::make_index_sequence<16>{})};
 inline constexpr ts::descriptor::Descriptor scalarDescriptor{scalarModel};
 inline constexpr auto scalarDescriptorBytes = ts::descriptor::packDescriptor<scalarDescriptor>();
 
@@ -197,18 +206,22 @@ struct MixedOwner {
 
 inline MixedOwner mixedOwner;
 inline ts::OwnerSlot<MixedOwner> emptyOwner;
-inline constexpr ts::FieldTable mixedLeft{ts::field<&MixedOwner::boolean>("Bool", mixedOwner),
-                                          ts::field<&MixedOwner::wide>("U64", mixedOwner),
-                                          ts::field<&MixedOwner::signedWide>("S64", mixedOwner),
-                                          ts::field<&MixedOwner::real32>("F32", mixedOwner)};
-inline constexpr ts::FieldTable mixedRight{
-    ts::field<&MixedOwner::real64>("F64", mixedOwner),
-    ts::field<&MixedOwner::mode>("Enum", mixedOwner),
-    ts::field<&MixedOwner::record>("Struct4", mixedOwner),
-    ts::field<&MixedOwner::missing>("Unavailable", emptyOwner)};
-inline constexpr ts::FieldCatalogTable mixedCatalogs{ts::group("left", mixedLeft),
-                                                     ts::group("right", mixedRight)};
-inline constexpr ts::Model mixedModel{mixedCatalogs, ts::emptyCommands, noServices};
+
+template<class... Extra>
+constexpr auto mixedLeft(const Extra&... extra) noexcept
+{
+	return ts::group("left", ts::field<&MixedOwner::boolean>("Bool", mixedOwner),
+	                 ts::field<&MixedOwner::wide>("U64", mixedOwner),
+	                 ts::field<&MixedOwner::signedWide>("S64", mixedOwner),
+	                 ts::field<&MixedOwner::real32>("F32", mixedOwner), extra...);
+}
+
+inline constexpr auto mixedRight =
+    ts::group("right", ts::field<&MixedOwner::real64>("F64", mixedOwner),
+              ts::field<&MixedOwner::mode>("Enum", mixedOwner),
+              ts::field<&MixedOwner::record>("Struct4", mixedOwner),
+              ts::field<&MixedOwner::missing>("Unavailable", emptyOwner));
+inline constexpr ts::Model mixedModel{mixedLeft(), mixedRight};
 inline constexpr ts::descriptor::Descriptor mixedDescriptor{mixedModel};
 inline constexpr auto mixedDescriptorBytes = ts::descriptor::packDescriptor<mixedDescriptor>();
 inline constexpr std::array<std::uint32_t, 8> mixedIds{0,        1,        2,        3,
@@ -276,18 +289,24 @@ struct ServiceOwner {
 };
 
 inline ServiceOwner serviceOwner;
-inline constexpr ts::ServiceTable services{
-    ts::service<&ServiceOwner::read>("ReadSelection", serviceOwner)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("prototype", services)};
-inline constexpr ts::Model serviceModel{scalarCatalogs, ts::emptyCommands, serviceCatalogs};
-inline constexpr ts::Model mixedServiceModel{mixedCatalogs, ts::emptyCommands, serviceCatalogs};
+// The selection Service joins group left: its ID is 0, the one a request carries
+// by default, and the Fields keep their IDs.
+inline constexpr auto readSelection =
+    ts::service<&ServiceOwner::read>("ReadSelection", serviceOwner);
+inline constexpr ts::Model serviceModel{
+    scalarGroup<0>("left", std::make_index_sequence<16>{}, readSelection),
+    scalarGroup<16>("right", std::make_index_sequence<16>{})};
+inline constexpr ts::Model mixedServiceModel{mixedLeft(readSelection), mixedRight};
+static_assert(ts::idOf<serviceModel, "left/ReadSelection">() == 0 &&
+              ts::idOf<mixedServiceModel, "left/ReadSelection">() == 0);
 
 // Parsing caller storage is deliberately shared by Host and no-heap qualification.
 struct Metadata {
 	std::array<telemetry::runtime::RuntimeType, 48> types{};
 	std::array<telemetry::runtime::RuntimeMember, 8> members{};
 	std::array<telemetry::runtime::RuntimeEnumEntry, 16> enums{};
-	std::array<telemetry::runtime::RuntimeCatalog, 2> catalogs{};
+	// A tree of two groups: one catalog per group in each of the three families.
+	std::array<telemetry::runtime::RuntimeCatalog, 6> catalogs{};
 	std::array<telemetry::runtime::RuntimeEndpoint, 32> endpoints{};
 	telemetry::runtime::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs,
 	                                                     endpoints};

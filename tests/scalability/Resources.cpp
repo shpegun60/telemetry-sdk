@@ -9,6 +9,7 @@
  * have the same size as constexpr instances but reside in host local storage.
  */
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <integration/telemetry/v3/DescriptorFile.hpp>
 #include <integration/telemetry/v3/ValuesFile.hpp>
@@ -59,9 +60,9 @@ constexpr auto makeTable(std::index_sequence<I...>)
 }
 
 inline constexpr auto table = makeTable(std::make_index_sequence<ROWS>{});
-inline constexpr ts::FieldCatalogTable fields{ts::group("scale", table)};
-inline constexpr ts::ServiceCatalogTable services{};
-inline constexpr ts::Model model{fields, ts::emptyCommands, services};
+inline constexpr ts::testing::FieldCatalogTable fields{ts::testing::group("scale", table)};
+inline constexpr ts::testing::ServiceCatalogTable services{};
+inline constexpr ts::testing::V30Model model{fields, ts::testing::emptyCommands, services};
 inline constexpr ::telemetry::descriptor::Descriptor staticDescriptor{model};
 inline constexpr auto packedBytes = ::telemetry::descriptor::packDescriptor<staticDescriptor>();
 using Descriptor = std::remove_cv_t<decltype(staticDescriptor)>;

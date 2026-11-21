@@ -126,15 +126,19 @@ static constexpr ts::FieldTable fields{ts::field<&Owner::read, &Owner::write>("C
                                        ts::field<&Owner::read>("Missing", absent),
                                        ts::field<&Owner::real>("Real", owner),
                                        ts::field<&Owner::mode>("Mode", owner)};
-static constexpr ts::CommandTable commands{ts::command<&Owner::accepted>("Accepted", owner),
-                                           ts::command<&Owner::reset>("Reset", owner)};
 static constexpr ts::ServiceTable services{
     ts::service<&Owner::echo>("Echo", owner), ts::service<&Owner::busy>("Busy", owner),
     ts::service<&Owner::ping>("Ping", owner), ts::service<&Owner::empty>("Empty", owner)};
-static constexpr ts::FieldCatalogTable fg{ts::group("device", fields)};
-static constexpr ts::CommandCatalogTable cg{ts::group("control", commands)};
-static constexpr ts::ServiceCatalogTable sg{ts::group("services", services)};
-static constexpr ts::Model model{fg, cg, sg};
+// One group, device, of every family: each family's IDs are 0, 1, ...
+static constexpr ts::Model model{ts::group(
+    "device", ts::field<&Owner::read, &Owner::write>("Config", owner),
+    ts::field<&Owner::read>("ReadOnly", owner),
+    ts::field<&Owner::read, &Owner::refuse>("Refuse", owner),
+    ts::field<&Owner::read>("Missing", absent), ts::field<&Owner::real>("Real", owner),
+    ts::field<&Owner::mode>("Mode", owner), ts::command<&Owner::accepted>("Accepted", owner),
+    ts::command<&Owner::reset>("Reset", owner), ts::service<&Owner::echo>("Echo", owner),
+    ts::service<&Owner::busy>("Busy", owner), ts::service<&Owner::ping>("Ping", owner),
+    ts::service<&Owner::empty>("Empty", owner))};
 
 static auto config(std::uint32_t value)
 {

@@ -136,6 +136,7 @@ def _binding(schema, endpoint):
 
 REBUILD_PRELUDE = """#include <telemetry/Telemetry.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <cstdio>
 
@@ -204,10 +205,11 @@ def rebuild_source(schema):
                                 ",\n    ".join(_binding(schema, endpoint) for endpoint in endpoints) + "};\n")
                 else:
                     rows.append(f"inline constexpr ts::{table}<> table{category}_{index}{{}};\n")
-                groups.append(f"ts::group({_string(row['name'])}, table{category}_{index})")
-            rows.append(f"inline constexpr ts::{catalog}{'<>' if not groups else ''} catalogs{category}{{" +
+                groups.append(f"ts::testing::group({_string(row['name'])}, table{category}_{index})")
+            rows.append(f"inline constexpr ts::testing::{catalog}{'<>' if not groups else ''} catalogs{category}{{" +
                         ", ".join(groups) + "};\n")
-        rows.append("inline constexpr ts::Model model{catalogs1, catalogs2, catalogs3};\n")
+        # A catalog descriptor's per-family form is the testing header's v3.0 producer.
+        rows.append("inline constexpr ts::testing::V30Model model{catalogs1, catalogs2, catalogs3};\n")
     profile = "::telemetry::descriptor::withoutTypeNames(model)" if schema.minor == 0 else \
         "::telemetry::descriptor::Descriptor{model}"
     rows.append(f"inline constexpr auto descriptor = {profile};\n")

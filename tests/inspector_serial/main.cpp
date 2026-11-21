@@ -159,11 +159,8 @@ const auto& read() noexcept
 	return data;
 }
 
-inline constexpr telemetry::FieldTable fieldTable{telemetry::field<&read>("Payload")};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("timing", fieldTable)};
-inline constexpr telemetry::CommandCatalogTable<> commands{};
-inline constexpr telemetry::ServiceCatalogTable<> services{};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("timing", telemetry::field<&read>("Payload"))};
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto packed = telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace paced_fixture

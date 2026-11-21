@@ -106,8 +106,9 @@ int main()
 
 	char invalidName[] = "Duplicate";
 	const ts::FieldTable badTable{ts::field<&u64>(invalidName), ts::field<&s64>(invalidName)};
-	const ts::FieldCatalogTable badFields{ts::group("bad", badTable)};
-	const ts::Model badModel{badFields, ts::emptyCommands, services};
+	// Duplicate names are a v3.0 catalog's refusal; a tree refuses them earlier.
+	const fixture::v30::FieldCatalogTable badFields{fixture::v30::group("bad", badTable)};
+	const fixture::v30::V30Model badModel{badFields, fixture::v30::emptyCommands, services};
 	const ::telemetry::descriptor::Descriptor badDescriptor{badModel};
 	assert(!badDescriptor.valid());
 	rs::ValuesFile rejected{badDescriptor, workspace};

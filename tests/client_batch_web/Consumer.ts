@@ -23,7 +23,7 @@ const pending = client.batch(
     new Uint8Array(24), Batch.items(Batch.write(F.Config, draft), Batch.read(F.Counter),
                                     Batch.command(C.Configure, draft), Batch.service(S.Echo, draft),
                                     Batch.command(C.Reset), Batch.service(S.Ping),
-                                    Batch.service(S.Empty), Batch.read(F.Bool)));
+                                    Batch.service(S.EmptyService), Batch.read(F.Bool)));
 pending.then(result => {
 	if (!result.items)
 		return;

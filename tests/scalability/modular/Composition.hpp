@@ -14,18 +14,22 @@
 #include "ModuleB.hpp"
 #include "ModuleC.hpp"
 #include <telemetry/model/Model.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 namespace modular::composition {
-inline constinit const telemetry::FieldCatalogTable fields{telemetry::group("A", moduleA::fields),
-                                                           telemetry::group("B", moduleB::fields),
-                                                           telemetry::group("C", moduleC::fields)};
-inline constinit const telemetry::CommandCatalogTable commands{
-    telemetry::group("A", moduleA::commands), telemetry::group("B", moduleB::commands),
-    telemetry::group("C", moduleC::commands)};
-inline constinit const telemetry::ServiceCatalogTable services{
-    telemetry::group("A", moduleA::services), telemetry::group("B", moduleB::services),
-    telemetry::group("C", moduleC::services)};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constinit const telemetry::testing::FieldCatalogTable fields{
+    telemetry::testing::group("A", moduleA::fields),
+    telemetry::testing::group("B", moduleB::fields),
+    telemetry::testing::group("C", moduleC::fields)};
+inline constinit const telemetry::testing::CommandCatalogTable commands{
+    telemetry::testing::group("A", moduleA::commands),
+    telemetry::testing::group("B", moduleB::commands),
+    telemetry::testing::group("C", moduleC::commands)};
+inline constinit const telemetry::testing::ServiceCatalogTable services{
+    telemetry::testing::group("A", moduleA::services),
+    telemetry::testing::group("B", moduleB::services),
+    telemetry::testing::group("C", moduleC::services)};
+inline constexpr telemetry::testing::V30Model model{fields, commands, services};
 using Registry = decltype(model)::Registry;
 static_assert(Registry::typeCount == 17);
 static_assert(Registry::typeId<moduleA::Reading>() != Registry::typeId<moduleB::Reading>());

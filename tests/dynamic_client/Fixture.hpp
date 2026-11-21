@@ -119,24 +119,18 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read, &Device::write>("Config", device),
-    telemetry::field<&Device::read>("ReadOnly", device),
-    telemetry::field<&Device::empty>("Empty", device)};
-inline constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::configure>("Configure", device),
-    telemetry::command<&Device::accepted>("Accepted", device),
-    telemetry::command<&Device::reset>("Reset", device),
-    telemetry::command<&Device::big>("Big", device)};
-inline constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Device::echo>("Echo", device),
-    telemetry::service<&Device::ping>("Ping", device),
-    telemetry::service<&Device::emptyService>("Empty", device),
-    telemetry::service<&Device::busy>("Busy", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("device", localFields)};
-inline constexpr telemetry::CommandCatalogTable commands{telemetry::group("device", localCommands)};
-inline constexpr telemetry::ServiceCatalogTable services{telemetry::group("device", localServices)};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("device", telemetry::field<&Device::read, &Device::write>("Config", device),
+                     telemetry::field<&Device::read>("ReadOnly", device),
+                     telemetry::field<&Device::empty>("Empty", device),
+                     telemetry::command<&Device::configure>("Configure", device),
+                     telemetry::command<&Device::accepted>("Accepted", device),
+                     telemetry::command<&Device::reset>("Reset", device),
+                     telemetry::command<&Device::big>("Big", device),
+                     telemetry::service<&Device::echo>("Echo", device),
+                     telemetry::service<&Device::ping>("Ping", device),
+                     telemetry::service<&Device::emptyService>("EmptyService", device),
+                     telemetry::service<&Device::busy>("Busy", device))};
 inline constexpr auto modelView = model.view();
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = telemetry::descriptor::packDescriptor<descriptor>();
