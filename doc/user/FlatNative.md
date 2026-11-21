@@ -3,6 +3,14 @@
 [API Overview](APIOverview.md) · [Посібник](README.md) · [Commands](Commands.md) · [Services](Services.md) ·
 [Повна runnable програма](../../examples/user_guide/FlatNative.cpp)
 
+> **Одна форма — дерево груп, шляхи й handles.** У Model із груп той самий
+> endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
+> `ts::call<model, "adc/Reset">()` і `ts::call<model, "adc/Calibrate">(request)`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
+> клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
+> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
+> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
+> lifetime rules самих Field, Command і Service від форми Model не залежать.
+
 Коли ID відомий лише під час виконання, а native Request/Response відомі в C++,
 використовуйте ці форми. Visitor, подвійні `value()` та окремий routing result
 для звичайного виклику не потрібні.

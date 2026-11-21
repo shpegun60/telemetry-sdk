@@ -6,7 +6,10 @@
 `RpcMailbox` objects in `RpcSessionPool<4>`. Clients A/B use independent simulated
 connections; C/D use distinct channels on a shared connection with explicit
 outer frame pairing. All mailboxes share one Model and serialized Workspace,
-while their request/result arrays remain separate.
+while their request/result arrays remain separate. The Model is one group,
+`ts::group("counter", ts::service<&Counter::add>("Add", counter))`, and the
+clients' `ServiceEndpoint` takes its ID from the path:
+`ts::idOf<model, "counter/Add">()`.
 
 The host example checks concurrent transaction ID 1, different results, one
 lost WRITE ACK followed by an identical retry, and release/reacquire followed

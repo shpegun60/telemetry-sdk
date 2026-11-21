@@ -172,8 +172,10 @@ struct Config {
 ```
 
 Його payload має п'ять байтів: u32 LE та один bool byte. C++ padding у payload
-не потрапляє. Packed ID `telemetry::makeId<0, 0>()` дорівнює нулю: catalog 0,
-entry 0 у родині Fields. Command 0 та Service 0 мають окремі адресні простори,
+не потрапляє. Packed ID дорівнює нулю: група 0, entry 0 у родині Fields. У
+Model із дерева груп його дає шлях, `telemetry::idOf<model, "device/Config">()`;
+у плоскій формі, що [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку),
+це `telemetry::makeId<0, 0>()`. Command 0 та Service 0 мають окремі адресні простори,
 тому операція потрібна для вибору таблиці.
 
 Для читання Config клієнт готує повний body `01 00 00 00 00`. Handler

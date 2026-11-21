@@ -38,8 +38,23 @@ Field, Command і Service мають одну модель декларації:
 Native API не потребує генератора коду, virtual base class або динамічного виділення пам'яті
 в library core. Qt використовується в host-прикладах та необов'язковому QML SDK.
 
+**Одна форма всюди: дерево груп, шляхи й handles.** Пристрій описують групами:
+`ts::group("adc", ts::group("channel1", ...), ts::field<...>("Config"), ...)`,
+а `Model{adc::tlm::branch, metrology::tlm::branch}` монтує гілки. Endpoint
+адресують шляхом `adc/channel1/Gain` (член — `adc/Config.rateHz`) однаково на
+пристрої (`telemetry::read<model, "adc/Config">()`,
+`telemetry::endpoint<model, "adc/channel1/Gain">`), у Static C++ клієнті
+(`device.read<"adc/Config">(cb)`, `device.adc.Config`), у TS/JS
+(`await device.read('adc/Config')`) і в Dynamic клієнті
+(`client.endpoint("adc/Config")`). [Одна операція в чотирьох місцях](doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях)
+· [Приклад із файлів гілок](examples/group_tree/README.md)
+· [Клієнт без SDK: один Field байт за байтом](doc/user/ReadingAFieldByHand.md).
+Плоскі каталоги, публічний `makeId` і згенеровані символи за сімействами ще
+компілюються, але [виводяться з ужитку](#виводиться-з-ужитку).
+
 Необов'язковий [host-side генератор C++/TS/JS SDK](doc/CodeGenerator.md) читає
-Descriptor v3.0 та створює готові типи, endpoint contracts і standalone кодеки.
+Descriptor v3.0 і v3.1 та створює готові типи, endpoint handles за шляхами,
+endpoint contracts і standalone кодеки.
 Вони працюють із власним транспортом, Encoded API або чинним RpcClient;
 оригінальні структури STM32 та wire-контракти залишаються чинними.
 Додатковий [QML target із C++ backend](doc/GeneratedQmlApi.md) створює готовий
@@ -81,6 +96,7 @@ Boost.PFR зафіксований на **boost-1.92.0**. На 2026-10-04 це �
 - [Пам'ять і build integration](#память-і-build-integration)
 - [Перевірки та вимірювання](#перевірки-та-вимірювання)
 - [Структура й ліцензія](#структура-й-ліцензія)
+- [Виводиться з ужитку](#виводиться-з-ужитку)
 
 ## Як організувати свій протокол
 
@@ -105,7 +121,8 @@ ownership, backpressure та recovery; host transport у ньому є fake.
 ## Як пройти першу інтеграцію
 
 1. [Зібрати першу програму](doc/user/GettingStarted.md): залежності, include
-   paths, compiled sources, власний клас, таблиці й перші native виклики.
+   paths, compiled sources, власний клас, група Model і перші виклики через
+   handles та шляхи.
 2. [Підключити до свого застосунку](doc/user/ApplicationIntegration.md):
    business validation, status, всі форми binding, slots, snapshots і tasks.
 3. [Провести дані через transport](doc/user/TransportWalkthrough.md): UART/TCP
@@ -122,18 +139,19 @@ ownership, backpressure та recovery; host transport у ньому є fake.
 
 | Потрібно | Окрема сторінка |
 | --- | --- |
+| Модель із файлів гілок, шляхи `adc/channel1/Gain`, named handles та імена типів | [Group tree](doc/user/Model.md#group-tree-модель-із-файлів-гілок) · [приклад](examples/group_tree/README.md) |
+| Одна операція на пристрої, у Static C++, TS/JS і Dynamic клієнті | [Таблиця API Map](doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях) |
 | Вибрати сценарій, public header і готову програму | [API Map](doc/user/APIOverview.md) |
 | Getter/setter, exact/As access і owning/borrowed Field result | [Fields](doc/user/Fields.md) |
 | Application дія, Request, statuses і повторне виконання | [Commands](doc/user/Commands.md) |
 | Request/Response, status та owning/borrowed Service result | [Services](doc/user/Services.md) |
 | Local tables, named groups, PackedId, traversal та indexes | [Tables and catalogs](doc/user/TablesAndCatalogs.md) |
 | Спільний TypeRegistry, ModelView та encoded adapter | [Model](doc/user/Model.md) |
-| Модель із файлів гілок, шляхи `adc/channel1/Gain`, named handles та імена типів | [Group tree](doc/user/Model.md#group-tree-модель-із-файлів-гілок) · [приклад](examples/group_tree/README.md) |
 | Великий проєкт: compiler memory/time, type diversity та module boundaries | [Вимірювання масштабування](doc/Scalability.md) |
 | Canonical bytes, три decode forms, Workspace/Lease, local budget та overlap | [Codec and Workspace](doc/user/CodecAndWorkspace.md) · [Runnable приклад](examples/user_guide/Codec.cpp) |
 | Providers, FileSystem/FileView, cursor і partial READ/WRITE | [Resource files](doc/user/Resources.md) |
 | Immutable descriptor, live Values, fingerprint і buffers | [Descriptor and Values](doc/user/DescriptorAndValues.md) |
-| Exact binary headers/records/default ceilings | [Wire v3.0](doc/WireV3.md) |
+| Exact binary headers/records/default ceilings, PackedId, value encoding, TEQ1 request/reply frames | [Wire v3.0 і v3.1](doc/WireV3.md) · [Клієнт без SDK](doc/user/ReadingAFieldByHand.md) |
 | Complete LIST/STAT/READ/WRITE/SAVE packet processor | [Resource protocol](lib/resource/protocol/README.md) |
 | Typed remote Field/Command/Service без ручного TRPC header | [RpcClient](doc/RpcClientV1.md) · [Приклад](examples/rpc_client/README.md) |
 | Кілька незалежних клієнтів одного Model | [RpcSessionPool](doc/RpcSessionsV1.md) · [Приклад](examples/rpc_multi_session/README.md) |
@@ -151,17 +169,19 @@ native calls, checked Field conversions та exact Command/Service signatures.
 Для самостійного DTO ↔ bytes є [Codec.cpp](examples/user_guide/Codec.cpp).
 
 [QuickStart.cpp](examples/user_guide/QuickStart.cpp) — повна програма без Qt і
-приладу. Вона оголошує всі три сімейства, збирає Model і викликає native API.
-Межа напруги нижче є бізнес-логікою `Device`, а не metadata бібліотеки.
+приладу. Вона кладе Field, Command і Service в одну групу, збирає Model і
+звертається до них через named handles та шлях члена. Межа напруги нижче є
+бізнес-логікою `Device`, а не metadata бібліотеки. Модель із кількох файлів
+гілок показує [group_tree](examples/group_tree/README.md).
 
 <!-- quickstart:begin -->
 ```cpp
 /*
  * Small native Fields, Commands and Services application.
  *
- * Start with ordinary owner methods and bind names directly to their signatures.
- * The static owner and tables satisfy borrowing lifetimes; semantic validation
- * stays in Device rather than the structural Model.
+ * Start with ordinary owner methods, put them in one group and reach them by
+ * path through named handles. The static owner and Model satisfy borrowing
+ * lifetimes; semantic validation stays in Device rather than the structural Model.
  *
  * Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
  */
@@ -217,32 +237,35 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::read, &Device::write>("Config", device)};
-inline constexpr ts::CommandTable localCommands{ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::sample>("Sample", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// One group holds its Field, Command and Service side by side: no tables, no IDs.
+inline constexpr auto branch = ts::group(
+    "device", ts::field<&Device::read, &Device::write>("Config", device),
+    ts::command<&Device::reset>("Reset", device), ts::service<&Device::sample>("Sample", device));
+inline constexpr ts::Model model{branch};
+// Named handles: each path is checked here, once.
+inline constexpr auto config = ts::endpoint<model, "device/Config">;
+inline constexpr auto reset = ts::endpoint<model, "device/Reset">;
+inline constexpr auto sample = ts::endpoint<model, "device/Sample">;
 
 int main()
 {
-	assert(localFields.write<0>(Config{240.0f, true}) == ts::WriteResult::Applied);
-	const auto value = fields.read<ts::makeId<0, 0>()>();
+	assert(config.write(Config{240.0f, true}) == ts::WriteResult::Applied);
+	const auto value = config.read();
 	assert(value && value->voltage == 240.0f);
-	assert(localFields.write<0>(Config{std::numeric_limits<float>::quiet_NaN(), false}) ==
+	assert(config.write(Config{std::numeric_limits<float>::quiet_NaN(), false}) ==
 	       ts::WriteResult::InvalidValue);
-	const auto unchanged = localFields.read<0>();
+	const auto unchanged = config.read();
 	assert(unchanged && unchanged->voltage == 240.0f && unchanged->enabled);
-	const auto response = services.call<ts::makeId<0, 0>()>();
+	const auto voltage = ts::read<model, "device/Config.voltage">(); // One member, by path.
+	assert(voltage && *voltage == 240.0f);
+	const auto response = sample.call();
 	assert(response.hasValue() && response.value().voltage == 240.0f);
-	assert(localCommands.call<0>() == ts::CommandResult::Executed);
+	assert(reset.call() == ts::CommandResult::Executed);
 }
 ```
 <!-- quickstart:end -->
 
-Зберігайте objects і names довше за таблиці. Callback має бути `noexcept`.
+Зберігайте objects і names довше за Model. Callback має бути `noexcept`.
 Для struct/array values використовуйте звичайні вирівняні DTO: codec передає
 members у canonical little-endian формі, не C++ padding або raw memory layout.
 
@@ -253,21 +276,23 @@ members у canonical little-endian формі, не C++ padding або raw memor
 
 | Що відомо у цьому місці | Приклад | Результат / поведінка |
 | --- | --- | --- |
-| Локальна позиція compile-time | `localFields.read<0>()`, `write<0>(value)` | Exact native type; concrete callback |
-| Глобальний ID compile-time | `fields.read<ts::makeId<0, 0>()>()` | Compile-time routing у локальну таблицю |
-| ID runtime, потрібен конкретний C++ тип | `fields.readAs<Config>(id)`, `writeAs(id, value)` | Exact structural type або checked numeric conversion |
-| Runtime ID з native definition | `fields.visit(id, visitor)` | Typed visitor; перевірка вибраної definition |
-| Команда/сервіс compile-time | `commands.call<id>(request)`, `services.call<id>(request)` | Native request/result, без wire encoding |
-| ID + bytes отримані з транспорту | `index.readEncoded(...)`, `writeEncoded(...)`, `executeEncoded(...)`, `callEncoded(...)` | Checked canonical decode/callback/encode |
+| Шлях compile-time, endpoint потрібен часто | `inline constexpr auto config = ts::endpoint<model, "device/Config">;` далі `config.read()`, `config.write(value)` | Exact native type; шлях перевіряється один раз, handle порожній |
+| Шлях compile-time, разовий доступ | `ts::read<model, "device/Config">()`, `ts::write<model, "device/Config">(value)` | Той самий код, що через handle |
+| Член або елемент Field | `ts::read<model, "device/Config.voltage">()` | Getter усього Field, повертає частину; запису члена немає |
+| Command / Service за шляхом | `reset.call()`, `ts::call<model, "device/Sample">()` | Native request/result, без wire encoding |
+| ID відомого endpoint для пакета чи клієнта без SDK | `ts::idOf<model, "device/Config">()`, `config.id` | `PackedId` group/entry; дійсний для одного descriptor |
+| ID + bytes отримані з транспорту | `ts::readFieldEncoded(model.view(), id, ...)`, `writeFieldEncoded`, `executeCommandEncoded`, `callServiceEncoded` | Checked canonical decode/callback/encode |
 | C++ DTO ↔ bytes без endpoints | `ts::encode(object, bytes)`, `ts::decode(bytes, object)` | Standalone Codec; ні таблиці, ні Model не потрібні |
 | Обхід concrete definitions | `table.forEach(visitor)`, `catalogs.forEach(visitor)` | Тип callback лишається відомим; getter сам не викликається |
 | Обхід erased entries | `for (const auto& entry : table)` | Descriptor metadata без автоматичного виконання |
 | Обхід файлів | `for (auto file : fs)` | Lazy `FileView`: `index()`, `path()`, explicit operations |
 
-Глобальний ID — u32 з 16-бітними позиціями catalog/entry. Runtime lookup —
-перевірка меж і пряме індексування масивів. Compile-time локальний/глобальний
-шлях зберігає конкретну функцію; однаковість із прямим викликом перевіряється
-ARM codegen gates для визначених fixtures, а не обіцяється для кожного compiler.
+Глобальний ID — u32 з 16-бітними позиціями group/entry
+([PackedId](doc/WireV3.md#packedid)); шлях дає його під час компіляції, і текст
+шляху не потрапляє в image. Runtime lookup — перевірка меж і пряме індексування
+масивів. Compile-time шлях зберігає конкретну функцію; однаковість із прямим
+викликом перевіряється ARM codegen gates для визначених fixtures, а не
+обіцяється для кожного compiler.
 
 ## Типи й прив'язки
 
@@ -419,3 +444,19 @@ objdump не є виміром cycles/live stack: [H7S qualification](tests/stru
 [Індекс документів](doc/README.md) відділяє user guide від історичних review,
 планів і [міграції](doc/StructuredTelemetryV3MigrationGuide.md).
 Поточний API не має compatibility adapter для старого Scalar/v2.1.
+
+## Виводиться з ужитку
+
+Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1.
+Новий код їх не використовує:
+
+| Форма, що виводиться | Замість неї |
+| --- | --- |
+| Плоска `Model{fields, commands, services}` із `FieldTable` → `FieldCatalogTable{ts::group("device", localFields)}`, `emptyFields`, `emptyCommands` | `Model{ts::group("device", ts::field<...>("Config", device), ...)}` або `Model{branches...}` |
+| Позиції й публічний `makeId`: `localFields.read<0>()`, `fields.read<ts::makeId<0, 0>()>()`, `fields.readAs<Config>(id)`, `fields.visit(id, visitor)`, `commands.call<id>()`, `services.call<id>()` | `ts::endpoint<model, "path">`, `ts::read/write/call<model, "path">()`, `ts::idOf<model, "path">()` |
+| Catalog index `fields.index().readEncoded(...)` | `ts::readFieldEncoded(model.view(), ...)` |
+| Згенеровані символи за сімействами: `api::device::fields::Config`, `client.read(api::device::fields::Config, cb)` | `device.read<"device/Config">(cb)`, `api::client::endpoint<"device/Config">(device)` |
+
+[API Map: виводиться з ужитку](doc/user/APIOverview.md#виводиться-з-ужитку)
+перелічує ті самі форми з посиланнями. PackedId лишається у wire і descriptor:
+[WireV3](doc/WireV3.md#packedid).

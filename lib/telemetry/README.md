@@ -2,9 +2,10 @@
 
 Authors: Ruslan Kovtun (shpegun60), codexAi. Own code: [MIT](LICENSE).
 
-`telemetry` defines native typed Fields, Commands and Services, their local
-tables and global catalogs, and one mixed `Model`. The Model derives an
-immutable type registry from all three families. The optional
+`telemetry` defines native typed Fields, Commands and Services, one tree of
+groups that holds them (`group(name, items...)`), and one `Model` composed of
+the branches. Endpoints are reached by path and through named handles; the
+Model derives an immutable type registry from all three families. The optional
 [`resource::telemetry::v3` providers](../integration/telemetry/v3/README.md) expose
 the canonical descriptor and values files; the [JavaScript codec](../../web/telemetry.js)
 decodes those wire types. Applications own transport framing, connection
@@ -23,6 +24,42 @@ Runtime Command `call(id[, request])` and Service `callAs<Response>` /
 [runnable example](../../examples/user_guide/FlatNative.cpp). Existing detailed
 `callAs<ServiceResult<Response>>` and static calls remain available.
 
+## Group trees, paths and named handles
+
+A device with many subsystems can keep each one in a branch file and mount
+the branches: `telemetry::group(name, items...)` mixes subgroups, Fields,
+Commands and Services, and `Model{adc::tlm::branch, metrology::tlm::branch}`
+composes them (descriptor v3.1). Endpoints are then reached by path,
+`group/.../endpoint` followed by `.member` and `[i]`, resolved at compile time:
+
+```cpp
+inline constexpr telemetry::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;
+inline constexpr auto rate = telemetry::endpoint<model, "adc/Config.rateHz">; // reads only
+inline constexpr auto reset = telemetry::endpoint<model, "adc/Reset">;
+
+gain1.read();                                   // optional<float>
+gain1.write(2.5f);                              // WriteResult
+reset.call();                                   // CommandResult
+telemetry::read<model, "adc/Status.raw[1]">();  // one-off access without a handle
+```
+
+A handle is an empty object whose type carries the PackedId and the value
+type; the path is checked once, where the handle is declared, and a call
+compiles to the same code as typed access by ID. A member handle reads only.
+`telemetry::idOf<model, path>()` or a handle's `id` gives the PackedId a
+hand-written client uses, valid for the descriptor's fingerprint
+([WireV3](../../doc/WireV3.md#packedid)). The generated Static clients and the
+Dynamic clients take the same paths:
+`device.read<"adc/Config">(callback)`, `await device.read('adc/Config')`,
+`client.endpoint("adc/Config")`; the
+[API map](../../doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях) shows
+one operation in all four places. The flat `Model{fields, commands, services}`
+and `makeId` still compile but are [being removed](#being-removed). See
+[Model](../../doc/user/Model.md#group-tree-модель-із-файлів-гілок), the
+[group tree example](../../examples/group_tree/README.md) and
+[QuickStart.cpp](../../examples/user_guide/QuickStart.cpp).
+
 ## Reading the source
 
 Each authored source file starts with its purpose and the reason its boundary
@@ -33,10 +70,13 @@ that are easy to lose during maintenance, including one target selection per
 call, reverse-order Workspace release and validation before owner mutation.
 
 Start with [Field](field/Field.hpp), [Command](command/Command.hpp) or
-[Service](service/Service.hpp) for a native declaration. Their local tables
-keep the original definitions alongside erased runtime entries; catalog tables
-borrow local tables and assign group positions. [Model](model/Model.hpp) then
-combines the catalogs with one [type registry](type/Registry.hpp).
+[Service](service/Service.hpp) for a native declaration.
+[GroupTree](model/GroupTree.hpp) flattens `group(name, items...)` branches into
+one Model, and [TreePath](model/TreePath.hpp) resolves paths and handles at
+compile time. Underneath, local tables keep the original definitions
+alongside erased runtime entries; catalog tables borrow local tables and
+assign group positions. [Model](model/Model.hpp) then combines the catalogs
+with one [type registry](type/Registry.hpp).
 
 The [public codec](codec/Codec.hpp) owns standalone byte-boundary validation.
 Encoded table entries establish their own bounds before using
@@ -60,7 +100,11 @@ and `service<target>`; parameter forms accept native function pointers,
 capture-free lambdas, stable callable lvalues and slots.
 
 This complete example uses all three families and the compiled encoded
-adapter. The native and encoded calls share the same model definitions.
+adapter. The native and encoded calls share the same model definitions. It is
+written in the flat catalog form, which is [being removed](#being-removed);
+[QuickStart.cpp](../../examples/user_guide/QuickStart.cpp) and the
+[group tree example](../../examples/group_tree/main.cpp) make the same calls
+through handles and paths.
 
 ```cpp
 #include <telemetry/Telemetry.hpp>
@@ -151,8 +195,9 @@ their underlying integer representation. Failed conversion does not invoke a
 setter. A runtime structural mismatch does not invoke a getter.
 
 Local positions may be integers or enums. A global `PackedId` is a `u32`
-group/position pair made by `makeId<Group, Position>()`; Field, Command and
-Service IDs occupy separate spaces. By-value Field reads return an owning
+group/position pair; `idOf<model, path>()` gives it from a path
+(`makeId<Group, Position>()` is being removed). Field, Command and Service IDs
+occupy separate spaces. By-value Field reads return an owning
 `optional<T>`. `readAs<Big>` likewise owns `Big`, so a large native return may
 use a large stack frame according to the compiler's return ABI.
 `ServiceResult<T>` owns its optional response; use `successFrom(factory)` for
@@ -221,33 +266,6 @@ Traversal does not call a getter or construct a live value. Runtime visitors
 use indexed dispatch specialized for each visitor type; their code size is a
 separate cost from a known-target native call. See the
 [API tests](../../tests/structured/README.md) for the checked contracts.
-
-### Group trees, paths and named handles
-
-A device with many subsystems can keep each one in a branch file and mount
-the branches: `telemetry::group(name, items...)` mixes subgroups, Fields,
-Commands and Services, and `Model{adc::tlm::branch, metrology::tlm::branch}`
-composes them (descriptor v3.1). Endpoints are then reached by path,
-`group/.../endpoint` followed by `.member` and `[i]`, resolved at compile time:
-
-```cpp
-inline constexpr telemetry::Model model{adc::tlm::branch, metrology::tlm::branch};
-inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;
-inline constexpr auto rate = telemetry::endpoint<model, "adc/Config.rateHz">; // reads only
-inline constexpr auto reset = telemetry::endpoint<model, "adc/Reset">;
-
-gain1.read();                                   // optional<float>
-gain1.write(2.5f);                              // WriteResult
-reset.call();                                   // CommandResult
-telemetry::read<model, "adc/Status.raw[1]">();  // one-off access without a handle
-```
-
-A handle is an empty object whose type carries the PackedId and the value
-type; the path is checked once, where the handle is declared, and a call
-compiles to the same code as typed access by a `makeId` ID. A member handle
-reads only. `makeId` and the three-catalog `Model{fields, commands, services}`
-are unchanged. See [Model](../../doc/user/Model.md#group-tree-модель-із-файлів-гілок)
-and the [group tree example](../../examples/group_tree/README.md).
 
 ### Type names
 
@@ -368,3 +386,18 @@ records wire constants and dependency pins. The
 [protocol](../../examples/structured_protocol/README.md) and
 [client](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/examples/structured_client/README.md) examples keep application
 transport behavior outside the library.
+
+## Being removed
+
+These forms still compile and are removed by the next steps of ROADMAP API-1.
+New code uses the group tree, paths and handles above.
+
+| Being removed | Use instead |
+| --- | --- |
+| `Model{fields, commands, services}`, `FieldCatalogTable` / `CommandCatalogTable` / `ServiceCatalogTable`, `group(name, table)`, `emptyFields`, `emptyCommands` | `Model{branches...}` with `group(name, items...)` |
+| Public `makeId<group, entry>()` and typed access by ID: `fields.read<id>()`, `commands.call<id>()`, `services.call<id>()` | `endpoint<model, path>`, `read/write/call<model, path>()`; the ID from `idOf<model, path>()` or `handle.id` |
+| Catalog `index()` without a Model | `model.view()` and the compiled adapter |
+| Generated per-family symbols such as `api::device::fields::Config` | `device.read<"device/Config">(callback)`, `api::client::endpoint<"device/Config">(device)` |
+
+The flat engine stays inside the SDK under the tree; the PackedId stays on the
+wire. [API map: being removed](../../doc/user/APIOverview.md#виводиться-з-ужитку).

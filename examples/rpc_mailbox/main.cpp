@@ -59,11 +59,12 @@ struct Counter {
 
 // All borrowed objects keep stable addresses for the complete owner lifetime.
 Counter counter;
-inline constexpr ts::ServiceTable localServices{ts::service<&Counter::add>("Add", counter)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("counter", localServices)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, services};
+inline constexpr auto branch = ts::group("counter", ts::service<&Counter::add>("Add", counter));
+inline constexpr ts::Model model{branch};
 inline constexpr auto modelView = model.view();
-inline constexpr auto AddId = ts::makeId<0, 0>();
+// The ID a TRPC request carries, taken from the Service's path.
+inline constexpr auto AddId = ts::idOf<model, "counter/Add">();
+static_assert(AddId == ts::makeId<0, 0>()); // The positional form, being removed.
 std::array<std::byte, 64> scratch{};
 ts::Workspace workspace{scratch};
 std::array<std::byte, 64> requestStorage{};

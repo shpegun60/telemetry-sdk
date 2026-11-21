@@ -58,13 +58,11 @@ struct Device {
 };
 
 static Device device;
-static constexpr ts::FieldTable fields{ts::field<&Device::read, &Device::write>("Total", device)};
-static constexpr ts::CommandTable commands{ts::command<&Device::clear>("Clear", device)};
-static constexpr ts::ServiceTable services{ts::service<&Device::add>("Add", device)};
-static constexpr ts::FieldCatalogTable fieldGroups{ts::group("demo", fields)};
-static constexpr ts::CommandCatalogTable commandGroups{ts::group("demo", commands)};
-static constexpr ts::ServiceCatalogTable serviceGroups{ts::group("demo", services)};
-static constexpr ts::Model model{fieldGroups, commandGroups, serviceGroups};
+// One group holds the Field, the Command and the Service side by side.
+static constexpr auto branch = ts::group(
+    "demo", ts::field<&Device::read, &Device::write>("Total", device),
+    ts::command<&Device::clear>("Clear", device), ts::service<&Device::add>("Add", device));
+static constexpr ts::Model model{branch};
 static constexpr auto view = model.view();
 static std::array<std::byte, 28> serverRequest;
 static std::array<std::byte, 4> serverResult;
@@ -149,13 +147,15 @@ admitSharedSchema(std::uint64_t expected, std::uint64_t offered, std::uint32_t g
 int main()
 {
 	// These mappings assert the application's shared schema agreement for this
-	// session. They do not fetch or validate a remote descriptor.
+	// session. They do not fetch or validate a remote descriptor. Each ID comes
+	// from its endpoint's path; every family numbers its own entries.
 	constexpr ::telemetry::client::rpc::ServiceEndpoint<Add, Report> add{
-	    0, ::telemetry::client::rpc::trustedRpcMapping};
+	    ts::idOf<model, "demo/Add">(), ::telemetry::client::rpc::trustedRpcMapping};
 	constexpr ::telemetry::client::rpc::FieldEndpoint<std::uint32_t> total{
-	    0, ::telemetry::client::rpc::trustedRpcMapping};
+	    ts::idOf<model, "demo/Total">(), ::telemetry::client::rpc::trustedRpcMapping};
 	constexpr ::telemetry::client::rpc::CommandEndpoint<> clear{
-	    0, ::telemetry::client::rpc::trustedRpcMapping};
+	    ts::idOf<model, "demo/Clear">(), ::telemetry::client::rpc::trustedRpcMapping};
+	static_assert(add.id == 0 && total.id == 0 && clear.id == 0); // Group 0, entry 0 each.
 	constexpr std::uint64_t expectedFingerprint = 0x534348454d410001ULL;
 	check(admitSharedSchema(expectedFingerprint, expectedFingerprint ^ 1, 1) ==
 	      ::telemetry::client::rpc::RpcClientStatus::NoSession);

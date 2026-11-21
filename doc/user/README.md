@@ -9,6 +9,15 @@
 Це вхідна сторінка документації **поточного C++20 API**. Для першої інтеграції
 не потрібно читати звіти агентів або весь план реалізації.
 
+**Одна форма всюди — дерево груп, шляхи й handles.** `ts::group(name, items...)`
+описує гілку, `Model{branches...}` монтує гілки, а endpoint адресують шляхом
+`adc/channel1/Gain` на пристрої, у Static C++ клієнті, у TS/JS і в Dynamic
+клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях),
+[приклад із файлів гілок](../../examples/group_tree/README.md). Клієнт без SDK
+читає Field за [покроковим прикладом із байтами](ReadingAFieldByHand.md).
+Плоскі каталоги та `makeId` ще компілюються, але
+[виводяться з ужитку](APIOverview.md#виводиться-з-ужитку).
+
 Якщо ви пишете клієнт, а не firmware Model, оберіть
 [типізований DeviceClient](../AsyncClient.md) або
 [DynamicClient для runtime-схеми](../DynamicClientUsage.md).
@@ -31,7 +40,7 @@
 
 | Порядок | Практичний розділ | Що буде готове після нього |
 | --- | --- | --- |
-| 1 | [Перша інтеграція](GettingStarted.md) | Build settings, свій клас, local/global tables і native read/write/call |
+| 1 | [Перша інтеграція](GettingStarted.md) | Build settings, свій клас, група Model, handles і шляхи |
 | 2 | [Application integration](ApplicationIntegration.md) | Прикладні правила, lifetime, bindings/slots, task synchronization та status handling |
 | 3 | [Transport walkthrough](TransportWalkthrough.md) | Повний receive → framing → telemetry/resource operation → reply шлях |
 | 4 | [Device integration example](../../examples/device_integration/README.md) | Готовий проєкт із кількох файлів, CMake та host перевірками |
@@ -44,16 +53,18 @@
 
 | Розділ | Що пояснює | Наступний крок |
 | --- | --- | --- |
+| [Model: дерево груп](Model.md#group-tree-модель-із-файлів-гілок) | Групи з файлів гілок, шлях `group/.../endpoint`, named handles, імена типів | [group_tree](../../examples/group_tree/README.md) |
 | [Fields](Fields.md) | Getter/setter forms, exact/As доступ, owning/borrowed results і callbacks | [Tables and catalogs](TablesAndCatalogs.md) |
 | [Runtime native API та обхід](Ergonomics.md) | callAs, readBorrowed, readAsResult, flat traversal і caller buffer maxima | [Runnable example](../../examples/user_guide/Ergonomics.cpp) |
 | [Command/Service: один runtime result](FlatNative.md) | call, callAs<Reply>, callBorrowed<Reply>, один status/value і exact ownership | [Runnable example](../../examples/user_guide/FlatNative.cpp) |
 | [Commands](Commands.md) | Дії без response payload, Request, Executed/Accepted/refusal і повтори | [Tables and catalogs](TablesAndCatalogs.md) |
 | [Services](Services.md) | Request/Response, status, owning/borrowed результат і encoded reply | [Tables and catalogs](TablesAndCatalogs.md) |
-| [Tables and catalogs](TablesAndCatalogs.md) | Local Position, global PackedId, групи, typed traversal і runtime indexes | [Model](Model.md) |
+| [Tables and catalogs](TablesAndCatalogs.md) | Плоска форма, що виводиться з ужитку: local Position, global PackedId, групи, typed traversal і runtime indexes | [Model](Model.md) |
 | [Model](Model.md) | Спільний structural registry, ModelView, TypeIds і encoded access | [Codec and Workspace](CodecAndWorkspace.md) |
 | [Codec and Workspace](CodecAndWorkspace.md) | Canonical bytes, Lease lifetime, storage budget, scratch і overlap | [Descriptor and Values](DescriptorAndValues.md) |
 | [Resource files](Resources.md) | Provider signatures, FileSystem/FileView, cursor, partial transfer і capability | [Descriptor and Values](DescriptorAndValues.md) |
-| [Descriptor and Values](DescriptorAndValues.md) | Model metadata, live Fields, fingerprint, buffers і token boundaries | [Wire v3.0](../WireV3.md) |
+| [Descriptor and Values](DescriptorAndValues.md) | Model metadata, live Fields, fingerprint, buffers і token boundaries | [Wire v3.0 і v3.1](../WireV3.md) |
+| [Reading a Field without the SDK](ReadingAFieldByHand.md) | Один FieldRead через TCP байт за байтом: файли, descriptor, ID `1:0`, session, request і reply | [Request and reply frames](../WireV3.md#request-and-reply-frames-teq1-v1) |
 | [Resource packet protocol](../../lib/resource/protocol/README.md) | Exact LIST/STAT/READ/WRITE/SAVE envelopes і errors | [Transport walkthrough](TransportWalkthrough.md) |
 | [COBS integration](COBSIntegration.md) | Real `cobs::Endpoint`, pending TX ownership і повний resource round trip | [COBS example](../../examples/cobs_integration/README.md) |
 | [Native reference](NativeApi.md) | Native calls, bindings, slots, conversions, traversal і lifetime | [API Map](APIOverview.md) |
@@ -66,12 +77,14 @@ project sources наведені у [прикладах](../../examples/user_gui
 
 | Завдання | Де читати | Повна програма |
 | --- | --- | --- |
+| Модель із файлів гілок, шляхи, named handles, імена типів | [Model: group tree](Model.md#group-tree-модель-із-файлів-гілок), [Fields: імена типів](Fields.md#8-імена-типів-у-descriptor) | [group_tree](../../examples/group_tree/main.cpp), [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp) |
+| Ту саму операцію на пристрої, у Static C++, TS/JS і Dynamic клієнті | [API Map](APIOverview.md#одна-операція-в-чотирьох-місцях) | [client_handles](../../tests/client_handles/README.md) |
+| Прочитати Field без SDK, будь-якою мовою | [Reading a Field without the SDK](ReadingAFieldByHand.md), [WireV3](../WireV3.md) | [field_by_hand](../../tests/field_by_hand/README.md) |
 | Перші native calls без Model/Workspace | [Native API](NativeApi.md) | [NativeOnly.cpp](../../examples/user_guide/NativeOnly.cpp) |
 | Самостійно перетворити struct/array ↔ bytes | [Codec and Workspace](CodecAndWorkspace.md) | [Codec.cpp](../../examples/user_guide/Codec.cpp) |
 | Оголосити Field, Command, Service; працювати з native типами | [Fields](Fields.md), [Commands](Commands.md), [Services](Services.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
-| Локальні/глобальні ID, iteration і indexes | [Tables and catalogs](TablesAndCatalogs.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
+| Локальні/глобальні ID, iteration і indexes (плоска форма, виводиться з ужитку) | [Tables and catalogs](TablesAndCatalogs.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
 | Model, TypeRegistry, runtime view та encoded buffers | [Model](Model.md), [Codec and Workspace](CodecAndWorkspace.md) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) |
-| Модель із файлів гілок, шляхи, named handles, імена типів | [Model: group tree](Model.md#group-tree-модель-із-файлів-гілок), [Fields: імена типів](Fields.md#8-імена-типів-у-descriptor) | [group_tree](../../examples/group_tree/main.cpp) |
 | Оголосити масив файлів і власний provider, вибрати шляхи | [Resource files](Resources.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |
 | LIST/STAT/READ/WRITE/SAVE, порційний transfer і cursor | [Resource files](Resources.md), [protocol](../../lib/resource/protocol/README.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |
 | Прийняти UART/TCP frame і звернутися до Model без файлів | [Транспорт і ресурси](TransportAndResources.md) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) |
@@ -90,13 +103,9 @@ project sources наведені у [прикладах](../../examples/user_gui
 
 ```mermaid
 flowchart TD
-    A[Application C++ objects] --> B[Field / Command / Service tables]
-    B --> D[Native typed calls]
-    B --> C[Catalogs]
-    C --> D
-    C --> K[Catalog indexes]
-    K --> E[Encoded calls]
-    C --> M[Model + structural registry]
+    A[Application C++ objects] --> B[ts::group branches]
+    B --> M[Model + structural registry]
+    M --> D[Native calls by path or handle]
     M --> V[ModelView + compiled adapter]
     V --> E
     M --> F[Descriptor / Values providers]
@@ -109,11 +118,12 @@ flowchart TD
     Y --> Z[Canonical bytes]
 ```
 
-**Локальна бізнес-логіка:** викликайте native API таблиць/каталогів. Файли,
-протокол і Workspace для звичайних typed викликів не потрібні.
+**Локальна бізнес-логіка:** викликайте handles і функції шляху
+(`config.read()`, `ts::read<model, "device/Config">()`). Файли, протокол і
+Workspace для звичайних typed викликів не потрібні.
 
 **Власний транспорт без файлів:** після складання повного frame розберіть
-операцію/ID та передайте payload у catalog index або ModelView adapter. Endpoint виконує callback;
+операцію/ID та передайте payload у ModelView adapter. Endpoint виконує callback;
 ваш transport відповідає за framing, connection state і delivery.
 
 **Самостійний Codec:** передайте object і byte span у `encode`/`decode`.
@@ -126,10 +136,11 @@ Workspace потрібний лише для форми decode, яка ство�
 
 ## Правила, які потрібно пам'ятати
 
-- Назви й borrowed objects живуть довше за таблиці. Slots дозволяють
+- Назви й borrowed objects живуть довше за Model. Slots дозволяють
   перев'язати target, але не керують зовнішньою синхронізацією.
-- Локальна позиція — індекс у таблиці. Глобальний ID — packed u32 із двох
-  16-бітних позицій; runtime lookup індексує масиви.
+- Endpoint адресують шляхом `group/.../endpoint`. Його ID на wire — packed
+  u32 із позицій групи та entry; це позиція в одному descriptor, тож клієнт
+  зберігає ID разом із fingerprint. Runtime lookup індексує масиви.
 - Field повертає `T` або `const T&`. Setter повертає `WriteResult`; Command —
   `CommandResult`. Callback має бути `noexcept`.
 - Межі прикладних значень, units, defaults і persistence не додаються до

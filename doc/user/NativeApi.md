@@ -6,6 +6,14 @@
 [Services](Services.md) · [Tables and catalogs](TablesAndCatalogs.md) ·
 [API шпаргалка](API-CHEATSHEET.md)
 
+> **Одна форма — дерево груп, шляхи й handles.** У Model із груп той самий
+> endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
+> `ts::endpoint<model, "adc/channel1/Gain">` далі `.read()`, `.write(2.5f)`, `.call(args...)`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
+> клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
+> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
+> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
+> lifetime rules самих Field, Command і Service від форми Model не залежать.
+
 Це canonical reference для **Native access**: C++ значень, typed викликів,
 runtime selection і traversal. Для одного endpoint family відкрийте окрему
 сторінку вище. Самостійні [Codec](CodecAndWorkspace.md),

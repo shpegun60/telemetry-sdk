@@ -4,7 +4,8 @@
 [API шпаргалка](user/API-CHEATSHEET.md) · [Архітектура](Architecture.md) ·
 [Runtime native та обхід](user/Ergonomics.md) ·
 [Command/Service: один результат](user/FlatNative.md) ·
-[Wire v3.0](WireV3.md) · [Тести](../tests/README.md)
+[Wire v3.0 і v3.1](WireV3.md) · [Клієнт без SDK](user/ReadingAFieldByHand.md) ·
+[Тести](../tests/README.md)
 
 [Генератор C++/TS/JS SDK](CodeGenerator.md) ·
 [Generated C++](GeneratedCppApi.md) · [Generated JS/TS](GeneratedTsJsApi.md) ·
@@ -46,7 +47,14 @@
 **[API Map: Native / Encoded / Codec / Resource](user/APIOverview.md)** —
 короткий вибір сценарію з headers, залежностями, довідниками й runnable examples.
 
-Цей індекс описує чинний C++20 `telemetry` і wire v3.0. Для першої
+**Одна форма всюди — дерево груп, шляхи й handles.** `ts::group(name, items...)`
+і `Model{branches...}` описують пристрій; шлях `adc/channel1/Gain` адресує
+endpoint на пристрої, у Static C++ клієнті, у TS/JS і в Dynamic клієнті
+([одна операція в чотирьох місцях](user/APIOverview.md#одна-операція-в-чотирьох-місцях)).
+Плоскі каталоги, публічний `makeId` і згенеровані символи за сімействами
+[виводяться з ужитку](user/APIOverview.md#виводиться-з-ужитку).
+
+Цей індекс описує чинний C++20 `telemetry` і wire v3.0 та v3.1. Для першої
 інтеграції почніть із [GettingStarted](user/GettingStarted.md); повні
 програми мають окремі runnable source files. Таблиці нижче ведуть до
 документа, який володіє конкретною темою.
@@ -64,7 +72,7 @@
 
 | Крок | Документ | Результат |
 | --- | --- | --- |
-| 1 | [Перша інтеграція](user/GettingStarted.md) | Source/include settings, свій Device, declarations і native виклик |
+| 1 | [Перша інтеграція](user/GettingStarted.md) | Source/include settings, свій Device, група Model, handles і шляхи |
 | 2 | [Application integration](user/ApplicationIntegration.md) | Валідація, facade, lifetimes, slots і узгоджений доступ до state |
 | 3 | [Transport walkthrough](user/TransportWalkthrough.md) | Receive chunks → complete packet → operation → reply |
 | 4 | [Device integration](../examples/device_integration/README.md) | Multi-file проєкт із CMake та host перевірками |
@@ -79,10 +87,12 @@
 | Потрібно | Документ |
 | --- | --- |
 | Згадати declarations та назви викликів | [API шпаргалка](user/API-CHEATSHEET.md) |
+| Модель із файлів гілок, шляхи й named handles | [Model: group tree](user/Model.md#group-tree-модель-із-файлів-гілок), [приклад](../examples/group_tree/README.md) |
+| Ту саму операцію на пристрої, у Static C++, TS/JS і Dynamic клієнті | [API Map](user/APIOverview.md#одна-операція-в-чотирьох-місцях), [handles клієнтів](GeneratedNamesAndHandles.md) |
 | Getter/setter і конкретні Field operations | [Fields](user/Fields.md) |
 | Request та результат application дії | [Commands](user/Commands.md) |
 | Request/Response, Service statuses і reply payload | [Services](user/Services.md) |
-| Local tables, named groups, packed IDs та runtime indexes | [Tables and catalogs](user/TablesAndCatalogs.md) |
+| Local tables, named groups, packed IDs та runtime indexes (плоска форма, виводиться з ужитку) | [Tables and catalogs](user/TablesAndCatalogs.md) |
 | Structural TypeRegistry, ModelView та всі runtime indexes | [Model](user/Model.md) |
 | Великі catalogs, unique DTOs, visitor code size та module dependencies | [Масштабування](Scalability.md), [reproducible checks](../tests/scalability/README.md) |
 | Canonical codec, Workspace/Lease, scratch та overlap | [Codec and Workspace](user/CodecAndWorkspace.md) |
@@ -95,7 +105,8 @@
 | З'єднати telemetry resources і реальний COBS endpoint | [COBS integration](user/COBSIntegration.md) |
 | Повернути `const T&` без owning copy і забезпечити lifetime | [Borrowed native values](BorrowedNativeValues.md) |
 | Зрозуміти межі Model, codec, providers і transport | [Архітектура](Architecture.md) |
-| Реалізувати незалежний descriptor/Values decoder | [Wire v3.0](WireV3.md) |
+| Реалізувати незалежний descriptor/Values decoder | [Wire v3.0 і v3.1](WireV3.md) |
+| Написати клієнт без SDK: PackedId, value encoding, TEQ1 request і reply | [WireV3](WireV3.md#request-and-reply-frames-teq1-v1), [Reading a Field without the SDK](user/ReadingAFieldByHand.md) |
 | Перенести consumer з попереднього API | [Migration guide](StructuredTelemetryV3MigrationGuide.md) |
 | Оновити headers, accessor types та повністю перезібрати consumer | [Release notes](ReleaseNotes.md) |
 | Зібрати або перевірити конкретний приклад | [Example checks](../tests/docs/README.md), [test index](../tests/README.md) |
@@ -104,9 +115,9 @@
 
 | Приклад | Що демонструє |
 | --- | --- |
-| [User-guide programs](../examples/user_guide/README.md) | QuickStart, Native, custom Resources і encoded доступ без файлів |
-| [Device integration](../examples/device_integration/README.md) | Business class, public facade, tables у `.cpp` та bounded stream receiver |
 | [Group tree](../examples/group_tree/README.md) | Модель із файлів гілок, named handles, доступ за шляхом і імена типів |
+| [User-guide programs](../examples/user_guide/README.md) | QuickStart (група, handles, шлях члена), Native, custom Resources і encoded доступ без файлів |
+| [Device integration](../examples/device_integration/README.md) | Business class, public facade, tables у `.cpp` та bounded stream receiver |
 | [COBS integration](../examples/cobs_integration/README.md) | Реальний sibling COBS endpoint, client/server resource exchange, TX backpressure і recovery на host |
 | [Custom resources](../examples/resources/README.md) | Додати providers із власними paths |
 | [RPC mailbox](../examples/rpc_mailbox/README.md) | RPC через file table, зовнішній connectionGeneration, ACK до dispatch та checked reply |
@@ -131,7 +142,7 @@ Fenced fragments пояснюють окремий крок; повну прог
 | Optional RPC provider: wire v1.0, повтори, стани й сеанс | [RpcMailbox contract](RpcMailboxV1.md), [host example](../examples/rpc_mailbox/README.md) |
 | Optional typed caller і server session manager | [RpcClient](RpcClientV1.md), [RpcSessionPool](RpcSessionsV1.md) |
 | Descriptor/Values provider lifetime і storage | [V3 providers](../lib/integration/telemetry/v3/README.md) |
-| Exact wire constants, default ceilings і goldens | [Wire v3.0](WireV3.md), [freeze manifest](../tests/structured/freeze/contract.json) |
+| Exact wire constants, default ceilings, goldens, PackedId, value encoding і TEQ1 frames | [Wire v3.0 і v3.1](WireV3.md), [freeze manifest](../tests/structured/freeze/contract.json), [walkthrough bytes check](../tests/field_by_hand/README.md) |
 | JS native payload codec та parser | [Client API](../tests/structured/client/README.md) |
 
 ## Перевірки та вимірювання

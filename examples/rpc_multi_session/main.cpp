@@ -43,12 +43,13 @@ struct Counter {
 };
 
 Counter counter;
-inline constexpr ts::ServiceTable serviceTable{ts::service<&Counter::add>("Add", counter)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("counter", serviceTable)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, services};
+inline constexpr auto branch = ts::group("counter", ts::service<&Counter::add>("Add", counter));
+inline constexpr ts::Model model{branch};
 inline constexpr auto view = model.view();
+// The Service's ID from its path; the positional form makeId<0, 0>() is being removed.
 inline constexpr ::telemetry::client::rpc::ServiceEndpoint<Add, Report> AddService{
-    ts::makeId<0, 0>(), ::telemetry::client::rpc::trustedRpcMapping};
+    ts::idOf<model, "counter/Add">(), ::telemetry::client::rpc::trustedRpcMapping};
+static_assert(ts::idOf<model, "counter/Add">() == ts::makeId<0, 0>());
 std::array<std::byte, model.maxScratch()> scratch{};
 ts::Workspace workspace{scratch};
 

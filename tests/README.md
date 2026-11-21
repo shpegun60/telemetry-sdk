@@ -180,6 +180,11 @@ physical cable-removal behavior require separate integration checks.
 encoded examples linked from the [public guide](../doc/user/README.md).
 Host mode executes the examples with assertions enabled; ARM mode compiles
 and links them without running an image on a device.
+The [walkthrough bytes check](field_by_hand/README.md) runs the group_tree
+example's Model behind the real TCP server and encoded profile and holds every
+hex block of [Reading a Field without the SDK](../doc/user/ReadingAFieldByHand.md),
+and the value-encoding example of [WireV3](../doc/WireV3.md#value-encoding), to
+the bytes the server sends.
 
 [COBS integration checks](cobs/README.md) execute the real framing endpoint with
 telemetry and resource operations, including busy ownership, split input and

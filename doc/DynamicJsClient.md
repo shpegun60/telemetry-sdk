@@ -21,11 +21,9 @@ const client = new DynamicClient({backend});
 
 async function readConfig(session, observedHeader) {
     if (client.admit(schema, observedHeader, session) !== Status.Ok) return;
-    const field = schema.fields.find(field => field.name === 'Config');
-    if (!field) return;
-    const bound = client.bind('FieldRead', field.id);
-    if (bound.status !== Status.Ok) return;
-    const result = await client.readField(bound.endpoint);
+    // The path is the descriptor's group/.../endpoint; it throws, naming the
+    // path, when nothing has that path.
+    const result = await client.endpoint('device/Config').read();
     if (result.valueStatus === ValueStatus.Ok) console.log(result.value);
     else console.log(result.operation.status, result.valueStatus);
 }
