@@ -25,6 +25,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -405,6 +407,20 @@ private:
 	static_assert(totalEnumEntries() <= Limits::maxEnumEntriesTotal,
 	              "Enum dictionaries exceed model entry ceiling");
 
+	// Wire type names in TypeId order; empty for an unnamed enum/struct and for
+	// every array, scalar and Void. This nested class is outside TypeDescriptor
+	// and the structured ABI tag, and only a Descriptor that emits names
+	// instantiates it, so a build with TELEMETRY_TYPE_NAMES=0 compiles no name.
+	struct Names {
+		template<class... Present>
+		[[nodiscard]] static consteval auto make(detail::TypeList<Present...>) noexcept
+		{
+			return std::array<std::string_view, sizeof...(Present)>{Type<Present>::name...};
+		}
+
+		inline static constexpr auto values = make(Ordered{});
+	};
+
 public:
 	static constexpr std::uint32_t recordsBytes = static_cast<std::uint32_t>(wideRecordsBytes_);
 
@@ -413,6 +429,13 @@ public:
 	[[nodiscard]] static constexpr TypeRegistryView view() noexcept
 	{
 		return {descriptors_.data(), typeCount, recordsBytes};
+	}
+
+	// Borrow the wire names indexed by TypeId; a view never outlives the
+	// static array. TypeDescriptor::recordBytes always excludes the name.
+	[[nodiscard]] static constexpr std::span<const std::string_view> typeNames() noexcept
+	{
+		return Names::values;
 	}
 
 	template<TypeId Id>

@@ -6,7 +6,7 @@
  */
 
 /*
- * Public entry point for aggregate, callable and enum reflection.
+ * Public entry point for aggregate, callable, enum and type-name reflection.
  *
  * Consumers depend on these facades rather than pinned backend implementation
  * types. The combined include supplies structural facts only; it introduces
@@ -20,5 +20,6 @@
 #include "Aggregate.hpp"
 #include "Callable.hpp"
 #include "Enum.hpp"
+#include "TypeName.hpp"
 
 #endif

@@ -7,7 +7,8 @@
 
 Це чинна карта перенесення consumer. Поточний repository має один C++20
 `telemetry`, exact native values, owning/borrowed outputs та binary wire
-v3.0. Source, in-memory ABI і wire compatibility з попереднім Scalar/v2.1
+v3.0 з адитивним descriptor v3.1 ([нижче](#descriptor-v31-імена-типів-і-дерево-груп)).
+Source, in-memory ABI і wire compatibility з попереднім Scalar/v2.1
 API не надаються. Нове підключення починайте з
 [GettingStarted](user/GettingStarted.md).
 
@@ -17,6 +18,7 @@ API не надаються. Нове підключення починайте 
 - [Declarations і callback signatures](#declarations-і-callback-signatures)
 - [Native access та lifetimes](#native-access-та-lifetimes)
 - [Encoded transport і resources](#encoded-transport-і-resources)
+- [Descriptor v3.1: імена типів і дерево груп](#descriptor-v31-імена-типів-і-дерево-груп)
 - [Перевірка перенесення](#перевірка-перенесення)
 - [Походження попередніх результатів](#походження-попередніх-результатів)
 
@@ -139,6 +141,38 @@ Descriptor/Values fingerprint та canonical bytes лишаються wire v3.0
 committed payload bytes. Деталі — у [wire reference](WireV3.md),
 [transport walkthrough](user/TransportWalkthrough.md) та
 [optional protocol example](../examples/structured_protocol/README.md).
+
+## Descriptor v3.1: імена типів і дерево груп
+
+SDK, у якому з'явився descriptor v3.1, нічого не вимагає від наявного коду
+пристрою: `Model{fields, commands, services}`, tables, `ts::group(name, table)`,
+`makeId<group, entry>()`, typed `fields.read<id>()`, `write<id>()` і
+`call<id>()` компілюються й поводяться як раніше. Змінюються лише байти
+descriptor: імена типів увімкнені за замовчуванням, тож пристрій з enum чи
+struct після перезбірки надсилає v3.1 з новим fingerprint.
+
+| Ситуація | Що зробити |
+| --- | --- |
+| Host зібраний з цим SDK (Dynamic client, UX, Inspector) | Нічого: hosts читають v3.0 і v3.1 |
+| Host старший за цей SDK | Він відмовляє descriptor v3.1: перезберіть host, або вимкніть імена на пристрої |
+| Static SDK, згенерований зі старого descriptor | Перегенеруйте його один раз; ваш код компілюється без змін, generated symbols лише додаються |
+| Потрібні точні байти v3.0 (плоска модель; дерево груп завжди v3.1) | `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp` пристрою на include path, або `-DTELEMETRY_TYPE_NAMES=0` для кожного translation unit |
+| Два типи з однаковим ім'ям (`DuplicateName`) | `TypeReflection<T>` з `typeName("...")` для одного з них або `noTypeName()` |
+| Записані сесії, прив'язані до fingerprint | Новий fingerprint відкриває нову сесію; старі записи відкриваються як раніше |
+
+Значення `TELEMETRY_TYPE_NAMES` входить у structured ABI tag, як і
+`TELEMETRY_STRUCTURED_LOCAL_BYTES`: перезберіть усі translation units і
+object files SDK з однаковими перемикачами, інакше compiled SDK sources не
+злінкуються. Translation unit, у якого на include path немає
+`telemetry_config.hpp`, мовчки бере значення за замовчуванням.
+
+Перехід на дерево груп добровільний. Нова форма `Model{branches...}` дає
+шляхи (`adc/channel1/Gain`) і named handles
+(`telemetry::endpoint<model, "adc/channel1/Gain">`) замість позиційних IDs.
+Перенесена модель може отримати інші IDs, бо в дереві позицію групи
+рахують у pre-order, спільно для всіх трьох families; шляхи від цього не
+змінюються. [Model: group tree](user/Model.md#group-tree-модель-із-файлів-гілок),
+[release note](ReleaseNotes.md#сумісність-старі-hosts-і-новий-пристрій).
 
 ## Перевірка перенесення
 

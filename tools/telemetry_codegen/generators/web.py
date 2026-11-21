@@ -270,6 +270,9 @@ def _read_many_scalar(schema, type_id: int) -> int | None:
 def _endpoint_expression(schema, endpoint, wire_editing=False) -> str:
     parts = [f"id: {endpoint.id}", f"category: {endpoint.category}",
              f"catalogName: {_quote(endpoint.catalog_name)}", f"name: {_quote(endpoint.name)}"]
+    if schema.groups is not None:
+        # A group tree's endpoint carries its section-15 path, adc/channel1/Gain.
+        parts.append(f"path: {_quote(schema.endpoint_path(endpoint))}")
     if endpoint.category == 1:
         i = endpoint.value_type
         scalar = _read_many_scalar(schema, i)
@@ -297,7 +300,7 @@ def _runtime_exports(schema, typed: bool, wire_editing=False) -> list[str]:
     header = schema.descriptor_header
     lines = [f"export const fingerprint = {schema.fingerprint}n;",
              f"export const descriptorSha256 = {_quote(schema.descriptor_sha256)};",
-             "export const wireVersion = Object.freeze({major: 3, minor: 0});",
+             f"export const wireVersion = Object.freeze({{major: 3, minor: {schema.minor}}});",
              "export const Operation = Object.freeze({FieldRead: 'FieldRead', FieldWrite: 'FieldWrite', Command: 'Command', Service: 'Service'}" + a(" as const") + ");",
              f"export function assertCompatibleFingerprint(peer{a(': bigint')}){a(': void')} {{",
              "  _require(typeof peer === 'bigint' && peer === fingerprint, 'Descriptor fingerprint mismatch');",
@@ -320,6 +323,10 @@ def _runtime_exports(schema, typed: bool, wire_editing=False) -> list[str]:
         if row["kind"] == 2:
             lines.append(f"  {_type_name(row['id'])}: {_enum_expression(schema, row)},")
     lines.append("});")
+    lines += _named_types_runtime(schema, typed)
+    if schema.groups is not None:
+        return lines + (_tree_runtime_ts(schema, wire_editing) if typed
+                        else _tree_runtime_js(schema, wire_editing))
     categories = {1: "fields", 2: "commands", 3: "services"}
     for group, endpoints in _groups(schema).items():
         aliases = dict(alias for endpoint in endpoints for alias in _aliases(endpoint))
@@ -354,13 +361,226 @@ def _runtime_exports(schema, typed: bool, wire_editing=False) -> list[str]:
     return lines
 
 
+def _type_source(schema, type_id) -> str:
+    """The runtime value behind a type alias: an enum's dictionary, otherwise its codec."""
+    return ("enums" if schema.types[type_id]["kind"] == 2 else "codecs") + "." + _type_name(type_id)
+
+
+def _named_scopes(schema):
+    """Reachable named types grouped by scope symbol ("" for a name without a scope)."""
+    scopes = {}
+    for row in _reachable_types(schema):
+        symbol = schema.type_symbol(row["id"])
+        if symbol:
+            scopes.setdefault(symbol.scope, []).append((symbol, row["id"]))
+    return scopes
+
+
+def _named_types_runtime(schema, typed: bool) -> list[str]:
+    """v3.1: `types.adc.Config` is the codec (or enum dictionary) of the type named adc::Config."""
+    scopes = _named_scopes(schema)
+    if not scopes:
+        return []
+    lines = ["// Named types (descriptor v3.1), by their wire scope: adc::Config is types.adc.Config."]
+    if typed:
+        lines.append("export namespace types {")
+        for scope, rows in scopes.items():
+            pad = "    " if scope else "  "
+            if scope:
+                lines.append(f"  export namespace {scope} {{")
+            for symbol, type_id in rows:
+                lines += [f"{pad}export type {symbol.symbol} = {_type_name(type_id)};",
+                          f"{pad}export const {symbol.symbol} = {_type_source(schema, type_id)};"]
+            if scope:
+                lines.append("  }")
+        lines.append("}")
+        lines += [f"Object.freeze(types.{scope});" for scope in scopes if scope]
+        return lines + ["Object.freeze(types);"]
+    lines.append("export const types = Object.freeze({")
+    for scope, rows in scopes.items():
+        pad = "    " if scope else "  "
+        if scope:
+            lines.append(f"  [{_quote(scope)}]: Object.freeze({{")
+        for symbol, type_id in rows:
+            lines.append(f"{pad}[{_quote(symbol.symbol)}]: {_type_source(schema, type_id)},")
+        if scope:
+            lines.append("  }),")
+    return lines + ["});"]
+
+
+def _named_types_declarations(schema) -> list[str]:
+    scopes = _named_scopes(schema)
+    if not scopes:
+        return []
+    lines = ["export declare namespace types {"]
+    for scope, rows in scopes.items():
+        pad = "    " if scope else "  "
+        if scope:
+            lines.append(f"  namespace {scope} {{")
+        for symbol, type_id in rows:
+            lines += [f"{pad}type {symbol.symbol} = {_type_name(type_id)};",
+                      f"{pad}const {symbol.symbol}: typeof {_type_source(schema, type_id)};"]
+        if scope:
+            lines.append("  }")
+    return lines + ["}"]
+
+
+_FAMILIES = ((1, "fields"), (2, "commands"), (3, "services"))
+
+
+def _tree_members(schema):
+    """Per group index: its endpoints with their sibling symbols, and its child groups."""
+    endpoints, children = {}, {}
+    for number, (endpoint, symbol) in enumerate(zip(schema.endpoints, schema.tree_symbols)):
+        endpoints.setdefault(endpoint.catalog_index, []).append((number, endpoint, symbol))
+    for group in schema.groups:
+        if group.parent is not None:
+            children.setdefault(group.parent, []).append(group)
+    return endpoints, children
+
+
+def _tree_runtime_js(schema, wire_editing=False) -> list[str]:
+    """Nested frozen objects mirror the groups; the family objects keep the flat form.
+
+    adc.channel1.Gain and adc.channel1.fields.Gain are the same endpoint object.
+    Children are built before their parents, so every reference is defined.
+    """
+    endpoints, children = _tree_members(schema)
+    lines = ["// Group tree (descriptor v3.1): adc.channel1.Gain is the path adc/channel1/Gain."]
+    for group in reversed(schema.groups):
+        rows = endpoints.get(group.index, ())
+        for number, endpoint, _ in rows:
+            lines.append(f"const _e{number} = {_endpoint_expression(schema, endpoint, wire_editing)};")
+        aliases = dict(alias for _, endpoint, _ in rows for alias in _aliases(endpoint))
+        lines += [f"const _g{group.index} = Object.freeze({{", "  types: Object.freeze({"]
+        for alias, type_id in aliases.items():
+            lines.append(f"    [{_quote(alias)}]: {_type_source(schema, type_id)},")
+        if not aliases:
+            lines.append("    _empty: undefined,")
+        lines.append("  }),")
+        for category, family in _FAMILIES:
+            lines.append(f"  {family}: Object.freeze({{")
+            for number, endpoint, _ in rows:
+                if endpoint.category == category:
+                    lines.append(f"    [{_quote(endpoint.symbol)}]: _e{number},")
+            lines.append("  }),")
+        for child in children.get(group.index, ()):
+            lines.append(f"  [{_quote(child.symbol)}]: _g{child.index},")
+        for number, _, symbol in rows:
+            lines.append(f"  [{_quote(symbol)}]: _e{number},")
+        lines.append("});")
+    lines += [f"export const {group.symbol} = _g{group.index};" for group in schema.groups if group.parent is None]
+    return lines
+
+
+def _tree_runtime_ts(schema, wire_editing=False) -> list[str]:
+    """The TS form of _tree_runtime_js: nested namespaces with the same values."""
+    endpoints, children = _tree_members(schema)
+    lines = ["// Group tree (descriptor v3.1): adc.channel1.Gain is the path adc/channel1/Gain."]
+
+    def emit(group, depth):
+        pad = "  " * depth
+        rows = endpoints.get(group.index, ())
+        lines.extend((f"{pad}export namespace {group.symbol} {{", f"{pad}  export namespace types {{"))
+        aliases = dict(alias for _, endpoint, _ in rows for alias in _aliases(endpoint))
+        for alias, type_id in aliases.items():
+            lines.extend((f"{pad}    export type {alias} = {_type_name(type_id)};",
+                          f"{pad}    export const {alias} = {_type_source(schema, type_id)};"))
+        if not aliases:
+            lines.append(f"{pad}    export const _empty = undefined;")
+        lines.append(f"{pad}  }}")
+        for category, family in _FAMILIES:
+            lines.append(f"{pad}  export const {family} = Object.freeze({{")
+            for _, endpoint, _ in rows:
+                if endpoint.category == category:
+                    lines.append(f"{pad}    [{_quote(endpoint.symbol)}]: {_endpoint_expression(schema, endpoint, wire_editing)},")
+            lines.append(f"{pad}  }});")
+        for child in children.get(group.index, ()):
+            emit(child, depth + 1)
+        for _, endpoint, symbol in rows:
+            family = _FAMILIES[endpoint.category - 1][1]
+            lines.append(f"{pad}  export const {symbol} = {family}[{_quote(endpoint.symbol)}];")
+        lines.append(f"{pad}}}")
+
+    for group in schema.groups:
+        if group.parent is None:
+            emit(group, 0)
+    for group in reversed(schema.groups):
+        lines += [f"Object.freeze({group.js}.types);", f"Object.freeze({group.js});"]
+    return lines
+
+
+def _endpoint_declaration(schema, endpoint, wire_editing=False) -> str:
+    """The declared type of one endpoint object, as the runtime builds it."""
+    category = endpoint.category
+    fields = [f"readonly id: {endpoint.id}", f"readonly category: {category}",
+              "readonly catalogName: string", "readonly name: string"]
+    if schema.groups is not None:
+        fields.append("readonly path: string")
+    i = endpoint.value_type if category == 1 else endpoint.request_type
+    if category == 1:
+        scalar = _read_many_scalar(schema, i)
+        marker = f"readonly readManyScalar: {scalar}; " if scalar is not None else ""
+        fields += [f"readonly valueTypeId: {i}", f"readonly capabilities: {endpoint.capabilities}",
+                   f"readonly read: Readonly<{{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: {endpoint.id}; typeId: {i}; requestBytes: 0; responseBytes: {schema.types[i]['wire']}; {marker}decode: ValueCodec<Type_{i}>['decode']}}>" ]
+        if endpoint.capabilities == 3:
+            seed = f"; encodePreserving: ValueCodec<Type_{i}>['encodePreserving']" if wire_editing else ""
+            fields.append(f"readonly write: Readonly<{{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: {endpoint.id}; typeId: {i}; requestBytes: {schema.types[i]['wire']}; responseBytes: 0; encode: ValueCodec<Type_{i}>['encode']; encodeInto: ValueCodec<Type_{i}>['encodeInto']{seed}}}>")
+    else:
+        operation = "Command" if category == 2 else "Service"
+        fields += ["readonly fingerprint: typeof fingerprint", f"readonly operation: '{operation}'", f"readonly requestTypeId: {i}",
+                   f"readonly requestBytes: {schema.types[i]['wire']}",
+                   f"readonly responseBytes: {schema.types[endpoint.response_type]['wire'] if category == 3 else 0}",
+                   f"readonly encode: ValueCodec<Type_{i}>['encode']",
+                   f"readonly encodeInto: ValueCodec<Type_{i}>['encodeInto']"]
+        if category == 3:
+            fields += [f"readonly responseTypeId: {endpoint.response_type}",
+                       f"readonly decodeResponse: ValueCodec<Type_{endpoint.response_type}>['decode']"]
+    return f"Readonly<{{{'; '.join(fields)}}}>"
+
+
+def _tree_declarations(schema, wire_editing=False) -> list[str]:
+    endpoints, children = _tree_members(schema)
+    lines = []
+
+    def emit(group, depth):
+        pad = "  " * depth
+        rows = endpoints.get(group.index, ())
+        lines.extend((f"{pad}{'export declare ' if depth == 0 else ''}namespace {group.symbol} {{",
+                      f"{pad}  namespace types {{"))
+        aliases = dict(alias for _, endpoint, _ in rows for alias in _aliases(endpoint))
+        for alias, type_id in aliases.items():
+            lines.extend((f"{pad}    type {alias} = {_type_name(type_id)};",
+                          f"{pad}    const {alias}: typeof {_type_source(schema, type_id)};"))
+        if not aliases:
+            lines.append(f"{pad}    const _empty: undefined;")
+        lines.append(f"{pad}  }}")
+        for category, family in _FAMILIES:
+            lines.append(f"{pad}  const {family}: Readonly<{{")
+            for _, endpoint, _ in rows:
+                if endpoint.category == category:
+                    lines.append(f"{pad}    readonly {_quote(endpoint.symbol)}: {_endpoint_declaration(schema, endpoint, wire_editing)};")
+            lines.append(f"{pad}  }}>;")
+        for child in children.get(group.index, ()):
+            emit(child, depth + 1)
+        for _, endpoint, symbol in rows:
+            family = _FAMILIES[endpoint.category - 1][1]
+            lines.append(f"{pad}  const {symbol}: (typeof {family})[{_quote(endpoint.symbol)}];")
+        lines.append(f"{pad}}}")
+
+    for group in schema.groups:
+        if group.parent is None:
+            emit(group, 0)
+    return lines
+
+
 def _declarations(schema, wire_editing=False) -> str:
     lines = ["// Generated telemetry v3.0 contract. SPDX-License-Identifier: MIT."]
     lines += _types(schema, wire_editing)
     lines += ["export declare class TelemetryCodecError extends Error { constructor(reason: string); }",
               f"export declare const fingerprint: {schema.fingerprint}n;",
               "export declare const descriptorSha256: string;",
-              "export declare const wireVersion: Readonly<{major: 3; minor: 0}>;",
+              f"export declare const wireVersion: Readonly<{{major: 3; minor: {schema.minor}}}>;",
               "export declare const Operation: Readonly<{FieldRead: 'FieldRead'; FieldWrite: 'FieldWrite'; Command: 'Command'; Service: 'Service'}>;",
               "export declare function assertCompatibleFingerprint(peer: bigint): void;",
               "export declare function matchesHeader(input: ByteInput): boolean;",
@@ -374,6 +594,9 @@ def _declarations(schema, wire_editing=False) -> str:
                                for symbol, (code, _) in zip(schema.enum_names[row["id"]], row["entries"]))
             lines.append(f"  {_type_name(row['id'])}: Readonly<{{{fields}}}>;")
     lines.append("}>;")
+    lines += _named_types_declarations(schema)
+    if schema.groups is not None:
+        return "\n".join(lines + _tree_declarations(schema, wire_editing)) + "\n"
     for group, endpoints in _groups(schema).items():
         lines += [f"export declare namespace {group} {{", "  namespace types {"]
         aliases = dict(alias for endpoint in endpoints for alias in _aliases(endpoint))
@@ -384,33 +607,11 @@ def _declarations(schema, wire_editing=False) -> str:
         if not aliases:
             lines.append("    const _empty: undefined;")
         lines.append("  }")
-        for category, category_name in ((1, "fields"), (2, "commands"), (3, "services")):
+        for category, category_name in _FAMILIES:
             lines.append(f"  const {category_name}: Readonly<{{")
             for endpoint in endpoints:
-                if endpoint.category != category:
-                    continue
-                fields = [f"readonly id: {endpoint.id}", f"readonly category: {category}",
-                          "readonly catalogName: string", "readonly name: string"]
-                i = endpoint.value_type if category == 1 else endpoint.request_type
-                if category == 1:
-                    scalar = _read_many_scalar(schema, i)
-                    marker = f"readonly readManyScalar: {scalar}; " if scalar is not None else ""
-                    fields += [f"readonly valueTypeId: {i}", f"readonly capabilities: {endpoint.capabilities}",
-                               f"readonly read: Readonly<{{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: {endpoint.id}; typeId: {i}; requestBytes: 0; responseBytes: {schema.types[i]['wire']}; {marker}decode: ValueCodec<Type_{i}>['decode']}}>" ]
-                    if endpoint.capabilities == 3:
-                        seed = f"; encodePreserving: ValueCodec<Type_{i}>['encodePreserving']" if wire_editing else ""
-                        fields.append(f"readonly write: Readonly<{{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: {endpoint.id}; typeId: {i}; requestBytes: {schema.types[i]['wire']}; responseBytes: 0; encode: ValueCodec<Type_{i}>['encode']; encodeInto: ValueCodec<Type_{i}>['encodeInto']{seed}}}>")
-                else:
-                    operation = "Command" if category == 2 else "Service"
-                    fields += ["readonly fingerprint: typeof fingerprint", f"readonly operation: '{operation}'", f"readonly requestTypeId: {i}",
-                               f"readonly requestBytes: {schema.types[i]['wire']}",
-                               f"readonly responseBytes: {schema.types[endpoint.response_type]['wire'] if category == 3 else 0}",
-                               f"readonly encode: ValueCodec<Type_{i}>['encode']",
-                               f"readonly encodeInto: ValueCodec<Type_{i}>['encodeInto']"]
-                    if category == 3:
-                        fields += [f"readonly responseTypeId: {endpoint.response_type}",
-                                   f"readonly decodeResponse: ValueCodec<Type_{endpoint.response_type}>['decode']"]
-                lines.append(f"    readonly {_quote(endpoint.symbol)}: Readonly<{{{'; '.join(fields)}}}>;")
+                if endpoint.category == category:
+                    lines.append(f"    readonly {_quote(endpoint.symbol)}: {_endpoint_declaration(schema, endpoint, wire_editing)};")
             lines.append("  }>;")
         lines.append("}")
     return "\n".join(lines) + "\n"
@@ -435,6 +636,11 @@ def generate_js(schema, client_runtime=False, wire_editing=False) -> dict[str, s
     files = {"js/device.js": _runtime(schema, False, wire_editing), "js/device.d.ts": _declarations(schema, wire_editing)}
     if client_runtime:
         files.update(_client_files("js", ("js", "d.ts")))
+        if schema.minor >= 1:
+            # v3.1: endpoint handles over the bundled client, nested and by path.
+            from .handles import web_handles, web_handles_declarations
+            files["js/handles.js"] = web_handles(schema, False)
+            files["js/handles.d.ts"] = web_handles_declarations(schema)
     return files
 
 
@@ -443,6 +649,9 @@ def generate_ts(schema, client_runtime=False, wire_editing=False) -> dict[str, s
     files = {"ts/device.ts": _runtime(schema, True, wire_editing)}
     if client_runtime:
         files.update(_client_files("ts", ("ts",)))
+        if schema.minor >= 1:
+            from .handles import web_handles
+            files["ts/handles.ts"] = web_handles(schema, True)
     return files
 
 

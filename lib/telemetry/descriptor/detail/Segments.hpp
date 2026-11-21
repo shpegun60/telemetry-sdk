@@ -33,7 +33,8 @@ enum class SegmentKind : std::uint8_t {
 	ServiceCatalog,
 	Field,
 	Command,
-	Service
+	Service,
+	GroupCatalog
 };
 
 // Twelve bytes per segment on every supported ABI. Metadata addresses remain
@@ -61,6 +62,9 @@ struct Segment {
 
 static_assert(sizeof(Segment) == 12);
 
+// typeNames borrows the registry's static names indexed by TypeId. It is
+// empty when the descriptor emits no names. groupDepths borrows the tree
+// Model's static outline and is empty for a flat model.
 struct Header {
 	std::uint32_t totalBytes = 0;
 	std::uint64_t fingerprint = 0;
@@ -69,7 +73,18 @@ struct Header {
 	std::array<std::uint32_t, 3> endpointCount{};
 	std::uint32_t catalogsOffset = 0;
 	std::uint32_t endpointsOffset = 0;
+	std::uint16_t minor = binaryMinor;
+	std::span<const std::string_view> typeNames{};
+	std::span<const std::uint16_t> groupDepths{};
+	std::uint16_t flags = 0; // HeaderFlag::GroupTree when groupDepths is the tree's
 };
+
+// The emitted name of one type record: empty for an unnamed type and for
+// every type when the descriptor strips names.
+[[nodiscard]] constexpr std::string_view typeName(const Header& header, std::uint32_t id) noexcept
+{
+	return id < header.typeNames.size() ? header.typeNames[id] : std::string_view{};
+}
 
 // Hash the same bytes that SliceSink emits; the caller controls when the
 // fingerprint field changes from zero to its completed value.
@@ -184,6 +199,30 @@ constexpr void string(Sink& sink, std::string_view text) noexcept
 	}
 }
 
+// One group record of a tree, outside emit() so that its loads do not widen
+// the streaming emitter's ARM frame. Four arguments stay in registers (AAPCS);
+// the record length is recomputed from the name instead of passed.
+template<class Sink>
+#if defined(__GNUC__)
+__attribute__((noinline))
+#endif
+constexpr void groupRecord(const Segment& part, const ts::ModelView& model, const Header& header,
+                           Sink& sink) noexcept
+{
+	const char* name = model.fields.catalogs()[part.key].name;
+	std::uint32_t size = 0;
+	while (name[size] != '\0')
+		++size;
+	record(sink, RecordKind::Catalog, 28 + size);
+	sink.integer(groupCategory, 1);
+	sink.integer(0, 1);
+	sink.integer(header.groupDepths[part.key], 2);
+	sink.integer(model.fields.catalogs()[part.key].count, 4);
+	sink.integer(model.commands.catalogs()[part.key].count, 4);
+	sink.integer(model.services.catalogs()[part.key].count, 4);
+	string(sink, {name, size});
+}
+
 // part/bytes must come from the validated positional index. The emitter
 // performs no lookup validation and never dereferences an endpoint owner.
 template<class Sink>
@@ -196,9 +235,9 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 		case SegmentKind::Header:
 			sink.text("TDS3");
 			sink.integer(binaryMajor, 2);
-			sink.integer(binaryMinor, 2);
+			sink.integer(header.minor, 2);
 			sink.integer(descriptorHeaderBytes, 2);
-			sink.integer(0, 2);
+			sink.integer(header.flags, 2);
 			sink.integer(header.totalBytes, 4);
 			sink.integer(header.fingerprint, 8);
 			sink.integer(header.typeCount, 4);
@@ -212,11 +251,19 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 			return;
 		case SegmentKind::Type: {
 			const auto& type = model.types.data[part.key];
-			record(sink, RecordKind::Type, type.recordBytes);
+			// v3.1: a named type sets TypeFlag::Named and places its name
+			// right after the 12-byte prefix; recordBytes excludes the name.
+			const auto name = typeName(header, part.key);
+			const auto named = name.empty() ? 0u : 4u + static_cast<std::uint32_t>(name.size());
+			record(sink, RecordKind::Type, type.recordBytes + named);
 			sink.integer(type.id, 4);
 			sink.integer(static_cast<unsigned>(type.kind), 1);
-			sink.integer(0, 3);
+			sink.integer(named == 0 ? 0u : static_cast<unsigned>(TypeFlag::Named), 1);
+			sink.integer(0, 2);
 			sink.integer(type.wireBytes, 4);
+			if (named != 0) {
+				string(sink, name);
+			}
 			switch (type.kind) {
 				case ts::TypeKind::Void:
 					break;
@@ -268,6 +315,10 @@ constexpr void emit(const Segment& part, std::uint32_t bytes, const ts::ModelVie
 			string(sink, segmentName(part, bytes, model));
 			return;
 		}
+		case SegmentKind::GroupCatalog:
+			// One group of the shared tree: every family's row at this position.
+			groupRecord(part, model, header, sink);
+			return;
 		case SegmentKind::Field:
 			record(sink, RecordKind::Field, bytes);
 			sink.integer(part.key, 4);

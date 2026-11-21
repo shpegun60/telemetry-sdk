@@ -1,6 +1,6 @@
 # Runtime schema and dynamic wire values
 
-The C++20 runtime module consumes Descriptor v3.0 bytes without knowing a
+The C++20 runtime module consumes Descriptor v3.0 and v3.1 bytes without knowing a
 Model's native C++ types. `RuntimeSchema` indexes validated types, structure
 members, enum entries, catalogs and endpoints in caller-owned storage.
 `DynamicValueView` borrows canonical payload bytes and reads scalar leaves;
@@ -88,6 +88,50 @@ pointer borrows the descriptor/index storage, just like `endpoints()`; it must
 not be retained across workspace reset, reparse or destruction. It is metadata,
 not a session binding: remote access still uses DynamicClient's admission and
 generation checks.
+
+## Type names
+
+A descriptor v3.1 may name its enums and structs. `RuntimeType::name` holds
+the name, or an empty view when the type is unnamed and for every array,
+scalar and Void; it borrows the descriptor bytes like every other name.
+`typeName(id)` returns the same view and `minorVersion()` reports 0 for a
+v3.0 descriptor, 1 for v3.1. Type names are unique in a descriptor, so a
+name is a key. A type name has the shape `[scope "::"] name` (an automatic
+name is the type's innermost namespace or class and its own name, or the name
+alone); anything else is refused with `TypeShape`:
+
+```cpp
+const auto* config = parsed.schema.findType("adc::Config"); // nullptr when absent
+```
+
+`findType` is exact and case-sensitive; an empty name finds nothing. An
+attribute area is validated and skipped: the schema stores nothing for it,
+and a descriptor decodes to the same model as its bytes without attributes.
+
+## Group trees and paths
+
+A v3.1 descriptor in GroupTree mode describes one tree of groups shared by the
+three families. `groupTree()` says so; `groups()` lists the G groups in
+pre-order, each with `parent` (`noParentGroup` at a root) and `depth`. Every
+family's `catalogs(category)` holds the same G groups with that family's
+range, so `RuntimeEndpoint::catalogIndex` is the group, and the workspace needs
+3G catalog rows. Paths follow one grammar, `group/.../endpoint` then
+`.member` and `[i]`:
+
+```cpp
+const auto* gain = parsed.schema.findEndpoint("adc/channel1/Gain"); // any family
+const auto* adc = parsed.schema.findGroup("adc");
+const auto target = parsed.schema.resolvePath("adc/Config.gain");   // endpoint + handle
+std::array<char, 256> text{};
+const auto size = parsed.schema.endpointPath(*gain, text);          // "adc/channel1/Gain"
+```
+
+In a flat descriptor a name may hold the path characters; its path escapes
+`/ . [ ] \` with a backslash, and a path naming endpoints of two families
+is ambiguous (nullptr). The older `findEndpoint(category, "group.name")` keeps
+its dotted form. `ParseLimits` adds `groupDepth` (255), `nameBytes` and
+`pathBytes` (4096): hosts are lenient, a producer's defaults are 8, 64 and
+256.
 
 ## Stage and commit edits
 
@@ -220,8 +264,10 @@ applied to a different root or workspace, even when their type IDs coincide.
 
 ## Validation and value semantics
 
-Descriptor validation covers the fingerprint, strict header/version/flags,
-section and record bounds, reserved bytes, exact record exhaustion, positional
+Descriptor validation covers the fingerprint, strict header/version/flags
+(minor 0 or 1, minor 1 only with a type name or attribute area), v3.1 type
+names (Enum/Struct only, unique, `[scope "::"] name`) and attribute areas (5-byte headers, strictly
+ascending tags, bounds, reserved and unknown critical tags), section and record bounds, reserved bytes, exact record exhaustion, positional
 IDs, canonical built-in types, backward type references, checked wire sizes,
 nesting and expanded-node budgets, UTF-8 strings, unique names within their
 scopes, sorted enum codes, catalog coverage and endpoint type/capability rules.

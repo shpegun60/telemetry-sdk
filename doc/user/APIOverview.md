@@ -244,8 +244,16 @@ TypeRegistry описує structural shape, а не units, limits, defaults чи
 не змінюють кількість Fields або Values tokens. Для application API
 користуйтеся таблицями/каталогами, `model.types()` і `model.typeId<T>()`.
 
+Модель із файлів гілок монтує дерево груп: `Model{adc::tlm::branch, ...}`.
+Тоді endpoint адресують шляхом, а не позицією:
+`telemetry::endpoint<model, "adc/channel1/Gain">` оголошує handle
+(`gain1.read()`, `gain1.write(2.5f)`), розв'язаний під час компіляції в той
+самий PackedId. Кожен enum і struct у descriptor має ім'я типу з коду
+(`adc::Config`); `TELEMETRY_TYPE_NAMES 0` прибирає імена.
+
 **Деталі:** [Model](Model.md), [Tables/Catalogs](TablesAndCatalogs.md),
-[bindings/slots](NativeApi.md), [architecture](../Architecture.md).
+[bindings/slots](NativeApi.md), [імена типів](Fields.md#8-імена-типів-у-descriptor),
+[architecture](../Architecture.md).
 
 ## Headers і compiled sources
 

@@ -54,6 +54,14 @@ struct Limits {
 	static constexpr std::uint32_t maxEndpointCountTotal = 65536;
 	static constexpr std::uint32_t maxValueWireBytes = 1048576;
 	static constexpr std::uint32_t maxExpandedValueNodes = 262144;
+	// Group-tree ceilings (descriptor v3.1). A producer is strict so that new
+	// devices stay tidy; hosts read with ParseLimits' lenient 255/4096/4096.
+	// maxGroupDepth counts levels: depths 0..maxGroupDepth-1. maxNameBytes
+	// bounds one group, endpoint or member name in a tree and one part of a
+	// type name; maxPathBytes bounds group/.../endpoint and a whole type name.
+	static constexpr std::uint32_t maxGroupDepth = 8;
+	static constexpr std::uint32_t maxNameBytes = 64;
+	static constexpr std::uint32_t maxPathBytes = 256;
 };
 
 } // namespace telemetry

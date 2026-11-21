@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -113,6 +114,7 @@ struct TypeInfo<T, TypeClass::Unsupported> {
 	static constexpr std::uint32_t wireSize = 0;
 	static constexpr std::uint32_t depth = 0;
 	static constexpr std::uint32_t expandedNodes = 0;
+	static constexpr std::string_view name{};
 };
 
 // Checked fixed wire facts for this native type.
@@ -122,6 +124,7 @@ struct TypeInfo<T, TypeClass::Void> {
 	static constexpr std::uint32_t wireSize = 0;
 	static constexpr std::uint32_t depth = 0;
 	static constexpr std::uint32_t expandedNodes = 0;
+	static constexpr std::string_view name{};
 };
 
 // Checked fixed wire facts for this native type.
@@ -133,6 +136,7 @@ struct TypeInfo<T, TypeClass::Scalar> {
 	static constexpr std::uint32_t wireSize = std::is_same_v<T, bool> ? 1 : sizeof(T);
 	static constexpr std::uint32_t depth = 0;
 	static constexpr std::uint32_t expandedNodes = 1;
+	static constexpr std::string_view name{}; // Builtin labels stay host words.
 	static_assert(!std::is_integral_v<T> || std::is_same_v<T, bool> ||
 	                  (std::numeric_limits<T>::radix == 2 &&
 	                   std::numeric_limits<T>::digits ==
@@ -161,6 +165,8 @@ struct TypeInfo<T, TypeClass::Enum> {
 	static constexpr std::uint32_t depth = 0;
 	static constexpr std::uint32_t expandedNodes = 1;
 	static_assert(EnumType::entryCount <= 65536, "Enum dictionary exceeds model ceiling");
+	// Wire type name (descriptor v3.1), empty when unnamed. Evaluated on use.
+	static constexpr std::string_view name = reflection::typeName<T>();
 };
 
 // Checked fixed wire facts for this native type.
@@ -186,6 +192,7 @@ struct TypeInfo<T, TypeClass::Array> {
 	static_assert(wideNodes <= Limits::maxExpandedValueNodes,
 	              "Array expanded nodes exceed supported limit");
 	static constexpr std::uint32_t expandedNodes = static_cast<std::uint32_t>(wideNodes);
+	static constexpr std::string_view name{}; // The host composes Mode[4], Config[2].
 };
 
 // Validate every semantic member and sum its wire shape. Native padding is
@@ -273,6 +280,8 @@ struct TypeInfo<T, TypeClass::Struct> {
 	static_assert(wideNodes <= Limits::maxExpandedValueNodes,
 	              "Struct expanded nodes exceed supported limit");
 	static constexpr std::uint32_t expandedNodes = static_cast<std::uint32_t>(wideNodes);
+	// Wire type name (descriptor v3.1), empty when unnamed. Evaluated on use.
+	static constexpr std::string_view name = reflection::typeName<T>();
 };
 
 } // namespace detail

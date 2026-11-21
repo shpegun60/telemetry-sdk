@@ -1,0 +1,88 @@
+// Generated from a validated Telemetry Descriptor v3. Do not edit.
+// Descriptor SHA-256: f244f765841ad74cce0b79fc2f06ca20fc605bf47a0e1f8b942e24e97a3d53e6
+// SPDX-License-Identifier: MIT
+#pragma once
+
+#include "Types.hpp"
+#include "Schema.hpp"
+#include <type_traits>
+
+namespace device_api {
+
+namespace endpoint {
+enum class Category : std::uint8_t { Field = 1, Command = 2, Service = 3 };
+enum class Operation : std::uint8_t { FieldWrite = 1, Command = 2, Service = 3, FieldRead = 4 };
+template<class T> struct Field {
+    static_assert(!std::is_void_v<T>);
+    using Value = T;
+    static constexpr Category category = Category::Field;
+    static constexpr Operation readOperation = Operation::FieldRead, writeOperation = Operation::FieldWrite;
+    std::uint32_t id, valueTypeId, valueBytes;
+    std::uint8_t capabilities;
+    std::uint64_t fingerprint = schema::fingerprint;
+    [[nodiscard]] constexpr bool readable() const noexcept { return (capabilities & 1) != 0; }
+    [[nodiscard]] constexpr bool writable() const noexcept { return (capabilities & 2) != 0; }
+};
+template<class Q = void> struct Command {
+    using Request = Q;
+    using Response = void;
+    static constexpr Category category = Category::Command;
+    static constexpr Operation operation = Operation::Command;
+    std::uint32_t id, requestTypeId, requestBytes;
+    static constexpr std::uint32_t responseBytes = 0;
+    std::uint64_t fingerprint = schema::fingerprint;
+};
+template<class Q, class R> struct Service {
+    using Request = Q;
+    using Response = R;
+    static constexpr Category category = Category::Service;
+    static constexpr Operation operation = Operation::Service;
+    std::uint32_t id, requestTypeId, responseTypeId, requestBytes, responseBytes;
+    std::uint64_t fingerprint = schema::fingerprint;
+};
+} // namespace endpoint
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_1> Enabled{0, 1, 1, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_4> RPM{1, 4, 2, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_10> Temperature{2, 10, 4, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_11> Precise{3, 11, 8, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_12> Mode{4, 12, 1, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_13> Samples{5, 13, 6, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_14> State{6, 14, 5, 1};
+} // namespace motor::fields
+
+namespace motor::fields {
+inline constexpr endpoint::Field<detail::Type_15> Config{7, 15, 7, 3};
+} // namespace motor::fields
+
+namespace motor::commands {
+inline constexpr endpoint::Command<detail::Type_15> Configure{0, 15, 7};
+} // namespace motor::commands
+
+namespace motor::commands {
+inline constexpr endpoint::Command<detail::Type_0> Reset{1, 0, 0};
+} // namespace motor::commands
+
+namespace motor::services {
+inline constexpr endpoint::Service<detail::Type_15, detail::Type_15> Echo{0, 15, 15, 7, 7};
+} // namespace motor::services
+} // namespace device_api

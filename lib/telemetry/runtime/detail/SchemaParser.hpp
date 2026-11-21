@@ -3,6 +3,12 @@
  * @brief Allocation-free validation and publication of descriptor v3 indexes.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
+ *
+ * Reads v3.0 and v3.1. A v3.1 type name is validated, checked for uniqueness
+ * and published in RuntimeType::name; an attribute area is validated and
+ * skipped, so nothing is stored for it and the model is that of the same
+ * descriptor without attributes. In GroupTree mode the G group records are
+ * published as G rows in each family's catalogs, with parent and depth.
  */
 #ifndef TELEMETRY_RUNTIME_DETAIL_SCHEMA_PARSER_HPP
 #define TELEMETRY_RUNTIME_DETAIL_SCHEMA_PARSER_HPP
@@ -15,13 +21,20 @@
 
 namespace telemetry::runtime::detail {
 
-// Public methods: construction, good, remaining, number, zeros, text, record, done.
+// Public methods: construction, good, remaining, attributes, number, zeros, text,
+// record, done.
 class SchemaReader {
 public:
 	SchemaReader(Input bytes, std::size_t begin, std::size_t end, ParseError& error,
-	             const ParseLimits& limits) noexcept
-	    : bytes_(bytes), pos_(begin), end_(end), error_(error), limits_(limits)
+	             const ParseLimits& limits, std::uint16_t minor = 0) noexcept
+	    : bytes_(bytes), pos_(begin), end_(end), error_(error), limits_(limits), minor_(minor)
 	{}
+
+	// v3.1: this record's header flags an attribute area after its payload.
+	bool attributes() const noexcept
+	{
+		return attributes_;
+	}
 
 	bool good() const noexcept
 	{
@@ -110,21 +123,61 @@ public:
 	{
 		if (number(1) != kind || number(1) != descriptor::recordVersion)
 			fail(ParseError::Record);
-		zeros(2);
+		// v3.0 reserves the record flags; v3.1 defines bit 0 only.
+		const auto flags = number(2);
+		constexpr auto area = static_cast<unsigned>(descriptor::RecordFlag::Attributes);
+		if (flags != 0 && (minor_ < descriptor::typeNamesMinor || flags != area))
+			fail(ParseError::Reserved);
 		const auto size = number(4);
 		if (!good() || size > remaining()) {
 			fail(ParseError::Record);
-			return {bytes_, pos_, pos_, error_, limits_};
+			return {bytes_, pos_, pos_, error_, limits_, minor_};
 		}
 		const auto begin = pos_;
 		pos_ += static_cast<std::size_t>(size);
-		return {bytes_, begin, pos_, error_, limits_};
+		SchemaReader result{bytes_, begin, pos_, error_, limits_, minor_};
+		result.attributes_ = flags == area;
+		return result;
 	}
 
+	// Without an attribute area the payload ends exactly here. With one, it
+	// runs to the record end as {u8 tag, u32 length, value} with tags strictly
+	// ascending; each value describes the whole record and is skipped by its
+	// length. Advisory and application tags are validated and skipped;
+	// reserved and (all, in v3.1) critical tags refuse the descriptor.
 	void done() noexcept
 	{
-		if (pos_ != end_)
-			fail(ParseError::Trailing);
+		if (!attributes_) {
+			if (pos_ != end_)
+				fail(ParseError::Trailing);
+			return;
+		}
+		if (good() && pos_ == end_)
+			fail(ParseError::Record);
+		unsigned previous = 0;
+		for (bool first = true; good() && pos_ < end_; first = false) {
+			if (remaining() < descriptor::attributeHeaderBytes) {
+				fail(ParseError::Record);
+				return;
+			}
+			const auto tag = static_cast<std::uint8_t>(number(1));
+			const auto length = number(4);
+			if (length > remaining()) {
+				fail(ParseError::Record);
+				return;
+			}
+			pos_ += static_cast<std::size_t>(length);
+			if (!first && tag <= previous) {
+				fail(ParseError::Record);
+				return;
+			}
+			previous = tag;
+			const auto category = descriptor::attributeTagClass(tag);
+			if (category == descriptor::AttributeTagClass::Reserved)
+				fail(ParseError::Reserved);
+			else if (category == descriptor::AttributeTagClass::Critical)
+				fail(ParseError::Record);
+		}
 	}
 
 private:
@@ -132,6 +185,8 @@ private:
 	std::size_t pos_, end_;
 	ParseError& error_;
 	const ParseLimits& limits_;
+	std::uint16_t minor_;
+	bool attributes_ = false;
 
 	void fail(ParseError error) noexcept
 	{
@@ -179,6 +234,10 @@ private:
 	std::array<std::uint32_t, 3> cats_{}, eps_{};
 	std::uint32_t catStart_ = 0, epStart_ = 0;
 	std::uint64_t fingerprint_ = 0;
+	std::uint16_t minor_ = 0;
+	// Minor 1 must carry at least one type name, attribute area or the tree.
+	bool extended_ = false;
+	bool tree_ = false;
 
 	SchemaParser(Input bytes, RuntimeSchemaWorkspace& workspace, const ParseLimits& limits) noexcept
 	    : bytes_(bytes), ws_(workspace), limits_(limits)
@@ -237,7 +296,10 @@ private:
 		                   limits_.endpoints <= Limits::maxEndpointCountTotal &&
 		                   limits_.wireBytes <= Limits::maxValueWireBytes &&
 		                   limits_.depth <= Limits::maxTypeDepth &&
-		                   limits_.expandedNodes <= Limits::maxExpandedValueNodes,
+		                   limits_.expandedNodes <= Limits::maxExpandedValueNodes &&
+		                   limits_.groupDepth <= 65536 &&
+		                   limits_.nameBytes <= Limits::maxStringBytes &&
+		                   limits_.pathBytes <= Limits::maxDescriptorBytes,
 		               ParseError::Limit);
 	}
 
@@ -249,9 +311,17 @@ private:
 			return false;
 		SchemaReader row(bytes_, 0, 64, error_, limits_);
 		require(row.number(4) == 0x33534454, ParseError::Header);
-		require(row.number(2) == 3 && row.number(2) == 0 && row.number(2) == 64 &&
-		            row.number(2) == 0,
+		require(row.number(2) == descriptor::binaryMajor, ParseError::Header);
+		minor_ = static_cast<std::uint16_t>(row.number(2));
+		require((minor_ == descriptor::binaryMinor || minor_ == descriptor::typeNamesMinor) &&
+		            row.number(2) == 64,
 		        ParseError::Header);
+		// v3.0 reserves the header flags; v3.1 defines bit 0, GroupTree.
+		const auto flags = row.number(2);
+		constexpr auto groupTree = static_cast<unsigned>(descriptor::HeaderFlag::GroupTree);
+		require(flags == 0 || (minor_ == descriptor::typeNamesMinor && flags == groupTree),
+		        ParseError::Header);
+		tree_ = flags == groupTree;
 		require(row.number(4) == bytes_.size(), ParseError::Header);
 		fingerprint_ = row.number(8);
 		required_.types = static_cast<std::size_t>(row.number(4));
@@ -263,7 +333,11 @@ private:
 			endpointTotal += eps_[c];
 			require(cats_[c] <= 65536, ParseError::Catalog);
 		}
-		if (!require(catalogTotal <= limits_.catalogs && endpointTotal <= limits_.endpoints,
+		// In a tree every family's catalog count is the group count G; the
+		// workspace holds one row per group and family.
+		require(!tree_ || (cats_[0] == cats_[1] && cats_[1] == cats_[2]), ParseError::Header);
+		const auto records = tree_ ? std::uint64_t{cats_[0]} : catalogTotal;
+		if (!require(records <= limits_.catalogs && endpointTotal <= limits_.endpoints,
 		             ParseError::Limit))
 			return false;
 		required_.catalogs = static_cast<std::size_t>(catalogTotal);
@@ -272,15 +346,13 @@ private:
 		catStart_ = static_cast<std::uint32_t>(row.number(4));
 		epStart_ = static_cast<std::uint32_t>(row.number(4));
 		require(required_.types >= 12 && required_.types <= limits_.types &&
-		            required_.catalogs <= limits_.catalogs &&
-		            required_.endpoints <= limits_.endpoints,
+		            records <= limits_.catalogs && required_.endpoints <= limits_.endpoints,
 		        ParseError::Limit);
 		if (!require(typeStart == 64 && catStart_ >= 64 && epStart_ >= catStart_ &&
 		                 epStart_ <= bytes_.size(),
 		             ParseError::Header))
 			return false;
-		require(required_.types * 20 <= catStart_ - 64 &&
-		            required_.catalogs * 29 <= epStart_ - catStart_ &&
+		require(required_.types * 20 <= catStart_ - 64 && records * 29 <= epStart_ - catStart_ &&
 		            required_.endpoints * 21 <= bytes_.size() - epStart_,
 		        ParseError::Header);
 		if (!good())
@@ -293,26 +365,88 @@ private:
 		return require(hash == fingerprint_, ParseError::Fingerprint);
 	}
 
+	// v3.1 type names are [scope "::"] name: at most one "::", each part
+	// nonempty and without ':' or the path characters / . [ ] and backslash.
+	// One pass and no substr, so no exception path reaches a device image.
+	static bool typeNameShapeValid(std::string_view name) noexcept
+	{
+		std::size_t part = 0;
+		bool scoped = false;
+		for (std::size_t i = 0; i < name.size(); ++i) {
+			const char c = name[i];
+			if (c == ':' && !scoped && part != 0 && i + 1 < name.size() && name[i + 1] == ':') {
+				scoped = true;
+				part = 0;
+				++i;
+			} else if (c == ':' || c == '/' || c == '.' || c == '[' || c == ']' || c == '\\') {
+				return false;
+			} else {
+				++part;
+			}
+		}
+		return part != 0;
+	}
+
+	// Each part of a type name within nameBytes, the whole within pathBytes.
+	bool typeNameFits(std::string_view name) const noexcept
+	{
+		std::size_t part = 0;
+		for (std::size_t i = 0; i < name.size(); ++i) {
+			if (name[i] == ':') {
+				++i;
+				part = 0;
+			} else if (++part > limits_.nameBytes) {
+				return false;
+			}
+		}
+		return name.size() <= limits_.pathBytes;
+	}
+
+	// A group or endpoint name of a tree is a path segment.
+	static bool treeNameValid(std::string_view name) noexcept
+	{
+		for (const char c : name)
+			if (c == '/' || c == '.' || c == '[' || c == ']' || c == '\\')
+				return false;
+		return true;
+	}
+
 	bool typePrefix(SchemaReader& row, std::uint32_t index, RuntimeType& item) noexcept
 	{
 		item = {};
 		item.id = index;
 		require(row.number(4) == index, ParseError::TypeShape);
 		item.kind = static_cast<TypeKind>(row.number(1));
-		row.zeros(3);
+		// v3.1 typeFlags: bit 0 Named, only under minor 1; bits 1..7 reserved.
+		const auto flags = row.number(1);
+		constexpr auto named = static_cast<unsigned>(descriptor::TypeFlag::Named);
+		require(flags == 0 || (minor_ == descriptor::typeNamesMinor && flags == named),
+		        ParseError::Reserved);
+		row.zeros(2);
 		item.wireBytes = static_cast<std::uint32_t>(row.number(4));
 		require(item.wireBytes <= limits_.wireBytes, ParseError::Limit);
-		return require(
-		    (index == 0 && item.kind == TypeKind::Void) ||
-		        (index >= 1 && index <= 11 && item.kind == TypeKind::Scalar) ||
-		        (index >= 12 && (item.kind == TypeKind::Enum || item.kind == TypeKind::Struct ||
-		                         item.kind == TypeKind::Array)),
-		    ParseError::TypeShape);
+		const bool compound = item.kind == TypeKind::Enum || item.kind == TypeKind::Struct ||
+		                      item.kind == TypeKind::Array;
+		require((index == 0 && item.kind == TypeKind::Void) ||
+		            (index >= 1 && index <= 11 && item.kind == TypeKind::Scalar) ||
+		            (index >= 12 && compound),
+		        ParseError::TypeShape);
+		// Builtin records keep fixed bytes: no attribute area on Void/Scalar.
+		require(!row.attributes() || compound, ParseError::TypeShape);
+		if (flags == named && good()) {
+			require(item.kind == TypeKind::Enum || item.kind == TypeKind::Struct,
+			        ParseError::TypeShape);
+			item.name = row.text();
+			require(!good() || typeNameShapeValid(item.name), ParseError::TypeShape);
+			require(!good() || typeNameFits(item.name), ParseError::Limit);
+		}
+		extended_ = extended_ || row.attributes() || !item.name.empty();
+		return good();
 	}
 
 	bool countStorage() noexcept
 	{
-		SchemaReader reader(bytes_, 64, catStart_, error_, limits_);
+		SchemaReader reader(bytes_, 64, catStart_, error_, limits_, minor_);
 		for (std::uint32_t index = 0; index < required_.types && good(); ++index) {
 			auto row = reader.record(1);
 			RuntimeType item;
@@ -348,7 +482,7 @@ private:
 	bool types() noexcept
 	{
 		constexpr unsigned widths[]{0, 1, 1, 1, 2, 2, 4, 4, 8, 8, 4, 8};
-		SchemaReader reader(bytes_, 64, catStart_, error_, limits_);
+		SchemaReader reader(bytes_, 64, catStart_, error_, limits_, minor_);
 		std::uint32_t memberPos = 0, enumPos = 0;
 		for (std::uint32_t index = 0; index < required_.types && good(); ++index) {
 			auto row = reader.record(1);
@@ -410,6 +544,8 @@ private:
 					if (!child)
 						break;
 					const auto name = row.text();
+					// A member name is a path segment of a tree: adc/Config.Gain.
+					require(!tree_ || name.size() <= limits_.nameBytes, ParseError::Limit);
 					for (std::uint32_t j = item.firstMember; j < memberPos && good(); ++j)
 						require(ws_.members_[j].name != name, ParseError::DuplicateName);
 					if (!require(expected <= limits_.wireBytes, ParseError::Limit))
@@ -479,9 +615,107 @@ private:
 		return good();
 	}
 
+	// Type names are unique among type names (byte comparison). Sorting the
+	// published rows by name, then by TypeId, needs no secondary storage; one
+	// comparator type keeps a single sort instantiation in a client image.
+	bool typeNames() noexcept
+	{
+		struct Order {
+			bool byName;
+
+			bool operator()(const RuntimeType& a, const RuntimeType& b) const noexcept
+			{
+				return byName ? a.name < b.name : a.id < b.id;
+			}
+		};
+
+		const auto rows = ws_.types_.first(required_.types);
+		sort(rows, Order{true});
+		for (std::size_t i = 1; i < rows.size(); ++i)
+			require(rows[i].name.empty() || rows[i - 1].name != rows[i].name,
+			        ParseError::DuplicateName);
+		sort(rows, Order{false});
+		return good();
+	}
+
+	// Bytes of group/.../group, by walking up the published parents.
+	std::uint64_t groupPathBytes(std::uint32_t group) const noexcept
+	{
+		std::uint64_t bytes = 0;
+		for (auto at = group; at != noParentGroup; at = ws_.catalogs_[at].parent)
+			bytes +=
+			    ws_.catalogs_[at].name.size() + (ws_.catalogs_[at].parent == noParentGroup ? 0 : 1);
+		return bytes;
+	}
+
+	// GroupTree: G group records in pre-order, published as G rows in each
+	// family with prefix-sum ranges, the parent and the depth.
+	bool groupRecords() noexcept
+	{
+		SchemaReader reader(bytes_, catStart_, epStart_, error_, limits_, minor_);
+		const auto groups = cats_[0];
+		std::uint32_t endpointBase = 0;
+		for (unsigned c = 0; c < 3; ++c) {
+			ws_.catFirst_[c] = c * groups;
+			ws_.catCount_[c] = groups;
+			ws_.epFirst_[c] = endpointBase;
+			ws_.epCount_[c] = eps_[c];
+			endpointBase += eps_[c];
+		}
+		std::array<std::uint32_t, 3> first{};
+		for (std::uint32_t group = 0; group < groups && good(); ++group) {
+			auto row = reader.record(2);
+			extended_ = extended_ || row.attributes();
+			require(row.number(1) == descriptor::groupCategory, ParseError::Catalog);
+			row.zeros(1);
+			const auto depth = static_cast<std::uint32_t>(row.number(2));
+			std::array<std::uint32_t, 3> counts{};
+			for (auto& count : counts)
+				count = static_cast<std::uint32_t>(row.number(4));
+			const auto name = row.text();
+			row.done();
+			if (!good())
+				break;
+			require(depth < limits_.groupDepth, ParseError::Limit);
+			require(depth <= (group == 0 ? 0 : ws_.catalogs_[group - 1].depth + 1),
+			        ParseError::Catalog);
+			require(treeNameValid(name), ParseError::Catalog);
+			// In pre-order the parent is the nearest earlier group one level up:
+			// climb from the previous group, one level per step.
+			auto parent = noParentGroup;
+			if (depth != 0 && good()) {
+				parent = group - 1;
+				while (ws_.catalogs_[parent].depth >= depth)
+					parent = ws_.catalogs_[parent].parent;
+			}
+			for (unsigned c = 0; c < 3 && good(); ++c) {
+				if (!require(counts[c] <= 65536 && counts[c] <= eps_[c] - first[c],
+				             ParseError::Catalog))
+					break;
+				ws_.catalogs_[c * groups + group] = {static_cast<descriptor::Category>(c + 1),
+				                                     group,
+				                                     first[c],
+				                                     counts[c],
+				                                     name,
+				                                     parent,
+				                                     depth};
+				first[c] += counts[c];
+			}
+			require(!good() || (name.size() <= limits_.nameBytes &&
+			                    groupPathBytes(group) <= limits_.pathBytes),
+			        ParseError::Limit);
+		}
+		for (unsigned c = 0; c < 3; ++c)
+			require(first[c] == eps_[c], ParseError::Catalog);
+		reader.done();
+		return good();
+	}
+
 	bool catalogs() noexcept
 	{
-		SchemaReader reader(bytes_, catStart_, epStart_, error_, limits_);
+		if (tree_)
+			return groupRecords();
+		SchemaReader reader(bytes_, catStart_, epStart_, error_, limits_, minor_);
 		std::uint32_t pos = 0, endpointBase = 0;
 		for (unsigned c = 0; c < 3 && good(); ++c) {
 			ws_.catFirst_[c] = pos;
@@ -518,7 +752,7 @@ private:
 
 	bool endpoints() noexcept
 	{
-		SchemaReader reader(bytes_, epStart_, bytes_.size(), error_, limits_);
+		SchemaReader reader(bytes_, epStart_, bytes_.size(), error_, limits_, minor_);
 		std::uint32_t pos = 0;
 		for (unsigned c = 0; c < 3 && good(); ++c) {
 			for (std::uint32_t g = 0; g < cats_[c] && good(); ++g) {
@@ -527,6 +761,7 @@ private:
 				const auto begin = pos;
 				for (std::uint32_t local = 0; local < catalog.endpointCount && good(); ++local) {
 					auto row = reader.record(c + 3);
+					extended_ = extended_ || row.attributes();
 					RuntimeEndpoint item;
 					item.category = static_cast<descriptor::Category>(c + 1);
 					item.catalogIndex = g;
@@ -557,6 +792,12 @@ private:
 					}
 					item.name = row.text();
 					row.done();
+					// Endpoint names of a tree are path segments too.
+					require(!tree_ || !good() || treeNameValid(item.name), ParseError::Endpoint);
+					require(!tree_ || !good() ||
+					            (item.name.size() <= limits_.nameBytes &&
+					             groupPathBytes(g) + 1 + item.name.size() <= limits_.pathBytes),
+					        ParseError::Limit);
 					if (good())
 						ws_.endpoints_[pos++] = item;
 				}
@@ -568,6 +809,63 @@ private:
 			}
 		}
 		reader.done();
+		return good() && (!tree_ || siblings());
+	}
+
+	// Names are unique among everything one tree group holds, like a folder:
+	// its subgroups and the endpoints of all three families. Sorting the
+	// Service family's group rows by (parent, name) finds duplicate subgroups
+	// and lets an endpoint look for a subgroup of its own name by binary
+	// search; a Command or Service is compared with the earlier families'
+	// endpoints of its group, through their unsorted rows. The Service rows
+	// are restored afterwards.
+	bool siblings() noexcept
+	{
+		struct Order {
+			bool byParent;
+
+			bool operator()(const RuntimeCatalog& a, const RuntimeCatalog& b) const noexcept
+			{
+				if (!byParent)
+					return a.group < b.group;
+				return a.parent != b.parent ? a.parent < b.parent : a.name < b.name;
+			}
+		};
+
+		const auto groups = ws_.catalogs_.subspan(ws_.catFirst_[2], ws_.catCount_[2]);
+		sort(groups, Order{true});
+		for (std::size_t i = 1; i < groups.size(); ++i)
+			require(groups[i - 1].parent != groups[i].parent ||
+			            groups[i - 1].name != groups[i].name,
+			        ParseError::DuplicateName);
+		const auto subgroup = [&](std::uint32_t parent, std::string_view name) {
+			std::size_t low = 0, high = groups.size();
+			while (low < high) {
+				const auto middle = low + (high - low) / 2;
+				const auto& row = groups[middle];
+				if (row.parent < parent || (row.parent == parent && row.name < name))
+					low = middle + 1;
+				else
+					high = middle;
+			}
+			return low < groups.size() && groups[low].parent == parent && groups[low].name == name;
+		};
+		for (unsigned c = 0; c < 3 && good(); ++c) {
+			const auto items = ws_.endpoints_.subspan(ws_.epFirst_[c], ws_.epCount_[c]);
+			for (const auto& endpoint : items) {
+				const auto group = endpoint.id >> 16;
+				if (!require(!subgroup(group, endpoint.name), ParseError::DuplicateName))
+					break;
+				// Earlier families of the same group.
+				for (unsigned other = 0; other < c && good(); ++other) {
+					const auto& row = ws_.catalogs_[ws_.catFirst_[other] + group];
+					for (const auto& peer : ws_.endpoints_.subspan(
+					         ws_.epFirst_[other] + row.firstEndpoint, row.endpointCount))
+						require(peer.name != endpoint.name, ParseError::DuplicateName);
+				}
+			}
+		}
+		sort(groups, Order{false});
 		return good();
 	}
 
@@ -580,10 +878,16 @@ private:
 		    required_.catalogs > ws_.catalogs_.size() ||
 		    required_.endpoints > ws_.endpoints_.size())
 			return refused(Status::Capacity);
-		if (!types() || !catalogs() || !endpoints())
+		if (!types() || !typeNames() || !catalogs() || !endpoints())
+			return refused();
+		// One canonical encoding per model: without names, attributes and a tree
+		// the descriptor is v3.0, so minor 1 must carry at least one of them.
+		if (!require(minor_ == descriptor::binaryMinor || extended_ || tree_, ParseError::Header))
 			return refused();
 		ws_.bytes_ = bytes_;
 		ws_.fingerprint_ = fingerprint_;
+		ws_.minor_ = minor_;
+		ws_.groupTree_ = tree_;
 		ws_.counts_ = required_;
 		ws_.published_ = true;
 		RuntimeSchema schema;

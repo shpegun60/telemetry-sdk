@@ -68,11 +68,22 @@ def consumer_source(schema):
         lines += [f"const toTS_{name} = (value: J.{name}): T.{name} => value;",
                   f"const toJS_{name} = (value: T.{name}): J.{name} => value;"]
     for endpoint in schema.endpoints:
+        group = endpoint.group.replace("::", ".")  # a group tree's group is a nested path
         for alias in (endpoint.value_alias, endpoint.request_alias, endpoint.response_alias):
             if alias:
-                path = endpoint.group + ".types." + alias
+                path = group + ".types." + alias
                 lines += [f"const alias_{len(lines)}: typeof J.{path} = T.{path};",
                           f"const aliasType_{len(lines)} = (value: J.{path}): T.{path} => value;"]
+    # v3.1: the named types scope, and in a tree each endpoint beside its subgroups.
+    for row in _reachable_types(schema):
+        symbol = schema.type_symbol(row["id"])
+        if symbol:
+            lines += [f"const named_{len(lines)}: typeof J.{symbol.js} = T.{symbol.js};",
+                      f"const namedType_{len(lines)} = (value: J.{symbol.js}): T.{symbol.js} => value;",
+                      f"const namedId_{len(lines)} = (value: T.{symbol.js}): T.Type_{row['id']} => value;"]
+    for endpoint, symbol in zip(schema.endpoints, schema.tree_symbols):
+        path = endpoint.group.replace("::", ".") + "." + symbol
+        lines.append(f"const tree_{len(lines)}: typeof J.{path} = T.{path};")
     return "\n".join(lines) + "\n"
 
 

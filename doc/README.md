@@ -9,6 +9,7 @@
 [Генератор C++/TS/JS SDK](CodeGenerator.md) ·
 [Generated C++](GeneratedCppApi.md) · [Generated JS/TS](GeneratedTsJsApi.md) ·
 [Generated Qt/QML](GeneratedQmlApi.md) ·
+[Type names, group trees and endpoint handles](GeneratedNamesAndHandles.md) ·
 [Schema compatibility](GeneratedSchemaCompatibility.md) ·
 [Asynchronous client](AsyncClient.md) ·
 [Runtime schema and values](RuntimeSchema.md) ·
@@ -105,6 +106,7 @@
 | --- | --- |
 | [User-guide programs](../examples/user_guide/README.md) | QuickStart, Native, custom Resources і encoded доступ без файлів |
 | [Device integration](../examples/device_integration/README.md) | Business class, public facade, tables у `.cpp` та bounded stream receiver |
+| [Group tree](../examples/group_tree/README.md) | Модель із файлів гілок, named handles, доступ за шляхом і імена типів |
 | [COBS integration](../examples/cobs_integration/README.md) | Реальний sibling COBS endpoint, client/server resource exchange, TX backpressure і recovery на host |
 | [Custom resources](../examples/resources/README.md) | Додати providers із власними paths |
 | [RPC mailbox](../examples/rpc_mailbox/README.md) | RPC через file table, зовнішній connectionGeneration, ACK до dispatch та checked reply |

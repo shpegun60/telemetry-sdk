@@ -8,16 +8,18 @@
 /*
  * Link-time compatibility for C++ views passed between separately built modules.
  *
- * The tag contains the revision, sizes, alignments, offsets and local-storage
- * policy used at the boundary. Its exact template arguments name the required
- * symbol, so mismatched modules fail to link. It is independent of wire format
- * versioning and adds no work to a native typed endpoint call.
+ * The tag contains the revision, sizes, alignments, offsets and every project
+ * switch of Config.hpp (local-storage budget, type names) used at the boundary.
+ * Its exact template arguments name the required symbol, so mismatched modules
+ * fail to link. It is independent of wire format versioning and adds no work
+ * to a native typed endpoint call.
  */
 
 #ifndef TELEMETRY_ABI_HPP
 #define TELEMETRY_ABI_HPP
 #pragma once
 
+#include "../Config.hpp"
 #include "../model/Model.hpp"
 
 #include <cstddef>
@@ -74,6 +76,8 @@ struct StructuredAbiTag {};
 
 // Every descriptor field consumed across a translation-unit boundary is in
 // this tuple. No hash is used for matching: the entire pack names the symbol.
+// The Config.hpp switches (local bytes, type names) are part of it, so one
+// object built with names on and one with names off cannot be linked.
 using CurrentStructuredAbiTag = StructuredAbiTag<
     structuredAbiRevision, sizeof(void*), sizeof(std::string_view), alignof(std::string_view),
     sizeof(TypeKind), sizeof(ScalarCode), sizeof(TypeId), sizeof(MemberDescriptor),
@@ -126,7 +130,7 @@ using CurrentStructuredAbiTag = StructuredAbiTag<
     sizeof(EncodedCommandResult), alignof(EncodedCommandResult),
     offsetof(EncodedCommandResult, dispatch), offsetof(EncodedCommandResult, endpointStatus),
     maxLocalObjectBytes, offsetof(FieldEntry, writeContext),
-    offsetof(FieldEntry, writeScratchBytes)>;
+    offsetof(FieldEntry, writeScratchBytes), std::uint64_t{TELEMETRY_TYPE_NAMES}>;
 
 // Only the exact current specialization is defined in StructuredAbi.cpp.
 template<class Tag>

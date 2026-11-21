@@ -119,7 +119,9 @@ def build(args, output):
     flags = [*ARM, '-ffunction-sections', '-fdata-sections', '-DUSE_HAL_DRIVER',
              '-DSTM32H7S3xx', '--specs=nano.specs']
     include = ['-I' + str(cube / 'Boot/Core/Inc'), '-I' + str(captured / 'lib'),
-               '-I' + str(captured / 'lib/boost_pfr/include'), '-I' + str(captured / 'lib/magic_enum')]
+               '-I' + str(captured / 'lib/boost_pfr/include'), '-I' + str(captured / 'lib/magic_enum'),
+               # The fixture's telemetry_config.hpp keeps the 1775-byte v3.0 descriptor.
+               '-I' + str(captured / 'tests/structured/mcu/config')]
     for relative in ('Drivers/STM32H7RSxx_HAL_Driver/Inc', 'Drivers/STM32H7RSxx_HAL_Driver/Inc/Legacy',
                      'Drivers/CMSIS/Device/ST/STM32H7RSxx/Include', 'Drivers/CMSIS/Include'):
         include += ['-isystem', str(cube / relative)]

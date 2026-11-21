@@ -54,8 +54,11 @@ the exact published SHA.
 Names, callable/owner lvalues, slots and views borrow external lifetimes;
 nonmoving tables and LIFO Workspace leases retain their documented contracts.
 Application synchronization, validation and transport state remain external.
-Endpoint declarations have only name+binding; no units/limits/defaults/flags
-or parameter/member metadata are added to the structural type model.
+Endpoint declarations have only name+binding. The structural type model adds
+one label to the shape: an optional, unique type name on an enum or struct
+(descriptor v3.1). No units/limits/defaults/flags or parameter/member
+metadata are added to it; the v3.1 attribute area is reserved for them, and
+a tag enters it only through its own reviewed contract.
 
 Retired review transcripts, Scalar probes and superseded implementation plans
 are archived outside this checkout; current contracts are in `doc/Architecture.md`

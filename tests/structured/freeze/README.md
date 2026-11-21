@@ -3,6 +3,12 @@
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 
 This suite fixes the current C++20 public contract and frozen wire v3.0.
+Descriptor v3.1 is an additive contract: `wire_v3_1` in the manifest pins its
+minor, type and record flags and attribute tag ranges, and `named.hex` and
+`attrs.hex` join the goldens with their own minor 1. v3.0 stays frozen as the
+stripped form: the four v3.0 goldens are unchanged, `binaryMinor` stays 0 and
+Values stays 3.0. `default_type_names` pins the `TELEMETRY_TYPE_NAMES`
+default of [Config.hpp](../../../lib/telemetry/Config.hpp).
 This suite does not execute hardware. The separate
 [Stage 14 H7S results](../mcu/h7s/RESULTS.md) record that execution.
 The [qualification decision](../../../doc/StructuredTelemetryV3FreezeQualification.md)
@@ -28,9 +34,10 @@ the step/constraints/limits/defaults clauses in the metadata detector.
 
 The readable [contract.json](contract.json) records header widths, LE,
 record/type/scalar/status/capability codes, FNV-1a-64 constants, u32 packed
-identity, ABI revision, the default 32-byte storage budget, all eleven default
-`ts::Limits` resource ceilings, exact dependency
-pins and four independent descriptor/values goldens. Generated compile-time
+identity, ABI revision, the default 32-byte storage budget, all fourteen
+default `ts::Limits` resource ceilings (the eleven of v3.0 and the three
+group-tree ceilings of v3.1), exact dependency pins and the independent
+descriptor/values goldens, v3.1's `named`, `attrs` and `tree` included. Generated compile-time
 assertions tie its numeric constants to the implementation. Golden hashes
 are over decoded bytes, independent of `.hex` whitespace. Existing
 descriptor/resource/client suites still compare emitted bytes with their

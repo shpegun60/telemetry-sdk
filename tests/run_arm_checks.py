@@ -125,6 +125,63 @@ def check_id_boundaries(disassembly):
         if len(instructions) != 2 or instructions[0][0] != extraction or instructions[1] != ('bx', 'lr'):
             raise RuntimeError(name + ': native extraction gained work')
 
+# DescriptorSizeProbe.cpp: the models, the two ways to serve a descriptor, and
+# the type names each model's image must carry with names on and lack with them off.
+SIZE_MODELS = {0: 'nucleo', 1: 'tree', 2: 'flat'}
+SIZE_FORMS = {0: 'packed', 1: 'streaming'}
+SIZE_NAMES = {0: (b'nucleo_demo::Voltage', b'nucleo_demo::Status', b'nucleo_demo::Probe', b'nucleo_demo::Mode'),
+              1: (b'adc::Config', b'adc::Status', b'adc::Reference', b'adc::Offset', b'metrology::Config',
+                  b'metrology::Window')}
+SIZE_NAMES[2] = SIZE_NAMES[1]
+
+def tool_beside(compiler, name):
+    return str(Path(compiler).with_name('arm-none-eabi-' + name + ('.exe' if os.name == 'nt' else '')))
+
+def descriptor_size_report(flags, runner, output, compiler):
+    """Link descriptor_probe for every model, form and names setting; report and gate its sizes."""
+    size_tool, objcopy, nm = (tool_beside(compiler, name) for name in ('size', 'objcopy', 'nm'))
+    report = {}
+    for optimization in ('O2', 'Os'):
+        for model, model_name in SIZE_MODELS.items():
+            for form, form_name in SIZE_FORMS.items():
+                for names in (1, 0):
+                    label = f'descriptor-size-{model_name}-{form_name}-names{names}-{optimization}'
+                    elf = output / (label + '.elf')
+                    runner.run([*flags, '-' + optimization, '-ffunction-sections', '-fdata-sections',
+                                f'-DMODEL={model}', f'-DFORM={form}', f'-DTELEMETRY_TYPE_NAMES={names}',
+                                HERE / 'regression/DescriptorSizeProbe.cpp', '-nostdlib', '-Wl,-e,descriptor_probe',
+                                '-Wl,--gc-sections', '-lc', '-lgcc', '-o', elf], label)
+                    sections = dict(re.findall(r'^(\.\w+)\s+(\d+)', runner.run([size_tool, '-A', elf], label + '-size'),
+                                               re.M))
+                    image = output / (label + '.bin')
+                    runner.run([objcopy, '-O', 'binary', elf, image], label + '-binary')
+                    loaded = image.read_bytes()
+                    present = [name for name in SIZE_NAMES[model] if name in loaded]
+                    if names and len(present) != len(SIZE_NAMES[model]):
+                        raise RuntimeError(label + ': a type name is missing from the image')
+                    if not names and present:
+                        raise RuntimeError(label + ': names off left ' + b', '.join(present).decode() + ' in the image')
+                    entry = {name: int(sections.get(name, 0)) for name in ('.text', '.rodata', '.data')}
+                    if form == 0:
+                        symbols = runner.run([nm, '-S', elf], label + '-symbols')
+                        # A const namespace-scope object has internal linkage: _ZL17descriptor_packed.
+                        packed = re.search(r'^[0-9a-f]+ ([0-9a-f]+) [rR] (?:_ZL\d+)?descriptor_packed$',
+                                           symbols, re.M)
+                        if not packed:
+                            raise RuntimeError(label + ': no packed descriptor symbol')
+                        entry['descriptor'] = int(packed[1], 16)
+                    report.setdefault(optimization, {}).setdefault(f'{model_name}-{form_name}', {})[
+                        'names' if names else 'stripped'] = entry
+    for optimization, rows in report.items():
+        for row, entries in rows.items():
+            named, stripped = entries['names'], entries['stripped']
+            print(f'descriptor {optimization} {row}: ' + ', '.join(
+                f'{name} {named[name]} B (names off {stripped[name]} B, {named[name] - stripped[name]:+d} B)'
+                for name in ('.text', '.rodata', '.data')) + (
+                f'; descriptor {named["descriptor"]} B (names off {stripped["descriptor"]} B)'
+                if 'descriptor' in named else ''), flush=True)
+    return report
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cxx', default=os.environ.get('ARM_CXX', 'arm-none-eabi-g++'))
@@ -177,8 +234,10 @@ def main():
     for case in range(1, 5):
         runner.run([*flags, '-DCASE=' + str(case), '-fsyntax-only', HERE / 'regression/IdNameCollisionCheck.cpp'], 'id-name-' + str(case))
     headers = header_and_fp_checks(flags, runner.run, root, output, version)
+    descriptor_sizes = descriptor_size_report(flags, runner, output, compiler)
     runner.write_summary(headers=headers, compiler_version=version.strip(), source_root=str(root), standard='c++20',
         codegen_probes=probes, mutation_controls=probes, slot_comparisons=slot_comparisons, null_checks=args.null_checks,
+        descriptor_sizes=descriptor_sizes,
         limitation='Offline object and diagnostic checks; no target execution or whole-call-chain stack claim')
     print('Shared Cortex-M7 checks passed:', runner.counts, 'codegen probes:', probes, flush=True)
 

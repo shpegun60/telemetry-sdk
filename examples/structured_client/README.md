@@ -9,6 +9,13 @@ checks the native Model, encoded Service, U64/S64 extremes and exact 41-byte
 response. Qt JSON is only a desktop summary with integer64 strings, not an MCU
 formatter or a new Telemetry format.
 
+The fixture's descriptor is v3.1: its enum and structs carry the type names
+taken from their code, `client_example::Mode`, `client_example::Config`,
+`client_example::Request` and `client_example::Response`, with nothing written
+for them. `#define TELEMETRY_TYPE_NAMES 0` in a project `telemetry_config.hpp`
+would leave them out; see
+[Fields: type names](../../doc/user/Fields.md#8-імена-типів-у-descriptor).
+
 The HTML editor, localhost adapter and real-browser tests now belong to
 [Telemetry UX payload tools](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/examples/structured_client/README.md), with an independent
 [installed-package browser suite](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/tests/structured_client/README.md). That example imports the installed

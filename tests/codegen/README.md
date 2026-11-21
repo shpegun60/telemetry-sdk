@@ -42,3 +42,14 @@ against the actual native Descriptor. It compares exact F32/F64 NaN/signed-zero
 bytes, nested edits, offset views, seed ownership, invalid originals and ordinary
 finite writes. A deliberately corrupted preservation branch must fail the same
 byte oracle. Default generated SDKs retain their prior output without that option.
+
+Descriptor v3.1 ([names.py](names.py), [test_names.py](test_names.py)): goldens for a
+named flat model and a two-branch tree ([goldens](goldens), refreshed only by
+`python tests/codegen/names.py write-goldens`); v3.0 inputs against the frozen hashes
+of `../ux_codegen_extension`; named, tree and attributed fixtures through every web
+check; a native Model rebuilt from the generated DTOs re-emits the named, tree,
+unnamed-tree, v3.0 and native descriptors byte for byte; RuntimeSchema against
+generated metadata and `typeName<T>()` for every name and path; code written for a
+flat model compiles against the same model in the group form (C++ and TS); every
+path form of the generated device is its nested handle; `TelemetryBindings.hpp` is
+refused for an attributed descriptor, naming the tags.

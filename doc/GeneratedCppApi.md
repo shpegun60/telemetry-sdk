@@ -4,6 +4,11 @@ Include `device_api/Codec.hpp` with the SDK's `cpp` directory in the include
 path. Types, schema constants, endpoints and codec need only the C++20 standard
 library: no Telemetry, Boost.PFR, magic_enum, heap, RTOS or network dependencies.
 
+For a v3.1 descriptor, named types (`types::adc::Config`), group namespaces
+(`adc::channel1::Gain`) and the endpoint handles of `client::Device`
+(`device.endpoint<"adc/channel1/Gain">()`) are described in
+[type names, group trees and endpoint handles](GeneratedNamesAndHandles.md).
+
 ## Types and operations
 
 Each reachable descriptor TypeId has one canonical definition in `detail::Type_<id>`.

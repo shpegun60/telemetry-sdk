@@ -9,6 +9,8 @@
 import {DeviceClient, Status, Batch} from '../lib/client/web/Client.js';
 import {
 	TypeKind,
+	findType,
+	findEndpoint,
 	matchesDescriptorHeader,
 	encodeValue,
 	encodeValuePreserving,
@@ -24,10 +26,41 @@ const ownBytes = input =>
 const categories = Object.freeze(
     {FieldRead : 'fields', FieldWrite : 'fields', Command : 'commands', Service : 'services'});
 const noDecode = () => undefined;
+const kindNames = Object.freeze([ 'Field', 'Command', 'Service' ]);
+
+// The .member and [i] steps after an endpoint, checked against its value type.
+// Throws the generated device's wording when a step does not exist.
+function memberSteps(model, typeId, suffix, path)
+{
+	const steps = [];
+	let type = model.types[typeId], rest = suffix;
+	while (rest !== '') {
+		const match = /^\.([^.[\]\\]+)|^\[(0|[1-9][0-9]*)\]/.exec(rest);
+		let next;
+		if (match && match[1] !== undefined && type.kind === TypeKind.Struct) {
+			const member = type.members.find(item => item.name === match[1]);
+			if (member) {
+				steps.push(match[1]);
+				next = model.types[member.typeId];
+			}
+		} else if (match && match[2] !== undefined && type.kind === TypeKind.Array &&
+		           Number(match[2]) < type.elementCount) {
+			steps.push(Number(match[2]));
+			next = model.types[type.elementTypeId];
+		}
+		if (next === undefined)
+			throw new Error(`No member at path "${path}"`);
+		type = next;
+		rest = rest.slice(match[0].length);
+	}
+	return steps;
+}
 
 // Public methods:
 // - admit()/invalidate()/confirmQuiescence()/close(): Explicit session lifecycle.
+// - findType(): Look up a v3.1 type name in the admitted schema.
 // - bind()/bindReadMany(): Cache runtime contracts for one admission.
+// - endpoint(): A handle by path, group/.../endpoint[.member][[i]], for one admission.
 // - readField()/writeField()/command()/service()/readMany()/batch(): One core FIFO.
 // - process(): Advance the same core for controlled owner clocks.
 export class DynamicClient {
@@ -66,6 +99,14 @@ export class DynamicClient {
 	get schema()
 	{
 		return this.#current() ? this.#token.model : undefined;
+	}
+
+	// The admitted schema's Enum/Struct with this unique v3.1 type name. It is
+	// undefined without a current admission or when no type has the name.
+	findType(name)
+	{
+		const model = this.schema;
+		return model ? findType(model, name) : undefined;
 	}
 
 	get ready()
@@ -245,6 +286,75 @@ export class DynamicClient {
 	service(endpoint, value = undefined, timeoutMs)
 	{
 		return this.#produce(() => this.#submit('Service', endpoint, value, timeoutMs));
+	}
+
+	// A handle by path (plan section 15): group/.../endpoint, then .member and [i]
+	// for part of a Field. It is resolved once against the admitted descriptor and
+	// keeps working until another admission. read(), write(value) and call(value)
+	// return the requests readField()/writeField()/command()/service() return; a
+	// member's read() projects the value. A missing path, a wrong kind or a
+	// read-only write throws, naming the path, as the generated device does.
+	endpoint(path)
+	{
+		const token = this.#token;
+		if (!this.#current(token))
+			throw new Error(`No admitted descriptor to resolve path "${String(path)}"`);
+		const found = typeof path === 'string' ? findEndpoint(token.model, path) : undefined;
+		if (found === undefined)
+			throw new Error(`No endpoint at path "${String(path)}"`);
+		const category = kindNames[found.category], row = found.endpoint;
+		if (found.member !== '' && found.category !== 0)
+			throw new Error(
+			    `"${path}" names a member of a ${category}: only a Field's members are readable`);
+		const steps =
+		    found.category === 0 ? memberSteps(token.model, row.typeId, found.member, path) : [];
+		const member = steps.length !== 0;
+		const usable = operation => {
+			if (!this.#current(token))
+				return Object.freeze({status : Status.NotAdmitted});
+			return this.bind(operation, row.id);
+		};
+		const read = timeoutMs => {
+			if (found.category !== 0)
+				throw new Error(`"${path}" is a ${category}: read() takes a Field`);
+			const bound = usable('FieldRead');
+			if (bound.status !== Status.Ok)
+				return this.#refused('FieldRead', bound.status);
+			const pending = this.readField(bound.endpoint, timeoutMs);
+			if (!member)
+				return pending;
+			return this.#map(pending, result => {
+				if (result.valueStatus !== ValueStatus.Ok)
+					return result;
+				const value = steps.reduce((part, step) => part[step], result.value);
+				return Object.freeze(
+				    {operation : result.operation, valueStatus : ValueStatus.Ok, value});
+			});
+		};
+		const write = (value, timeoutMs) => {
+			if (found.category !== 0)
+				throw new Error(`"${path}" is a ${category}: write() takes a Field`);
+			if (member)
+				throw new Error(`"${path}" is a member: write() takes a whole Field`);
+			if (!(row.capabilities & 2))
+				throw new Error(`"${path}" is a read-only Field`);
+			const bound = usable('FieldWrite');
+			if (bound.status !== Status.Ok)
+				return this.#refused('FieldWrite', bound.status);
+			return this.writeField(bound.endpoint, value, timeoutMs);
+		};
+		const call = (...args) => {
+			if (found.category === 0)
+				throw new Error(`"${path}" is a Field: call() takes a Command or Service`);
+			const operation = found.category === 1 ? 'Command' : 'Service';
+			const [value, timeoutMs] = row.requestTypeId === 0 ? [ undefined, args[0] ] : args;
+			const bound = usable(operation);
+			if (bound.status !== Status.Ok)
+				return this.#refused(operation, bound.status);
+			return operation === 'Command' ? this.command(bound.endpoint, value, timeoutMs)
+			                               : this.service(bound.endpoint, value, timeoutMs);
+		};
+		return Object.freeze({id : row.id, path, category, member, read, write, call});
 	}
 
 	bindReadMany(capability, endpoints)

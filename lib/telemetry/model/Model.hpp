@@ -322,9 +322,15 @@ private:
 	const Services* services_;
 };
 
+// The three-catalog form. Three group branches select the group-tree guide in
+// GroupTree.hpp instead.
 template<class Fields, class Commands, class Services>
+    requires(!(detail::groupBranch<Fields> && detail::groupBranch<Commands> &&
+               detail::groupBranch<Services>))
 Model(const Fields&, const Commands&, const Services&) -> Model<Fields, Commands, Services>;
 
 } // namespace telemetry
+
+#include "GroupTree.hpp"
 
 #endif

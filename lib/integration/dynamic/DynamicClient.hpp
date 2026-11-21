@@ -16,6 +16,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -207,6 +209,85 @@ struct RuntimeAdmission {
 };
 
 } // namespace detail
+
+// Why endpoint(path) refused a path, or why a path handle refuses an operation.
+enum class PathStatus : std::uint8_t {
+	Ok,
+	NotAdmitted,  // no current admission to resolve against
+	NoEndpoint,   // no endpoint at the path (or a flat path naming two families)
+	NoMember,     // the .member or [i] part does not exist
+	MemberOfCall, // a member path of a Command or Service
+	WrongKind,    // read/write on a Command or Service, call on a Field
+	ReadOnly,     // write on a read-only Field
+	MemberWrite   // write on a member: the wire writes whole Fields
+};
+
+[[nodiscard]] constexpr std::string_view kindName(descriptor::Category category) noexcept
+{
+	return category == descriptor::Category::Field     ? std::string_view{"Field"}
+	       : category == descriptor::Category::Command ? std::string_view{"Command"}
+	                                                   : std::string_view{"Service"};
+}
+
+// The wording the JS clients and the generated JS device throw for the same
+// refusal, written into out (cut to fit); returns its full length. kind is the
+// endpoint's kind name and method the refused call: "read", "write" or "call".
+inline std::size_t describePath(PathStatus status, std::string_view path, std::string_view kind,
+                                std::string_view method, std::span<char> out) noexcept
+{
+	std::size_t size = 0;
+	const auto put = [&](std::string_view text) noexcept {
+		for (const char c : text) {
+			if (size < out.size())
+				out[size] = c;
+			++size;
+		}
+	};
+	const auto quoted = [&] {
+		put("\"");
+		put(path);
+		put("\"");
+	};
+	switch (status) {
+		case PathStatus::Ok:
+			break;
+		case PathStatus::NotAdmitted:
+			put("No admitted descriptor to resolve path ");
+			quoted();
+			break;
+		case PathStatus::NoEndpoint:
+			put("No endpoint at path ");
+			quoted();
+			break;
+		case PathStatus::NoMember:
+			put("No member at path ");
+			quoted();
+			break;
+		case PathStatus::MemberOfCall:
+			quoted();
+			put(" names a member of a ");
+			put(kind);
+			put(": only a Field's members are readable");
+			break;
+		case PathStatus::WrongKind:
+			quoted();
+			put(" is a ");
+			put(kind);
+			put(": ");
+			put(method);
+			put(method == "call" ? "() takes a Command or Service" : "() takes a Field");
+			break;
+		case PathStatus::ReadOnly:
+			quoted();
+			put(" is a read-only Field");
+			break;
+		case PathStatus::MemberWrite:
+			quoted();
+			put(" is a member: write() takes a whole Field");
+			break;
+	}
+	return size;
+}
 
 // One owner serializes this object, workspace reset/reparse, backend and port.
 // The backend is exclusively borrowed. Stop producers, close and process until
@@ -407,6 +488,189 @@ public:
 	                                         std::uint32_t timeoutMs = 30000) noexcept
 	{
 		return service(endpoint, {}, std::forward<F>(callback), timeoutMs);
+	}
+
+	// A handle by path (plan section 15), from endpoint(): cheap to copy, it keeps
+	// the endpoint's identity and its member's place, and binds on each call, so it
+	// works until another admission (then NotAdmitted). read() of a member path
+	// delivers the member's view; write() takes whole Fields; call() takes the
+	// request payload. A refused operation returns InvalidArgument (ReadOnly for a
+	// read-only write) and accepts() names the reason for describePath().
+	class PathHandle {
+	public:
+		PathHandle() noexcept = default;
+
+		[[nodiscard]] descriptor::Category category() const noexcept
+		{
+			return category_;
+		}
+
+		[[nodiscard]] std::uint32_t id() const noexcept
+		{
+			return id_;
+		}
+
+		[[nodiscard]] bool member() const noexcept
+		{
+			return member_;
+		}
+
+		// The value type read() delivers: the Field's or its member's; a call's request type.
+		[[nodiscard]] TypeId valueType() const noexcept
+		{
+			return leafType_;
+		}
+
+		// Ok, or why read (FieldRead), write (FieldWrite) or call (Command/Service) is refused.
+		[[nodiscard]] PathStatus accepts(client::Operation operation) const noexcept
+		{
+			const bool field = category_ == descriptor::Category::Field;
+			if (operation == client::Operation::FieldRead)
+				return field ? PathStatus::Ok : PathStatus::WrongKind;
+			if (operation == client::Operation::FieldWrite) {
+				if (!field)
+					return PathStatus::WrongKind;
+				if (member_)
+					return PathStatus::MemberWrite;
+				return capabilities_ & static_cast<std::uint8_t>(descriptor::Capability::Writable)
+				           ? PathStatus::Ok
+				           : PathStatus::ReadOnly;
+			}
+			return field ? PathStatus::WrongKind : PathStatus::Ok;
+		}
+
+		template<class F>
+		[[nodiscard]] client::Submission read(F&& callback,
+		                                      std::uint32_t timeoutMs = 30000) const noexcept
+		{
+			if (accepts(client::Operation::FieldRead) != PathStatus::Ok)
+				return {client::Status::InvalidArgument, {}};
+			const auto bound = binding(client::Operation::FieldRead);
+			if (!bound)
+				return {bound.status, {}};
+			if (!member_)
+				return client_->readField(bound.endpoint, std::forward<F>(callback), timeoutMs);
+			return client_->readField(
+			    bound.endpoint,
+			    [owner = client_, leaf = leafType_, offset = offset_, size = size_,
+			     fn = std::forward<F>(callback)](const DynamicResult& whole) mutable noexcept {
+				    DynamicResult part{whole.operation, whole.valueStatus, {}};
+				    if (whole.hasValue()) {
+					    const auto bytes = whole.value.bytes();
+					    const auto view =
+					        bytes && offset + size <= bytes.value.size()
+					            ? owner->state_.schema.view(leaf, bytes.value.subspan(offset, size))
+					            : runtime::Result<runtime::DynamicValueView>{
+					                  runtime::Status::InvalidPayload, {}};
+					    part.valueStatus = view ? ValueStatus::Ok : ValueStatus::InvalidPayload;
+					    if (view)
+						    part.value = view.value;
+				    }
+				    fn(part);
+			    },
+			    timeoutMs);
+		}
+
+		template<class F>
+		[[nodiscard]] client::Submission write(client::Input payload, F&& callback,
+		                                       std::uint32_t timeoutMs = 30000) const noexcept
+		{
+			const auto status = accepts(client::Operation::FieldWrite);
+			if (status != PathStatus::Ok)
+				return {status == PathStatus::ReadOnly ? client::Status::ReadOnly
+				                                       : client::Status::InvalidArgument,
+				        {}};
+			const auto bound = binding(client::Operation::FieldWrite);
+			if (!bound)
+				return {bound.status, {}};
+			return client_->writeField(bound.endpoint, payload, std::forward<F>(callback),
+			                           timeoutMs);
+		}
+
+		template<class F>
+		[[nodiscard]] client::Submission call(client::Input payload, F&& callback,
+		                                      std::uint32_t timeoutMs = 30000) const noexcept
+		{
+			if (accepts(client::Operation::Command) != PathStatus::Ok)
+				return {client::Status::InvalidArgument, {}};
+			const auto operation = category_ == descriptor::Category::Command
+			                           ? client::Operation::Command
+			                           : client::Operation::Service;
+			const auto bound = binding(operation);
+			if (!bound)
+				return {bound.status, {}};
+			return operation == client::Operation::Command
+			           ? client_->command(bound.endpoint, payload, std::forward<F>(callback),
+			                              timeoutMs)
+			           : client_->service(bound.endpoint, payload, std::forward<F>(callback),
+			                              timeoutMs);
+		}
+
+		template<class F>
+		[[nodiscard]] client::Submission call(F&& callback,
+		                                      std::uint32_t timeoutMs = 30000) const noexcept
+		{
+			return call(client::Input{}, std::forward<F>(callback), timeoutMs);
+		}
+
+	private:
+		[[nodiscard]] EndpointResult binding(client::Operation operation) const noexcept
+		{
+			if (!client_ || client_->epoch_ != epoch_)
+				return {client::Status::NotAdmitted, {}};
+			return client_->bind(operation, id_);
+		}
+
+		DynamicClient* client_ = nullptr;
+		std::uint64_t epoch_ = 0;
+		std::uint32_t id_ = 0, offset_ = 0, size_ = 0;
+		TypeId leafType_ = 0;
+		descriptor::Category category_ = descriptor::Category::Field;
+		std::uint8_t capabilities_ = 0;
+		bool member_ = false;
+		friend class DynamicClient;
+	};
+
+	struct PathResult {
+		PathStatus status = PathStatus::NotAdmitted;
+		PathHandle handle{};
+
+		[[nodiscard]] explicit operator bool() const noexcept
+		{
+			return status == PathStatus::Ok;
+		}
+	};
+
+	// Resolve group/.../endpoint, then .member and [i] for part of a Field, once
+	// against the current admission (RuntimeSchema::resolvePath). A refusal names
+	// its reason; describePath(status, path, ...) gives the shared wording.
+	[[nodiscard]] PathResult endpoint(std::string_view path) noexcept
+	{
+		if (!isCurrent())
+			return {PathStatus::NotAdmitted, {}};
+		const auto target = state_.schema.resolvePath(path);
+		if (!target)
+			return {target.status == runtime::Status::MemberNotFound ||
+			                target.status == runtime::Status::IndexOutOfRange
+			            ? PathStatus::NoMember
+			            : PathStatus::NoEndpoint,
+			        {}};
+		const auto& found = *target.value.endpoint;
+		const auto leaf = target.value.handle.leafType();
+		PathHandle handle;
+		handle.client_ = this;
+		handle.epoch_ = epoch_;
+		handle.id_ = found.id;
+		handle.category_ = found.category;
+		handle.capabilities_ = found.capabilities;
+		handle.member_ = leaf != found.typeId;
+		handle.leafType_ = leaf;
+		handle.offset_ = target.value.handle.wireOffset();
+		const auto* type = state_.schema.type(leaf);
+		handle.size_ = type ? type->wireBytes : 0;
+		if (handle.member_ && found.category != descriptor::Category::Field)
+			return {PathStatus::MemberOfCall, {}};
+		return {PathStatus::Ok, handle};
 	}
 
 	// Revocation is synchronous and callback-free; owner processing performs drain.

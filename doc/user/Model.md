@@ -25,6 +25,7 @@ native доступу Model не створюють; encoded catalog indexes т�
 - [Ролі об'єктів](#ролі-обєктів)
 - [Повний приклад](#повний-приклад)
 - [Model API](#model-api)
+- [Group tree: модель із файлів гілок](#group-tree-модель-із-файлів-гілок)
 - [Typed access і runtime access](#typed-access-і-runtime-access)
 - [Encoded API: catalog index або ModelView](#encoded-api-catalog-index-або-modelview)
 - [Encoded результати й порядок перевірок](#encoded-результати-й-порядок-перевірок)
@@ -259,6 +260,133 @@ Manual C++20 build має include roots `lib`, `lib/boost_pfr/include` і `lib/m
 
 Числові значення `configId` і `queryId` однакові: families мають окремі логічні
 простори. Transport передає також вид операції, який вибирає потрібний index.
+
+## Group tree: модель із файлів гілок
+
+Пристрій із багатьма підсистемами описує кожну в окремому файлі гілки: один
+вираз без таблиць і IDs. Гілки монтуються в одну Model.
+`ts::group(name, items...)` приймає subgroups, Fields, Commands і Services у
+будь-якій суміші; група може бути порожньою і може монтувати іншу гілку.
+Повний приклад такого компонування, з класами, які нічого не знають про
+telemetry, — [group_tree](../../examples/group_tree/README.md).
+
+```cpp
+// adc/AdcTelemetry.hpp - сам Adc.hpp нічого не знає про telemetry
+inline constexpr auto branch = ts::group("adc",
+    ts::group("channel1", ts::field<&Adc::gain<0>, &Adc::setGain<0>>("Gain", instance)),
+    ts::group("channel2", ts::field<&Adc::gain<1>, &Adc::setGain<1>>("Gain", instance)),
+    ts::field<&Adc::config, &Adc::setConfig>("Config", instance),   // тип adc::Config
+    ts::command<&Adc::reset>("Reset", instance),
+    ts::service<&Adc::calibrate>("Calibrate", instance));
+
+// Telemetry.hpp - єдина точка композиції
+inline constexpr telemetry::Model model{adc::tlm::branch, metrology::tlm::branch};
+inline constexpr telemetry::descriptor::Descriptor descriptor{model};   // v3.1, GroupTree
+
+// Named handles: шлях перевіряється тут, один раз.
+inline constexpr auto gain1 = telemetry::endpoint<model, "adc/channel1/Gain">;
+inline constexpr auto rate = telemetry::endpoint<model, "adc/Config.rateHz">; // лише читання
+inline constexpr auto reset = telemetry::endpoint<model, "adc/Reset">;
+inline constexpr auto calibrate = telemetry::endpoint<model, "adc/Calibrate">;
+
+gain1.read();                            // std::optional<float>
+gain1.write(2.5f);                       // WriteResult
+rate.read();                             // std::optional<std::uint16_t>
+reset.call();                            // CommandResult
+calibrate.call(adc::Reference{1.25f});   // ServiceResult<adc::Offset>
+```
+
+- Дерево розгортається в pre-order під час компіляції: група, потім її
+  subgroups у порядку оголошення. Позиція групи є group-частиною кожного
+  PackedId у всіх трьох families (`adc` 0, `adc/channel1` 1, ...); entries
+  зберігають порядок оголошення всередині своєї family. Кожна family має
+  звичний catalog array, тепер по одному рядку на групу, порожньому там, де
+  група не має цієї family. Dispatch лишається O(1) через незмінний
+  `ModelView`, а structured ABI revision лишається 6.
+- Model володіє tables кожної групи й трьома catalog tables
+  (`model.fields()`, `commands()`, `services()`); її не можна копіювати чи
+  переміщувати. `model.flat()` — еквівалентна three-catalog Model.
+- Імена в дереві є сегментами шляху: без `/`, `.`, `[`, `]` і `\`, унікальні
+  серед усього, що містить група (subgroups і endpoints усіх трьох families).
+  Порушення будь-якого правила — build error у тому `ts::group`, що його
+  порушує. Стелі задає profile descriptor: `maxGroupDepth` 8 рівнів,
+  `maxNameBytes` 64, `maxPathBytes` 256.
+- Сьогоднішня `Model{fields, commands, services}` не змінюється і зберігає
+  байти v3.0; гілки в конструкторі вибирають форму дерева.
+
+### Шлях до endpoint
+
+Один запис шляху для всіх: групи та endpoint через `/`, далі `.member` і
+`[i]` за потреби: `adc/channel1/Gain`, `adc/Config.rateHz`,
+`adc/Status.raw[1]`, `metrology/Config`. Рядок групи не має кінцевого `/`.
+Той самий текст приймають ключі Dynamic clients, `RuntimeSchema::findEndpoint(path)`,
+`inspect` генератора і compile-time доступ пристрою нижче. У дереві імена не
+містять службових символів, тому шлях однозначний; плоска v3.0 модель зберігає
+будь-який UTF-8 в іменах, і host екранує такі символи в шляху через `\`.
+
+### Named handles
+
+`telemetry::endpoint<model, "path">` розв'язує шлях один раз, там, де handle
+оголошено, і далі працює через крапку: `gain1.read()`, `gain1.write(2.5f)`,
+`reset.call()`. Model має бути `constexpr` зі static storage, тому handles
+оголошують після неї, у файлі композиції; файл гілки моделі не знає.
+
+| Член handle | Значення |
+| --- | --- |
+| `id` | `PackedId` endpoint, той самий, що дає `idOf<model, path>()` |
+| `kind` | `reflection::EndpointKind::Field`, `Command` або `Service` |
+| `member` | `true` для handle члена чи елемента Field |
+| `Value` | Тип, який вибирає `read()`: увесь Field або член; `void` для Command/Service |
+| `Definition` | Конкретна `FieldDefinition`, `CommandDefinition` чи `ServiceDefinition` із її `Value`, `Request`, `Response` |
+| `read()` | Field: те саме, що `read<model, path>()` |
+| `write(value)` | Лише цілий Field; тип значення перевіряється, як у `fields().write<id>()` |
+| `call(args...)` | Command або Service з їхніми native arguments |
+
+- Шлях, що нічого не називає, називає групу, член не-struct або елемент за
+  межами масиву, — build error в рядку оголошення handle; trace показує шлях
+  як `EndpointPath<N>{"..."}`.
+- Handle — порожній object: PackedId і тип значення є частиною його типу.
+  Виклик компілюється в той самий код, що `read<model, path>()` і
+  `model.fields().read<id>()` з ID від `makeId`, і текст шляху не потрапляє в
+  image. [Group-tree suite](../../tests/structured/group_tree/README.md)
+  порівнює ARM-код усіх трьох форм.
+- Handle члена (`"adc/Config.rateHz"`) лише читає: getter виконується для всього
+  Field, повертається вибрана частина в `std::optional`. `write()` на ньому —
+  build error, бо запис члена був би прихованим read-modify-write, а wire
+  записує цілі Fields. `read()` на Command, `write()` на Command чи Service і
+  `call()` на Field — так само build errors із поясненням.
+- Field без setter приймає `write()` і повертає `WriteResult::ReadOnly`, як і
+  `fields().write<id>()`.
+
+### Вільні функції шляху
+
+Для разового доступу без handle лишаються вільні функції з тим самим шляхом:
+
+```cpp
+const auto gain = telemetry::read<model, "adc/channel1/Gain">();        // std::optional<float>
+const auto rate = telemetry::read<model, "adc/Config.rateHz">();        // член Field
+const auto status = telemetry::write<model, "adc/channel2/Gain">(2.5f); // лише цілі Fields
+const auto reset = telemetry::call<model, "adc/Reset">();               // Command або Service
+static_assert(model.idOf<"adc/channel1/Gain">() == telemetry::makeId(1, 0));
+```
+
+- `read<>` приймає Field, його член або елемент: виконує getter усього Field і
+  повертає вибрану частину в `std::optional`, не додаючи в image ні рядків,
+  ні таблиць. `write<>` приймає цілі Fields, `call<>` — Commands і Services.
+- C++20 не може прочитати імена об'єкта у його власній member function під
+  час компіляції, тому Model — template argument у `read`, `write`, `call`,
+  `idOf` та `endpoint`; `model.idOf<"...">()` — єдина member форма, consteval
+  виклик на constexpr model.
+- `makeId<group, entry>()` і typed доступ за ID лишаються без змін.
+
+### Імена типів у дереві
+
+Кожен enum і struct отримує ім'я автоматично: найближчий scope і власне ім'я
+типу. Тому два `Config` із різних гілок стають `adc::Config` і
+`metrology::Config`, без жодного рядка в файлах гілок. Override через
+`TypeReflection` пишуть у файлі гілки, якій належить тип, перед її group
+expression. Правила, override і вимкнення імен —
+[Fields: імена типів у descriptor](Fields.md#8-імена-типів-у-descriptor).
 
 ## Model API
 

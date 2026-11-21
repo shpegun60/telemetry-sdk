@@ -8,7 +8,8 @@ import {pathToFileURL} from 'node:url';
 const [dynamicPath, runtimePath, sdkPath, descriptorPath, trmPath, tbmPath, executable, nativePath,
        metadataPath, metadataModulePath, outputPath] = process.argv.slice(2);
 const {DynamicClient} = await import(pathToFileURL(dynamicPath).href);
-const {parseDescriptor} = await import(new URL('./telemetry.js', pathToFileURL(dynamicPath)));
+const {parseDescriptor, endpointPath} =
+    await import(new URL('./telemetry.js', pathToFileURL(dynamicPath)));
 const {DeviceClient, EncodedBackend, Status, Operations, Batch} =
     await import(pathToFileURL(runtimePath).href);
 const {control, matchesHeader} = await import(pathToFileURL(sdkPath).href);
@@ -205,6 +206,9 @@ function graph(model)
 			record.elementTypeId = type.elementTypeId;
 			record.elementCount = type.elementCount;
 		}
+		// Descriptor v3.1: the wire name the generated metadata must repeat.
+		if (type.name !== undefined)
+			record.name = type.name;
 		return record;
 	});
 	const catalogs = [], endpoints = [];
@@ -228,7 +232,8 @@ function graph(model)
 					valueType : key === 'field' ? endpoint.typeId : 0,
 					requestType : key === 'field' ? 0 : endpoint.requestTypeId,
 					responseType : key === 'service' ? endpoint.responseTypeId : 0,
-					capabilities : endpoint.capabilities ?? 0
+					capabilities : endpoint.capabilities ?? 0,
+					...(model.minor >= 1 ? {path : endpointPath(model, index, endpoint)} : {})
 				});
 		}
 	}
@@ -237,12 +242,31 @@ function graph(model)
 
 const stripPresentation = document => ({
 	types : document.types.map(
-	    t => ({...t, ...(t.members ? {members : t.members.map(({cppName, ...m}) => m)} : {})})),
+	    ({cppName, jsName, ...t}) =>
+	        ({...t, ...(t.members ? {members : t.members.map(({cppName, ...m}) => m)} : {})})),
 	catalogs : document.catalogs.map(({category, group, firstInCategory, count, name}) =>
 	                                     ({category, group, firstInCategory, count, name})),
-	endpoints : document.endpoints.map(
-	    ({category, id, catalogName, name, valueType, requestType, responseType, capabilities}) =>
-	        ({category, id, catalogName, name, valueType, requestType, responseType, capabilities}))
+	endpoints : document.endpoints.map(({
+		                                   category,
+		                                   id,
+		                                   catalogName,
+		                                   name,
+		                                   valueType,
+		                                   requestType,
+		                                   responseType,
+		                                   capabilities,
+		                                   path
+	                                   }) => ({
+		                                   category,
+		                                   id,
+		                                   catalogName,
+		                                   name,
+		                                   valueType,
+		                                   requestType,
+		                                   responseType,
+		                                   capabilities,
+		                                   ...(path !== undefined ? {path} : {})
+	                                   }))
 });
 const frozen = value => {
 	if (!value || typeof value !== 'object')

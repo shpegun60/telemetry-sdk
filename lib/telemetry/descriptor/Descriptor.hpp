@@ -14,6 +14,8 @@
 
 #include "ReadResult.hpp"
 #include "detail/Segments.hpp"
+#include <telemetry/Config.hpp>
+#include <algorithm>
 #include <cstdlib>
 #include <limits>
 #include <type_traits>
@@ -32,7 +34,78 @@ enum class DescriptorError : std::uint8_t {
 	MetadataMismatch
 };
 
+// Per-descriptor choice read from an optional Profile::typeNames. The project
+// switch TELEMETRY_TYPE_NAMES decides what a build emits; a profile can only
+// strip names, for a program that must emit both forms, never add them.
+enum class TypeNames : std::uint8_t {
+	Emit,
+	Strip
+};
+
+// Profile that keeps Base's ceilings and strips every type name, so the bytes
+// and fingerprint are exactly v3.0's. With TELEMETRY_TYPE_NAMES=0 it adds nothing.
+template<class Base = ts::Limits>
+struct WithoutTypeNames : Base {
+	static constexpr TypeNames typeNames = TypeNames::Strip;
+};
+
 namespace detail {
+
+// Existing custom profiles without a typeNames member keep compiling.
+template<class Profile>
+inline constexpr bool profileEmitsTypeNames = [] {
+	if constexpr (requires { Profile::typeNames; })
+		return Profile::typeNames != TypeNames::Strip;
+	else
+		return true;
+}();
+
+// The three catalog tables a Descriptor reads: a flat Model's own, or the
+// tables a group-tree Model builds over its groups.
+template<class M>
+struct CatalogTypes;
+
+template<class F, class C, class S>
+struct CatalogTypes<ts::Model<F, C, S>> {
+	using Fields = F;
+	using Commands = C;
+	using Services = S;
+};
+
+template<class... B>
+struct CatalogTypes<
+    ts::Model<ts::detail::GroupTreeFields<B...>, ts::detail::GroupTreeCommands<B...>,
+              ts::detail::GroupTreeServices<B...>>> {
+	using Tree = ts::Model<ts::detail::GroupTreeFields<B...>, ts::detail::GroupTreeCommands<B...>,
+	                       ts::detail::GroupTreeServices<B...>>;
+	using Fields = typename Tree::FieldCatalogs;
+	using Commands = typename Tree::CommandCatalogs;
+	using Services = typename Tree::ServiceCatalogs;
+};
+
+// Group-tree ceilings of a profile; a custom profile without them keeps the
+// Limits defaults.
+template<class Profile>
+struct TreeCeilings {
+	static constexpr std::uint32_t groupDepth = [] {
+		if constexpr (requires { Profile::maxGroupDepth; })
+			return static_cast<std::uint32_t>(Profile::maxGroupDepth);
+		else
+			return ts::Limits::maxGroupDepth;
+	}();
+	static constexpr std::uint32_t nameBytes = [] {
+		if constexpr (requires { Profile::maxNameBytes; })
+			return static_cast<std::uint32_t>(Profile::maxNameBytes);
+		else
+			return ts::Limits::maxNameBytes;
+	}();
+	static constexpr std::uint32_t pathBytes = [] {
+		if constexpr (requires { Profile::maxPathBytes; })
+			return static_cast<std::uint32_t>(Profile::maxPathBytes);
+		else
+			return ts::Limits::maxPathBytes;
+	}();
+};
 
 template<class... Groups>
 struct CatalogShape {
@@ -96,7 +169,32 @@ struct Writable<ts::EmptyEndpointCatalog> {
 	std::abort();
 }
 
+// Two types in one descriptor share a type name. Fix: give one of them an
+// explicit TypeReflection<T> name = typeName("..."), or remove it with
+// noTypeName(); or strip all names with TELEMETRY_TYPE_NAMES=0.
+[[noreturn]] inline void
+duplicateTypeName() noexcept // TypeReflection<T>: typeName("...") or noTypeName()
+{
+	std::abort();
+}
+
 [[noreturn]] inline void descriptorSizeExceeded() noexcept
+{
+	std::abort();
+}
+
+// A group, endpoint or member name of a tree is longer than the profile's
+// maxNameBytes, or a group/.../endpoint path longer than maxPathBytes.
+[[noreturn]] inline void
+groupTreeNameCeilingExceeded() noexcept // a tree name over maxNameBytes or a path over maxPathBytes
+{
+	std::abort();
+}
+
+// One part of a type name is longer than maxNameBytes, or the whole name is
+// longer than maxPathBytes. Fix: a shorter explicit TypeReflection<T> name.
+[[noreturn]] inline void
+typeNameCeilingExceeded() noexcept // a type name part over maxNameBytes or a name over maxPathBytes
 {
 	std::abort();
 }
@@ -220,6 +318,8 @@ private:
 
 // The segment count depends only on structural types/table arities. Names and
 // bindings can belong to a constexpr or runtime Model. No getter is invoked.
+// Type names (v3.1) are compile-time registry facts emitted when the project
+// switch and the Profile allow them; a repeated type name is DuplicateName.
 // The object owns offsets/header, and borrows the same metadata as ModelView.
 template<class Fields, class Commands, class Services, class Profile = ts::Limits>
 // Public methods:
@@ -236,12 +336,38 @@ class Descriptor {
 	using Registry = typename Model::Registry;
 	using Kind = detail::SegmentKind;
 	using Segment = detail::Segment;
-	using FieldShape = detail::Shape<std::remove_cv_t<Fields>>;
-	using CommandShape = detail::Shape<std::remove_cv_t<Commands>>;
-	using ServiceShape = detail::Shape<std::remove_cv_t<Services>>;
+	using Catalogs = detail::CatalogTypes<Model>;
+	using FieldCatalogs = std::remove_cv_t<typename Catalogs::Fields>;
+	using FieldShape = detail::Shape<FieldCatalogs>;
+	using CommandShape = detail::Shape<std::remove_cv_t<typename Catalogs::Commands>>;
+	using ServiceShape = detail::Shape<std::remove_cv_t<typename Catalogs::Services>>;
+	using Ceilings = detail::TreeCeilings<Profile>;
 
-	static constexpr std::size_t catalogCount =
-	    FieldShape::catalogs + CommandShape::catalogs + ServiceShape::catalogs;
+	// GroupTree mode (v3.1): one group record per group of the shared tree.
+	static constexpr bool groupTree = ts::detail::groupTreeModel<Model>;
+
+	static consteval std::size_t countCatalogRecords() noexcept
+	{
+		if constexpr (groupTree)
+			return Model::groupCount;
+		else
+			return FieldShape::catalogs + CommandShape::catalogs + ServiceShape::catalogs;
+	}
+
+	static constexpr std::size_t catalogCount = countCatalogRecords();
+
+	static consteval bool groupsFitProfile() noexcept
+	{
+		if constexpr (groupTree) {
+			for (const auto depth : Model::groupDepths)
+				if (depth >= Ceilings::groupDepth)
+					return false;
+		}
+		return true;
+	}
+
+	static_assert(groupsFitProfile(),
+	              "Group tree deeper than the profile's maxGroupDepth (levels 0..maxGroupDepth-1)");
 	static constexpr std::size_t endpointCount =
 	    FieldShape::endpoints + CommandShape::endpoints + ServiceShape::endpoints;
 	static_assert(catalogCount <= Profile::maxCatalogCountTotal,
@@ -303,6 +429,71 @@ class Descriptor {
 	}
 
 	static constexpr auto typeSegments = countTypeSegments();
+
+	// Names are compile-time facts of the registry. With the project switch at
+	// 0 or a stripping profile the registry's names are never instantiated.
+	static constexpr bool emitTypeNames =
+	    TELEMETRY_TYPE_NAMES != 0 && detail::profileEmitsTypeNames<Profile>;
+
+	static constexpr std::span<const std::string_view> emittedTypeNames() noexcept
+	{
+		if constexpr (emitTypeNames)
+			return Registry::typeNames();
+		else
+			return {};
+	}
+
+	static constexpr std::span<const std::uint16_t> groupDepths() noexcept
+	{
+		if constexpr (groupTree)
+			return Model::groupDepths;
+		else
+			return {};
+	}
+
+	// Each part of every emitted type name within maxNameBytes, and the whole
+	// name within maxPathBytes. Compile-time facts, checked once. An index scan,
+	// not string_view::find: GCC's null-check modes cannot fold find's pointer
+	// comparison on the registry's static name storage.
+	static consteval bool typeNamesFitProfile() noexcept
+	{
+		for (const auto name : emittedTypeNames()) {
+			std::size_t part = 0;
+			for (std::size_t i = 0; i < name.size(); ++i) {
+				if (name[i] == ':') {
+					++i; // The shape rule makes every ':' half of one "::".
+					part = 0;
+				} else if (++part > Ceilings::nameBytes) {
+					return false;
+				}
+			}
+			if (name.size() > Ceilings::pathBytes)
+				return false;
+		}
+		return true;
+	}
+
+	static constexpr bool typeNamesFit = typeNamesFitProfile();
+
+	// Type names are unique among type names (byte comparison); they may equal
+	// an endpoint, catalog or member name. Sorted once, at compile time.
+	static consteval bool typeNamesUnique() noexcept
+	{
+		if constexpr (!emitTypeNames) {
+			return true;
+		} else {
+			std::array<std::string_view, Registry::typeCount> names{};
+			std::size_t count = 0;
+			for (const auto name : Registry::typeNames())
+				if (!name.empty())
+					names[count++] = name;
+			std::sort(names.begin(), names.begin() + count);
+			return std::adjacent_find(names.begin(), names.begin() + count) ==
+			       names.begin() + count;
+		}
+	}
+
+	static constexpr bool uniqueTypeNames = typeNamesUnique();
 
 public:
 	static constexpr std::size_t segmentCount = 1 + typeSegments + catalogCount + endpointCount;
@@ -397,6 +588,72 @@ private:
 		return nameBytes(std::string_view{text, size});
 	}
 
+	// Length of one group's path, group/.../group, by walking up its parents;
+	// at most maxGroupDepth steps, without a table of lengths.
+	constexpr std::uint64_t groupPathBytes(std::uint32_t group) const noexcept
+	{
+		std::uint64_t bytes = 0;
+		for (std::uint32_t at = group;;) {
+			bytes += ts::detail::treeNameView(model_.fields.catalogs()[at].name).size();
+			if constexpr (groupTree) {
+				at = Model::groupParents[at];
+				if (at == Model::noParent)
+					return bytes;
+				++bytes;
+			} else {
+				return bytes;
+			}
+		}
+	}
+
+	constexpr bool treeNameFits(std::uint64_t name, std::uint64_t path) noexcept
+	{
+		if (name <= Ceilings::nameBytes && path <= Ceilings::pathBytes)
+			return true;
+		error_ = DescriptorError::InvalidName;
+		if (std::is_constant_evaluated())
+			detail::groupTreeNameCeilingExceeded();
+		return false;
+	}
+
+	// The G group records of a tree: names and paths within the profile, every
+	// family's row present at every position.
+	template<class Index>
+	constexpr bool groupRecords(std::size_t& next, Index fields) noexcept
+	{
+		if (fields.count() != Model::groupCount || model_.commands.count() != Model::groupCount ||
+		    model_.services.count() != Model::groupCount) {
+			fail(DescriptorError::MetadataMismatch);
+			return false;
+		}
+		for (std::uint32_t group = 0; group < Model::groupCount; ++group) {
+			const auto bytes = nameBytes(fields.catalogs()[group].name);
+			const auto path = groupPathBytes(group);
+			if (!valid() || !treeNameFits(bytes, path))
+				return false;
+			if (!add(next, 28ULL + bytes, Kind::GroupCatalog, group, 0))
+				return false;
+		}
+		return true;
+	}
+
+	// Endpoint names of a tree are path segments too: within maxNameBytes, and
+	// group/.../endpoint within maxPathBytes.
+	template<class Index>
+	constexpr bool treeEndpointsFit(Index index) noexcept
+	{
+		for (std::uint32_t group = 0; group < index.count(); ++group) {
+			const auto& catalog = index.catalogs()[group];
+			const auto prefix = groupPathBytes(group) + 1;
+			for (std::uint32_t entry = 0; entry < catalog.count; ++entry) {
+				const auto name = ts::detail::treeNameView(catalog.entries[entry].name).size();
+				if (!treeNameFits(name, prefix + name))
+					return false;
+			}
+		}
+		return true;
+	}
+
 	constexpr bool add(std::size_t& next, std::uint64_t bytes, Kind kind, std::uint32_t key = 0,
 	                   std::uint32_t index = 0, bool writable = false) noexcept
 	{
@@ -475,8 +732,8 @@ private:
 			for (std::uint32_t entry = 0; entry < catalog.count; ++entry) {
 				const auto bytes = (kind == Kind::Command ? 20ULL : 24ULL) +
 				                   nameBytes(catalog.entries[entry].name);
-				const bool writable = kind == Kind::Field &&
-				                      detail::Writable<std::remove_cv_t<Fields>>::at(group, entry);
+				const bool writable =
+				    kind == Kind::Field && detail::Writable<FieldCatalogs>::at(group, entry);
 				if (!add(next, bytes, kind, (group << 16) | entry, 0, writable)) {
 					return false;
 				}
@@ -494,22 +751,56 @@ private:
 		                        ServiceShape::catalogs};
 		header_.endpointCount = {FieldShape::endpoints, CommandShape::endpoints,
 		                         ServiceShape::endpoints};
+		if constexpr (!uniqueTypeNames) {
+			error_ = DescriptorError::DuplicateName;
+			if (std::is_constant_evaluated()) {
+				detail::duplicateTypeName();
+			}
+			return;
+		}
+		if constexpr (!typeNamesFit) {
+			error_ = DescriptorError::InvalidName;
+			if (std::is_constant_evaluated()) {
+				detail::typeNameCeilingExceeded();
+			}
+			return;
+		}
+		header_.typeNames = emittedTypeNames();
+		header_.groupDepths = groupDepths();
+		header_.flags = groupTree ? static_cast<std::uint16_t>(HeaderFlag::GroupTree) : 0;
 		std::size_t next = 0;
 		if (!add(next, descriptorHeaderBytes, Kind::Header)) {
 			return;
 		}
+		std::uint64_t namedBytes = 0;
 		for (std::uint32_t i = 0; i < header_.typeCount; ++i) {
 			const auto& type = model_.types.data[i];
 			const auto start = header_.totalBytes;
+			// A v3.1 name rides inside the Type segment: 4 + n bytes, no new
+			// segment. The registry admits names on Enum and Struct only.
+			const auto name = detail::typeName(header_, i);
+			const std::uint64_t named = name.empty() ? 0 : 4ULL + nameBytes(name);
 			const auto bytes =
-			    type.kind == ts::TypeKind::Void                                          ? 20
-			    : type.kind == ts::TypeKind::Scalar || type.kind == ts::TypeKind::Struct ? 24
-			                                                                             : 28;
+			    named + (type.kind == ts::TypeKind::Void ? 20
+			             : type.kind == ts::TypeKind::Scalar || type.kind == ts::TypeKind::Struct
+			                 ? 24
+			                 : 28);
+			if (named != 0 && type.kind != ts::TypeKind::Enum &&
+			    type.kind != ts::TypeKind::Struct) {
+				fail(DescriptorError::MetadataMismatch);
+				return;
+			}
 			if (!add(next, bytes, Kind::Type, i)) {
 				return;
 			}
+			namedBytes += named;
 			for (std::uint32_t m = 0; m < type.memberCount; ++m) {
-				if (!add(next, 8ULL + nameBytes(type.memberData[m].name), Kind::Member, i, m)) {
+				const auto memberBytes = nameBytes(type.memberData[m].name);
+				// A member name is a path segment of a tree: adc/Config.Gain.
+				if (groupTree && !treeNameFits(memberBytes, 0)) {
+					return;
+				}
+				if (!add(next, 8ULL + memberBytes, Kind::Member, i, m)) {
 					return;
 				}
 			}
@@ -519,19 +810,27 @@ private:
 					return;
 				}
 			}
-			if (header_.totalBytes - start != type.recordBytes) {
+			if (header_.totalBytes - start != type.recordBytes + named) {
 				fail(DescriptorError::MetadataMismatch);
 				return;
 			}
 		}
-		if (header_.totalBytes != descriptorHeaderBytes + model_.types.recordsBytes) {
+		if (header_.totalBytes != descriptorHeaderBytes + model_.types.recordsBytes + namedBytes) {
 			fail(DescriptorError::MetadataMismatch);
 			return;
 		}
+		// One canonical encoding per model: minor 1 exactly when a type is named
+		// or the catalogs are one group tree.
+		header_.minor = namedBytes != 0 || groupTree ? typeNamesMinor : binaryMinor;
 		header_.catalogsOffset = header_.totalBytes;
-		if (!catalogs(next, model_.fields, Kind::FieldCatalog, 0) ||
-		    !catalogs(next, model_.commands, Kind::CommandCatalog, 1) ||
-		    !catalogs(next, model_.services, Kind::ServiceCatalog, 2)) {
+		if constexpr (groupTree) {
+			if (!groupRecords(next, model_.fields) || !treeEndpointsFit(model_.fields) ||
+			    !treeEndpointsFit(model_.commands) || !treeEndpointsFit(model_.services)) {
+				return;
+			}
+		} else if (!catalogs(next, model_.fields, Kind::FieldCatalog, 0) ||
+		           !catalogs(next, model_.commands, Kind::CommandCatalog, 1) ||
+		           !catalogs(next, model_.services, Kind::ServiceCatalog, 2)) {
 			return;
 		}
 		header_.endpointsOffset = header_.totalBytes;
@@ -568,6 +867,16 @@ private:
 
 template<class F, class C, class S>
 Descriptor(const ts::Model<F, C, S>&) -> Descriptor<F, C, S>;
+
+// The same model without type names: v3.0 bytes and fingerprint, for a program
+// that must emit both forms (a legacy fixture beside named profiles). A build
+// that never emits names sets TELEMETRY_TYPE_NAMES to 0 instead.
+template<class F, class C, class S>
+[[nodiscard]] constexpr Descriptor<F, C, S, WithoutTypeNames<>>
+withoutTypeNames(const ts::Model<F, C, S>& model) noexcept
+{
+	return Descriptor<F, C, S, WithoutTypeNames<>>{model};
+}
 
 // Optional Flash-byte representation for comparison or a small immutable model.
 // It is not also stored by the streaming Descriptor, and never allocates RAM.

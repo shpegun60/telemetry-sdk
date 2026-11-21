@@ -80,9 +80,29 @@ The [TCP Inspector suite](https://github.com/shpegun60/telemetry-ux/blob/main/te
 Resource Descriptor discovery, partial transmission, connection failures, stale
 replies, recovery and a separate-process TCP/QML window smoke test.
 
+The [endpoint handles suite](client_handles/README.md) runs the same paths through
+the generated device and DynamicClient::endpoint(path), in C++ and JS, against one
+native group-tree Model: equal values and refusals, one handle for the nested and
+path forms, TS path checks at compile time, C++ build-time refusals naming the path.
+
 The [runtime schema suite](runtime_schema/README.md) reads real Descriptor v3
 files and wire payloads with caller-owned storage, compares generated codecs,
 and checks malformed descriptors against the independent Python parser.
+
+The [type-names suite](structured/type_names/README.md) qualifies descriptor
+v3.1: independent named and attribute goldens, one decoder table with one
+verdict in C++, JS and Python, the `typeName<T>()` seam and its compile-time
+refusals, the `TELEMETRY_TYPE_NAMES` switch (names off reproduces the frozen
+v3.0 goldens; mixed objects fail to link), the configuration file, the
+cross-compiler bytes of automatic names (host g++, clang++-18, MinGW, ARM GCC),
+the not-yet-established cross-backend test and the ARM decoder size.
+
+The [group-tree suite](structured/group_tree/README.md) qualifies a Model
+mounted from branch files: `tree.hex` from every compiler, the outline and
+shared IDs, compile-time path access and named endpoint handles
+(`endpoint<model, "adc/channel1/Gain">`), their refusals at the declaration
+and at the use, and on ARM a handle's code against the free path function and
+`makeId` access (identical instructions) and an image with no path text.
 
 Run the shared ID, slot and numeric checks from the repository root:
 
@@ -123,6 +143,7 @@ The shared coverage preserves:
   added work, and controls that reject a changed high-word register.
 
 The ARM shared runner compiles objects and checks diagnostics and disassembly.
+It also writes the [descriptor size report](#arm-descriptor-size-report).
 Its `.su` files describe individual compiler frames. It does not execute the
 firmware or establish full call-chain stack usage. The dedicated
 [MCU qualification](structured/mcu/README.md) and frozen typed-core runners
@@ -195,3 +216,52 @@ Their historical counts and receipts are evidence for those source snapshots;
 they do not describe the final C++20 test matrix. The final API has no source,
 ABI or wire compatibility promise with v2.1. See the
 [migration guide](../doc/StructuredTelemetryV3MigrationGuide.md).
+
+## ARM descriptor size report
+
+`run_arm_checks.py` links [DescriptorSizeProbe.cpp](regression/DescriptorSizeProbe.cpp)
+alone (`descriptor_probe`, `--gc-sections`) for three models, two ways to
+serve a descriptor and the `TELEMETRY_TYPE_NAMES` switch, and prints
+`.text`, `.rodata` and `.data` with the packed descriptor's size. A
+**packed** descriptor is `packDescriptor<descriptor>()`, consteval bytes in
+`.rodata` that the probe copies out; a **streaming** one is made at run time
+by `DescriptorView::read()` from the Model's tables. It fails if a named image
+lacks one of its model's type names or a stripped image holds any, and the
+probe asserts at compile time that names cost exactly their records (a u32
+length and the bytes per name). `summary.json` keeps every number.
+
+Measured on 20 November 2026 with arm-none-eabi-g++ 14.3.1 (STM32CubeIDE
+2.0.0), Cortex-M7, in bytes:
+
+| Model, form | `.text` O2 | `.text` Os | `.rodata` O2 names / off | `.rodata` Os names / off |
+| --- | ---: | ---: | ---: | ---: |
+| NUCLEO demo, packed | 56 / 52 | 40 / 40 | 963 / 873 (+90) | 963 / 873 (+90) |
+| NUCLEO demo, streaming | 7704 / 7704 | 2136 / 2136 | 2232 / 2008 (+224) | 2216 / 1992 (+224) |
+| Group-tree fixture as a tree, packed | 56 / 52 | 40 / 40 | 1130 / 1025 (+105) | 1130 / 1025 (+105) |
+| Group-tree fixture as a tree, streaming | 7832 / 7832 | 2200 / 2200 | 2793 / 2553 (+240) | 2758 / 2518 (+240) |
+| The same endpoints as flat catalogs, packed | 52 / 56 | 40 / 40 | 1192 / 1087 (+105) | 1192 / 1087 (+105) |
+| The same endpoints as flat catalogs, streaming | 7832 / 7832 | 2200 / 2200 | 2601 / 2361 (+240) | 2566 / 2326 (+240) |
+
+- **Names against none.** A packed descriptor grows by exactly its name
+  records: the NUCLEO demo's four names (`nucleo_demo::Voltage`, `Status`,
+  `Probe`, `Mode`) are 90 B, the fixture's six 105 B. The code does not
+  change: packing is consteval (the 4 B `.text` steps at O2 are the copy
+  loop's bound, in both directions). Streaming keeps the same code too and
+  adds the name strings with their segment entries, 224 and 240 B. With names
+  off no name string reaches either image.
+- **Packed against streaming.** Streaming adds the emitter, 7.7 KB at O2 and
+  2.1-2.2 KB at Os, plus the metadata it reads, and saves the descriptor bytes
+  only when the Model's tables are in the image anyway; for these small
+  models packed is the smaller form.
+- **Tree against flat.** The same endpoints are 62 B smaller as a tree (1130
+  against 1192 B, names on): one group record replaces a catalog record per
+  family. Streaming the tree costs 192 B more `.rodata` than the flat form
+  (one row per group in each family, empty where a group has none of it);
+  the emitter code is the same.
+
+The real firmware agrees: the NUCLEO-H7S3L8 image built by
+[Build.ps1](../examples/nucleo_h7s3l8/README.md#offline-build) (packed,
+`-Os`, LTO) has 22,984 B of text and 72 B of data with names, against 22,892
+and 72 B built the same way with `-DTELEMETRY_TYPE_NAMES=0`: 92 B of Flash,
+the 90-byte descriptor difference and alignment. These are offline linked
+sizes; no image is run.

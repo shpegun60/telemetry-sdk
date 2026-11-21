@@ -147,7 +147,7 @@ Default 11 constants і descriptor layout описані у
 | --- | --- |
 | `None` | Metadata прийнята |
 | `InvalidName` | Неприйнятне ім'я, UTF-8 чи name length |
-| `DuplicateName` | Catalog name повторюється у своїй category або endpoint name у своєму catalog |
+| `DuplicateName` | Catalog name повторюється у своїй category або endpoint name у своєму catalog; v3.1: two types share one type name (fix: give one `TypeReflection<T>` with `typeName("...")`, or remove it with `noTypeName()`) |
 | `TooLarge` | Загальний descriptor byte size перевищує `Profile::maxDescriptorBytes` |
 | `MetadataMismatch` | Неконсистентні type/endpoint metadata чи emission index |
 
@@ -259,7 +259,10 @@ Client reading algorithm:
 ## Fingerprint та зміни моделі
 
 Fingerprint — FNV-1a-64 canonical immutable descriptor. Він включає
-names, shape, endpoint order/capabilities і enum dictionary. Live values,
+names, shape, endpoint order/capabilities і enum dictionary. With descriptor
+v3.1 it also covers type names and attribute areas, so a renamed type or
+switching `TELEMETRY_TYPE_NAMES` changes the fingerprint; names off gives
+exactly the v3.0 bytes and fingerprint. Live values,
 owner/callback pointers і slot Ready/empty state не входять.
 Slot rebind, Field mutation чи owning→borrowed output з тією самою
 canonical shape не змінює descriptor bytes.

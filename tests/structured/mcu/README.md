@@ -20,6 +20,11 @@ command results, LF-normalized inputs and compiler stack frames; changing
 an input during the run refuses the evidence. ARM adds real linked symbols,
 sections and disassembly and executes zero conditions.
 
+The fixture keeps descriptor v3.0 while the SDK default emits type names:
+`run.py` and the H7S image runner put [config](config/telemetry_config.hpp) on
+the include path, whose `TELEMETRY_TYPE_NAMES 0` preserves the 1775-byte
+descriptor and the condition counts below that the historical receipts record.
+
 ## Retained scenarios
 
 - Mixed executes exactly 12,230 conditions per optimization and reports the

@@ -1,0 +1,417 @@
+{
+  "catalogs": [
+    {
+      "category": 1,
+      "count": 8,
+      "firstInCategory": 0,
+      "group": 0,
+      "name": "motor",
+      "symbol": "motor"
+    },
+    {
+      "category": 2,
+      "count": 2,
+      "firstInCategory": 0,
+      "group": 0,
+      "name": "motor",
+      "symbol": "motor"
+    },
+    {
+      "category": 3,
+      "count": 1,
+      "firstInCategory": 0,
+      "group": 0,
+      "name": "motor",
+      "symbol": "motor"
+    }
+  ],
+  "descriptorHeader": [
+    84,
+    68,
+    83,
+    51,
+    3,
+    0,
+    1,
+    0,
+    64,
+    0,
+    0,
+    0,
+    3,
+    4,
+    0,
+    0,
+    148,
+    171,
+    236,
+    26,
+    69,
+    232,
+    82,
+    246,
+    16,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    8,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    64,
+    0,
+    0,
+    0,
+    92,
+    2,
+    0,
+    0,
+    191,
+    2,
+    0,
+    0
+  ],
+  "descriptorSha256": "f244f765841ad74cce0b79fc2f06ca20fc605bf47a0e1f8b942e24e97a3d53e6",
+  "endpoints": [
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 0,
+      "name": "Enabled",
+      "path": "motor/Enabled",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Enabled",
+      "valueType": 1
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 1,
+      "name": "RPM",
+      "path": "motor/RPM",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "RPM",
+      "valueType": 4
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 2,
+      "name": "Temperature",
+      "path": "motor/Temperature",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Temperature",
+      "valueType": 10
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 3,
+      "name": "Precise",
+      "path": "motor/Precise",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Precise",
+      "valueType": 11
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 4,
+      "name": "Mode",
+      "path": "motor/Mode",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Mode",
+      "valueType": 12
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 5,
+      "name": "Samples",
+      "path": "motor/Samples",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Samples",
+      "valueType": 13
+    },
+    {
+      "capabilities": 1,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 6,
+      "name": "State",
+      "path": "motor/State",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "State",
+      "valueType": 14
+    },
+    {
+      "capabilities": 3,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 1,
+      "groupSymbol": "motor",
+      "id": 7,
+      "name": "Config",
+      "path": "motor/Config",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Config",
+      "valueType": 15
+    },
+    {
+      "capabilities": 0,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 2,
+      "groupSymbol": "motor",
+      "id": 0,
+      "name": "Configure",
+      "path": "motor/Configure",
+      "requestType": 15,
+      "responseType": 0,
+      "symbol": "Configure",
+      "valueType": 0
+    },
+    {
+      "capabilities": 0,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 2,
+      "groupSymbol": "motor",
+      "id": 1,
+      "name": "Reset",
+      "path": "motor/Reset",
+      "requestType": 0,
+      "responseType": 0,
+      "symbol": "Reset",
+      "valueType": 0
+    },
+    {
+      "capabilities": 0,
+      "catalogIndex": 0,
+      "catalogName": "motor",
+      "category": 3,
+      "groupSymbol": "motor",
+      "id": 0,
+      "name": "Echo",
+      "path": "motor/Echo",
+      "requestType": 15,
+      "responseType": 15,
+      "symbol": "Echo",
+      "valueType": 0
+    }
+  ],
+  "fingerprint": "0xf652e8451aecab94",
+  "format": "telemetry-structural-metadata",
+  "namespace": "device_api",
+  "types": [
+    {
+      "id": 0,
+      "kind": 0,
+      "wireBytes": 0
+    },
+    {
+      "id": 1,
+      "kind": 1,
+      "scalarCode": 1,
+      "wireBytes": 1
+    },
+    {
+      "id": 2,
+      "kind": 1,
+      "scalarCode": 2,
+      "wireBytes": 1
+    },
+    {
+      "id": 3,
+      "kind": 1,
+      "scalarCode": 3,
+      "wireBytes": 1
+    },
+    {
+      "id": 4,
+      "kind": 1,
+      "scalarCode": 4,
+      "wireBytes": 2
+    },
+    {
+      "id": 5,
+      "kind": 1,
+      "scalarCode": 5,
+      "wireBytes": 2
+    },
+    {
+      "id": 6,
+      "kind": 1,
+      "scalarCode": 6,
+      "wireBytes": 4
+    },
+    {
+      "id": 7,
+      "kind": 1,
+      "scalarCode": 7,
+      "wireBytes": 4
+    },
+    {
+      "id": 8,
+      "kind": 1,
+      "scalarCode": 8,
+      "wireBytes": 8
+    },
+    {
+      "id": 9,
+      "kind": 1,
+      "scalarCode": 9,
+      "wireBytes": 8
+    },
+    {
+      "id": 10,
+      "kind": 1,
+      "scalarCode": 10,
+      "wireBytes": 4
+    },
+    {
+      "id": 11,
+      "kind": 1,
+      "scalarCode": 11,
+      "wireBytes": 8
+    },
+    {
+      "cppName": "types::fixture::Mode",
+      "entries": [
+        {
+          "code": "0",
+          "name": "Off"
+        },
+        {
+          "code": "1",
+          "name": "Run"
+        },
+        {
+          "code": "2",
+          "name": "Fault"
+        }
+      ],
+      "id": 12,
+      "jsName": "types.fixture.Mode",
+      "kind": 2,
+      "name": "fixture::Mode",
+      "underlyingTypeId": 2,
+      "wireBytes": 1
+    },
+    {
+      "elementCount": 3,
+      "elementTypeId": 4,
+      "id": 13,
+      "kind": 4,
+      "wireBytes": 6
+    },
+    {
+      "cppName": "types::fixture::State",
+      "id": 14,
+      "jsName": "types.fixture.State",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "volts",
+          "jsName": "volts",
+          "name": "volts",
+          "typeId": 10,
+          "wireOffset": 0
+        },
+        {
+          "cppName": "active",
+          "jsName": "active",
+          "name": "active",
+          "typeId": 1,
+          "wireOffset": 4
+        }
+      ],
+      "name": "fixture::State",
+      "wireBytes": 5
+    },
+    {
+      "cppName": "types::fixture::MotorConfig",
+      "id": 15,
+      "jsName": "types.fixture.MotorConfig",
+      "kind": 3,
+      "members": [
+        {
+          "cppName": "target",
+          "jsName": "target",
+          "name": "target",
+          "typeId": 10,
+          "wireOffset": 0
+        },
+        {
+          "cppName": "rpm",
+          "jsName": "rpm",
+          "name": "rpm",
+          "typeId": 4,
+          "wireOffset": 4
+        },
+        {
+          "cppName": "enabled",
+          "jsName": "enabled",
+          "name": "enabled",
+          "typeId": 1,
+          "wireOffset": 6
+        }
+      ],
+      "name": "fixture::MotorConfig",
+      "wireBytes": 7
+    }
+  ],
+  "version": 1,
+  "wireVersion": {
+    "major": 3,
+    "minor": 1
+  }
+}

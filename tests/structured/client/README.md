@@ -76,17 +76,17 @@ retired browser option must return exit 2 and leave its output nonexistent.
 
 ## Current headless gate and retained earlier evidence
 
-The 8889-check headless gate remains active. Browser/Qt results below retain
+The 8892-check headless gate remains active. Browser/Qt results below retain
 their recorded earlier scope; they do not imply that this SDK runner still
 ships or executes Browser.py. Current browser acceptance is in the linked UX suite.
 
-The runner requires the exact `Check.mjs` report: 8889 integer checks, zero
+The runner requires the exact `Check.mjs` report: 8892 integer checks (8889 before the three group-tree ceilings), zero
 integer failures and `cppInterop: true`, with exactly those three fields.
 One positive and sixteen result mutation controls reject duplicate/missing
 fields, extra fields, wrong types, changed counts and failure statuses. These
 parser controls are separate from the interoperability tally below.
 
-- `Check.mjs`: **8889 counted checks**, including every truncated prefix of
+- `Check.mjs`: **8892 counted checks**, including every truncated prefix of
   three independently frozen descriptors, semantic mutations with recomputed
   fingerprints, resource/depth/expansion bounds, literal/prototype names,
   scalar extrema, unknown enums, arrays/structs/Void and values errors.
