@@ -25,16 +25,13 @@ static_assert(model.maxServiceRequestWireSize() == ts::wireSize<Config>);
 static_assert(model.maxFieldWireSize() == ts::wireSize<Big>);
 static_assert(model.maxServiceResponseWireSize() == ts::wireSize<Big>);
 
-inline constexpr ts::Model empty{noFieldCatalogs, noCommandCatalogs, noServiceCatalogs};
+// A tree of one empty group bounds nothing.
+inline constexpr ts::Model empty{ts::group("empty")};
 static_assert(empty.maxCommandRequestWireSize() == 0);
 static_assert(empty.maxServiceRequestWireSize() == 0);
-inline constexpr ts::CommandTable requestlessCommands{ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable requestlessServices{ts::service<&Device::large>("Large", device)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{
-    ts::group("requestless", requestlessCommands)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{
-    ts::group("requestless", requestlessServices)};
-inline constexpr ts::Model requestless{noFieldCatalogs, commandCatalogs, serviceCatalogs};
+inline constexpr ts::Model requestless{ts::group("requestless",
+                                                 ts::command<&Device::reset>("Reset", device),
+                                                 ts::service<&Device::large>("Large", device))};
 static_assert(requestless.maxCommandRequestWireSize() == 0);
 static_assert(requestless.maxServiceRequestWireSize() == 0);
 static_assert(requestless.maxServiceResponseWireSize() == ts::wireSize<Big>);
@@ -51,15 +48,10 @@ Big echoBig(const Big& value) noexcept
 	return value;
 }
 
-inline constexpr ts::CommandTable largeCommands{ts::command<&acceptBig>("Large")};
-inline constexpr ts::ServiceTable largeServices{ts::service<&echoBig>("Large")};
-inline constexpr ts::CommandCatalogTable mixedCommands{ts::group("small", localCommands),
-                                                       ts::group("empty", noCommands),
-                                                       ts::group("large", largeCommands)};
-inline constexpr ts::ServiceCatalogTable mixedServices{ts::group("small", localServices),
-                                                       ts::group("empty", noServices),
-                                                       ts::group("large", largeServices)};
-inline constexpr ts::Model mixed{noFieldCatalogs, mixedCommands, mixedServices};
+// Small endpoints, an empty group and large ones: the bounds take the largest.
+inline constexpr ts::Model mixed{
+    traversalGroup("small"), ts::group("empty"),
+    ts::group("large", ts::command<&acceptBig>("Accept"), ts::service<&echoBig>("Echo"))};
 static_assert(mixed.maxCommandRequestWireSize() == ts::wireSize<Big>);
 static_assert(mixed.maxServiceRequestWireSize() == ts::wireSize<Big>);
 

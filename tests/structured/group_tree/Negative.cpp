@@ -12,6 +12,7 @@
 #include "MetrologyBranch.hpp"
 
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <array>
 #include <cstdint>
@@ -135,9 +136,9 @@ inline constexpr ::telemetry::descriptor::Descriptor descriptor{tree};
 #elif CASE == 10
 // One part of a type name over maxNameBytes, in a flat model too.
 inline constexpr ts::FieldTable rows{ts::field<&read<Plain>>("x")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", rows)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model flat{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("g", rows)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model flat{catalogs, ts::testing::emptyCommands, noServices};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{flat};
 #elif CASE == 11
 inline const auto value = ts::read<model, "adc/channel3/Gain">();
@@ -199,16 +200,17 @@ inline const auto value = handle.write(adc::Config{});
 #elif CASE == 35
 // Paths address the group-tree form only.
 inline constexpr ts::FieldTable rows{ts::field<&read<float>>("x")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", rows)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model flat{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("g", rows)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model flat{catalogs, ts::testing::emptyCommands, noServices};
 inline constexpr auto handle = ts::endpoint<flat, "g/x">;
 #elif CASE == 104
 // The flat form keeps any UTF-8: path characters and names past 64 bytes.
 inline constexpr ts::FieldTable rows{ts::field<&read<float>>("a.b[0]/" NAME65)};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("a/b.c\\d" NAME65, rows)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model flat{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{
+    ts::testing::group("a/b.c\\d" NAME65, rows)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model flat{catalogs, ts::testing::emptyCommands, noServices};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{flat};
 static_assert(descriptor.valid());
 #elif CASE == 105
@@ -220,7 +222,7 @@ static_assert(ts::idOf<model, "adc/Config">() != ts::idOf<model, "metrology/Conf
 // and a read-only Field's handle compiles a write that returns ReadOnly.
 inline constexpr auto status = ts::endpoint<model, "adc/Status">;
 inline constexpr auto copy = status;
-static_assert(copy.id == ts::makeId(0, 1) && !copy.member);
+static_assert(copy.id == ts::detail::makeId(0, 1) && !copy.member);
 inline const auto refused = copy.write(adc::Status{});
 #else
 #error Unknown CASE

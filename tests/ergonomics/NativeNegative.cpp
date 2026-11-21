@@ -5,6 +5,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 struct Request {
 	unsigned value;
@@ -26,10 +27,10 @@ Reply service(const Request&) noexcept
 
 inline constexpr telemetry::CommandTable commands{telemetry::command<&command>("Command")};
 inline constexpr telemetry::ServiceTable services{telemetry::service<&service>("Service")};
-inline constexpr telemetry::CommandCatalogTable commandCatalog{
-    telemetry::group("Control", commands)};
-inline constexpr telemetry::ServiceCatalogTable serviceCatalog{
-    telemetry::group("Control", services)};
+inline constexpr telemetry::testing::CommandCatalogTable commandCatalog{
+    telemetry::testing::group("Control", commands)};
+inline constexpr telemetry::testing::ServiceCatalogTable serviceCatalog{
+    telemetry::testing::group("Control", services)};
 using Result = telemetry::ServiceResult<Reply>;
 
 void test()

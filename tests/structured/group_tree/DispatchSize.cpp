@@ -17,6 +17,7 @@
 #include "MetrologyBranch.hpp"
 
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -42,12 +43,13 @@ inline constexpr ts::FieldTable meter{
                                                                        metrology::tlm::instance)};
 inline constexpr ts::CommandTable adcCommands{ts::command<&Adc::reset>("Reset", instance)};
 inline constexpr ts::ServiceTable adcServices{ts::service<&Adc::calibrate>("Calibrate", instance)};
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("adc", adcFields), ts::group("channel1", channel1), ts::group("channel2", channel2),
-    ts::group("metrology", meter)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("adc", adcCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("adc", adcServices)};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::testing::FieldCatalogTable fields{
+    ts::testing::group("adc", adcFields), ts::testing::group("channel1", channel1),
+    ts::testing::group("channel2", channel2), ts::testing::group("metrology", meter)};
+inline constexpr ts::testing::CommandCatalogTable commands{ts::testing::group("adc", adcCommands)};
+inline constexpr ts::testing::ServiceCatalogTable services{ts::testing::group("adc", adcServices)};
+// The same endpoints as per-family catalogs, the engine under the tree.
+inline constexpr ts::testing::V30Model model{fields, commands, services};
 #endif
 
 #if GROUP_TREE && DESCRIPTOR_SECTION

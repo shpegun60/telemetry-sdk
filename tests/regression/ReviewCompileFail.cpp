@@ -85,13 +85,13 @@ std::unique_ptr<Owner> smart;
 std::reference_wrapper<Owner> wrapped{owner};
 
 #if CASE == 12
-constexpr auto bad = makeId(0, 65536);
+constexpr auto bad = detail::makeId(0, 65536);
 #elif CASE == 13
-constexpr auto bad = makeId(UINT64_MAX, 0);
+constexpr auto bad = detail::makeId(UINT64_MAX, 0);
 #elif CASE == 14
-constexpr auto bad = makeId(-1, 0);
+constexpr auto bad = detail::makeId(-1, 0);
 #elif CASE == 15
-auto bad = makeId(0.0, 1);
+auto bad = detail::makeId(0.0, 1);
 #elif CASE == 19
 void bad()
 {

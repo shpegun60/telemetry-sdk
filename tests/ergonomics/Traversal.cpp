@@ -94,7 +94,7 @@ constexpr bool checkErased(const Table& table, const Index& index)
 			++group;
 			position = 0;
 		}
-		if (id != ts::makeId(group, position) || name != table[group].name ||
+		if (id != ts::detail::makeId(group, position) || name != table[group].name ||
 		    &entry != &table[group].entries[position] || index.find(id) != &entry)
 			std::abort();
 		++calls;

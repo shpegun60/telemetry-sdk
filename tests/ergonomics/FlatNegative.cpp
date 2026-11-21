@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <utility>
 
 namespace ts = telemetry;
@@ -30,8 +31,10 @@ Reply service(const Request&) noexcept
 
 inline constexpr ts::CommandTable commands{ts::command<&command>("Command")};
 inline constexpr ts::ServiceTable services{ts::service<&service>("Service")};
-inline constexpr ts::CommandCatalogTable commandCatalog{ts::group("Control", commands)};
-inline constexpr ts::ServiceCatalogTable serviceCatalog{ts::group("Control", services)};
+inline constexpr ts::testing::CommandCatalogTable commandCatalog{
+    ts::testing::group("Control", commands)};
+inline constexpr ts::testing::ServiceCatalogTable serviceCatalog{
+    ts::testing::group("Control", services)};
 using Owned = ts::ServiceCallResult<Reply>;
 using Borrowed = ts::BorrowedServiceCallResult<Reply>;
 

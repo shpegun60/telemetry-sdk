@@ -9,7 +9,7 @@ names. Values.cpp serves the tree's live Values file and reads it back through
 the host's ValuesReader. Compiles every case of Negative.cpp (refusals with their diagnostic,
 controls that must build). With --arm-cxx: the ARM descriptor bytes, the
 size of encoded dispatch, group tree against flat catalogs, and the code of a
-named handle against the free path function and makeId access, with a linked
+named handle against the free path function and detail::makeId access, with a linked
 image that holds no path text. Nothing touches a device.
 """
 import argparse
@@ -207,7 +207,7 @@ def main():
                 sizes[f'{form}-{opt}'] = {name: sections.get(name, 0) for name in ('.text', '.rodata', '.data')}
         summary['dispatch_arm_size'] = dict(compiler=arm.command, sections=sizes)
 
-        # A named handle compiles to the free function's code and to makeId's.
+        # A named handle compiles to the free function's code and to detail::makeId's.
         handles = {}
         for opt in ('O2', 'Os'):
             obj = out / f'handles-{opt}.o'
@@ -241,7 +241,7 @@ def main():
                                       path_text_in_image=False)
         for opt in ('O2', 'Os'):
             print(f'handles {opt}: ' + ', '.join(
-                f'{operation} {row["handle"]} B (path {row["path"]} B, makeId {row["id"]} B)'
+                f'{operation} {row["handle"]} B (path {row["path"]} B, ID {row["id"]} B)'
                 for operation, row in handles[opt].items()) + '; identical code', flush=True)
         print(f'handle image {loaded.stat().st_size} B holds no path text', flush=True)
         print('ARM tree bytes equal tree.hex', flush=True)

@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <new>
 
@@ -35,7 +36,7 @@ ts::ServiceResult<Big> service(const Request& request) noexcept
 }
 
 inline constexpr ts::ServiceTable table{ts::service<&service>("Big")};
-inline constexpr ts::ServiceCatalogTable catalogs{ts::group("Buffers", table)};
+inline constexpr ts::testing::ServiceCatalogTable catalogs{ts::testing::group("Buffers", table)};
 inline constexpr ts::FieldTable fields{ts::field<&read>("Big")};
 
 struct Visitor {

@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <cassert>
 #include <cstdio>
 
@@ -64,13 +65,13 @@ inline constexpr auto localServices = makeServices<Group>(std::make_index_sequen
 template<std::size_t... G>
 constexpr auto commandGroups(std::index_sequence<G...>)
 {
-	return ts::CommandCatalogTable{ts::group("Group", localCommands<G>)...};
+	return ts::testing::CommandCatalogTable{ts::testing::group("Group", localCommands<G>)...};
 }
 
 template<std::size_t... G>
 constexpr auto serviceGroups(std::index_sequence<G...>)
 {
-	return ts::ServiceCatalogTable{ts::group("Group", localServices<G>)...};
+	return ts::testing::ServiceCatalogTable{ts::testing::group("Group", localServices<G>)...};
 }
 
 static_assert(TARGETS == 128 || TARGETS == 256);
@@ -152,7 +153,7 @@ int main()
 	} while (false)
 	for (std::uint32_t id = 0; id < TARGETS; ++id) {
 		const flat_scale::Request request{19};
-		const auto packed = telemetry::makeId(id / 32, id % 32);
+		const auto packed = telemetry::detail::makeId(id / 32, id % 32);
 		const auto commandBefore = flat_scale::commandCalls;
 		CHECK(flat_manual_command(packed, request) == telemetry::CommandResult::Executed);
 		CHECK(flat_scale::commandCalls == commandBefore + 1);
@@ -171,7 +172,7 @@ int main()
 		CHECK(flat_api_service(packed, request) == id + request.value);
 		CHECK(flat_scale::serviceCalls == serviceBefore + 3);
 	}
-	const auto invalid = telemetry::makeId(TARGETS / 32, 0);
+	const auto invalid = telemetry::detail::makeId(TARGETS / 32, 0);
 	const auto commandBefore = flat_scale::commandCalls, serviceBefore = flat_scale::serviceCalls;
 	CHECK(flat_manual_command(invalid, {}) == telemetry::CommandResult::NotFound);
 	CHECK(flat_native_command(invalid, {}) == telemetry::CommandResult::NotFound);

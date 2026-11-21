@@ -12,6 +12,7 @@
 // Each selected case exercises a public access route before any narrowing or local indexing.
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <cstdint>
 #include <cstdio>
 
@@ -43,9 +44,9 @@ CommandResult c1() noexcept
 }
 
 constexpr FieldTable g0{field<&r0>("a"), field<&r1>("b")};
-constexpr FieldCatalogTable fields{group("g0", g0)};
+constexpr testing::FieldCatalogTable fields{testing::group("g0", g0)};
 constexpr CommandTable k0{command<&c0>("c0"), command<&c1>("c1")};
-constexpr CommandCatalogTable commands{group("k0", k0)};
+constexpr testing::CommandCatalogTable commands{testing::group("k0", k0)};
 
 // User-defined wide identifier conversion used to check exact public argument contracts.
 // Public methods:
@@ -118,20 +119,20 @@ int main(int argc, char**)
 }
 
 // Same mechanism for the packing helpers (-DCASE=7..9 with -DPACKING):
-//   7 makeId<std::uint16_t, std::uint16_t>(runtime 65537, 0)   wraps to 1
-//   8 tryMakeId<std::uint16_t, std::uint16_t>(runtime 65537, 0) returns a value
+//   7 detail::makeId<std::uint16_t, std::uint16_t>(runtime 65537, 0)   wraps to 1
+//   8 detail::tryMakeId<std::uint16_t, std::uint16_t>(runtime 65537, 0) returns a value
 //   9 groupOf<std::uint32_t>(runtime 2^32 + (2 << 16))          returns group 2
 #ifdef PACKING
 int packing(int argc)
 {
 	const unsigned runtime = static_cast<unsigned>(argc);
 #if CASE == 7
-	const PackedId id = makeId<std::uint16_t, std::uint16_t>(65536u + runtime, 0u);
-	std::printf("makeId<u16,u16>(65537, 0) = %08lx\n", static_cast<unsigned long>(id));
-	return id == makeId(GroupId{1}, EntryOffset{0}) ? 1 : 0;
+	const PackedId id = detail::makeId<std::uint16_t, std::uint16_t>(65536u + runtime, 0u);
+	std::printf("detail::makeId<u16,u16>(65537, 0) = %08lx\n", static_cast<unsigned long>(id));
+	return id == detail::makeId(GroupId{1}, EntryOffset{0}) ? 1 : 0;
 #elif CASE == 8
-	const auto id = tryMakeId<std::uint16_t, std::uint16_t>(65536u + runtime, 0u);
-	std::printf("tryMakeId<u16,u16>(65537, 0) = %s\n", id ? "value" : "nullopt");
+	const auto id = detail::tryMakeId<std::uint16_t, std::uint16_t>(65536u + runtime, 0u);
+	std::printf("detail::tryMakeId<u16,u16>(65537, 0) = %s\n", id ? "value" : "nullopt");
 	return id ? 1 : 0;
 #elif CASE == 9
 	const std::uint64_t wide = (std::uint64_t{1} << 32) | (std::uint64_t{2} << 16) | runtime;

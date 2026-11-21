@@ -5,6 +5,7 @@
 // Case zero supplies positive controls so failures are tied to the identifier contract being exercised.
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <atomic>
 
 #ifndef TELEMETRY_ID_BOUNDARY_FAIL_CASE
@@ -39,10 +40,10 @@ CommandResult run() noexcept
 }
 
 constexpr FieldTable rows{field<&readValue, &writeValue>("value")};
-constexpr FieldCatalogTable fields{group("fields", rows)};
+constexpr testing::FieldCatalogTable fields{testing::group("fields", rows)};
 constexpr const auto& fixed = fields;
 constexpr CommandTable local{command<&run>("run")};
-[[maybe_unused]] constexpr CommandCatalogTable commands{group("commands", local)};
+[[maybe_unused]] constexpr testing::CommandCatalogTable commands{testing::group("commands", local)};
 
 // User-defined wide identifier conversion used to check exact public argument contracts.
 // Public methods:
@@ -182,7 +183,7 @@ int main()
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 49
 	(void)indexOf(wire);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 50
-	(void)makeId(wire, 0);
+	(void)detail::makeId(wire, 0);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 51
 	(void)fields.index().find(atomicWide);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 52
@@ -224,23 +225,23 @@ int main()
 	constexpr auto invalid = indexOf(-1);
 	(void)invalid;
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 69
-	(void)makeId<-1, 0>();
+	(void)detail::makeId<-1, 0>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 70
-	(void)makeId<0, 65536>();
+	(void)detail::makeId<0, 65536>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 71
-	(void)makeId<65536, 0>();
+	(void)detail::makeId<65536, 0>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 72
-	(void)makeId<0, Position::TooWide>();
+	(void)detail::makeId<0, Position::TooWide>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 73
-	constexpr auto invalid = makeId(0, 65536);
+	constexpr auto invalid = detail::makeId(0, 65536);
 	(void)invalid;
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 74
-	constexpr auto invalid = makeId(-1, 0);
+	constexpr auto invalid = detail::makeId(-1, 0);
 	(void)invalid;
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 75
-	(void)makeId(0.0, 0);
+	(void)detail::makeId(0.0, 0);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 76
-	(void)tryMakeId(wire, 0);
+	(void)detail::tryMakeId(wire, 0);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 77
 	(void)fields.index().find(atomicNarrow);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 78

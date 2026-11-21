@@ -1,16 +1,16 @@
 /*
  * @file HandleSize.cpp
- * @brief ARM code of a named handle against the free path function and makeId access.
+ * @brief ARM code of a named handle against the free path function and detail::makeId access.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  *
  * Every operation is written three ways: through a named handle
  * (endpoint<model, path>), through the free function (read<model, path>()) and
- * through a PackedId written with makeId (model.fields().read<id>()). run.py
+ * through a PackedId written with detail::makeId (model.fields().read<id>()). run.py
  * compiles this file with -fno-ipa-icf, so identical functions stay separate,
  * and compares each function's instructions and relocations: a handle must
  * compile to exactly the free function's code, and a whole endpoint's handle
- * to exactly the makeId code. It also links handle_root and checks that the
+ * to exactly the detail::makeId code. It also links handle_root and checks that the
  * loaded image holds no path text. These are offline object comparisons.
  */
 
@@ -27,10 +27,10 @@ inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;
 inline constexpr auto rate = ts::endpoint<model, "adc/Config.rateHz">;
 inline constexpr auto reset = ts::endpoint<model, "adc/Reset">;
 inline constexpr auto calibrate = ts::endpoint<model, "adc/Calibrate">;
-inline constexpr auto gainId = ts::makeId<1, 0>();
-inline constexpr auto configId = ts::makeId<0, 0>();
-inline constexpr auto resetId = ts::makeId<0, 0>();
-inline constexpr auto calibrateId = ts::makeId<0, 0>();
+inline constexpr auto gainId = ts::detail::makeId<1, 0>();
+inline constexpr auto configId = ts::detail::makeId<0, 0>();
+inline constexpr auto resetId = ts::detail::makeId<0, 0>();
+inline constexpr auto calibrateId = ts::detail::makeId<0, 0>();
 
 } // namespace handle_size
 
