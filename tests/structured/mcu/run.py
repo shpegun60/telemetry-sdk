@@ -22,7 +22,9 @@ QUALIFICATION = HERE.parent / 'qualification'
 sys.path.insert(0, str(QUALIFICATION))
 from gates import EXPECTED_CONSUMER_CHECKS, counted_checks, controls, forbidden_symbols, linked_control
 
-EXPECTED_PROBE_CHECKS = {'Mixed': 12230, 'Scale': 2316}
+# Mixed checks the descriptor twice at every cursor; the traversal fixture's group
+# tree describes itself in 1657 bytes, 170 fewer than its per-family catalogs did.
+EXPECTED_PROBE_CHECKS = {'Mixed': 11890, 'Scale': 2316}
 LIBRARY = [ROOT / name for name in (
     'lib/telemetry/model/Adapter.cpp',
     'lib/telemetry/abi/StructuredAbi.cpp',

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <integration/telemetry/v3/DescriptorFile.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <integration/telemetry/v3/ValuesFile.hpp>
 #include <resource/FileSystem.hpp>
 #include <bit>
@@ -106,10 +107,12 @@ inline constexpr ts::FieldTable rest{ts::field<&readBool>("Bool"),
                                      ts::field<&readZero>("Zero"),
                                      ts::field("Function", functionSlot),
                                      ts::field<&Owner::read>("Owner", ownerSlot)};
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("first", first), ts::group("empty", emptyTable), ts::group("rest", rest)};
-inline constexpr ts::ServiceCatalogTable<> services{};
-inline constexpr ts::Model model{fields, ts::emptyCommands, services};
+// The frozen v3.0 golden values.hex: a catalog model of the testing header.
+namespace v30 = ts::testing;
+inline constexpr v30::FieldCatalogTable fields{
+    v30::group("first", first), v30::group("empty", emptyTable), v30::group("rest", rest)};
+inline constexpr v30::ServiceCatalogTable<> services{};
+inline constexpr v30::V30Model model{fields, v30::emptyCommands, services};
 // values.hex is a frozen v3.0 golden whose header copies this descriptor's
 // fingerprint: the profile strips type names on every build.
 inline constexpr auto descriptor = ::telemetry::descriptor::withoutTypeNames(model);
@@ -127,14 +130,15 @@ inline constexpr auto fs =
 inline constexpr std::array<std::uint32_t, 11> offsets{24, 29, 31, 40, 43, 51, 58, 59, 60, 65, 73};
 static_assert(values.size() == 73 && values.fieldCount() == 10 && values.maxTokenSize() == 9);
 static_assert(values.fingerprint() == descriptor.fingerprint());
-inline constexpr ts::Model emptyModel{ts::emptyFields, ts::emptyCommands, services};
+inline constexpr v30::V30Model emptyModel{v30::emptyFields, v30::emptyCommands, services};
 inline constexpr ::telemetry::descriptor::Descriptor emptyDescriptor{emptyModel};
 inline constexpr rs::ValuesFile emptyValues{emptyDescriptor, workspace};
 static_assert(emptyValues.size() == 24 && emptyValues.fieldCount() == 0);
 
 using ExactCvEmptyModel =
-    ts::Model<decltype(ts::emptyFields), decltype(ts::emptyCommands), decltype(services)>;
-inline constexpr ExactCvEmptyModel exactCvEmptyModel{ts::emptyFields, ts::emptyCommands, services};
+    v30::V30Model<decltype(v30::emptyFields), decltype(v30::emptyCommands), decltype(services)>;
+inline constexpr ExactCvEmptyModel exactCvEmptyModel{v30::emptyFields, v30::emptyCommands,
+                                                     services};
 inline constexpr ::telemetry::descriptor::Descriptor exactCvEmptyDescriptor{exactCvEmptyModel};
 inline constexpr rs::ValuesFile exactCvEmptyValues{exactCvEmptyDescriptor, workspace};
 static_assert(exactCvEmptyDescriptor.valid() &&
@@ -152,10 +156,9 @@ inline Big readBig() noexcept
 	return Big{0x01020304};
 }
 
-inline constexpr ts::FieldTable bigTable{ts::field<&readCounter>("Small"),
-                                         ts::field<&readBig>("Big")};
-inline constexpr ts::FieldCatalogTable bigFields{ts::group("big", bigTable)};
-inline constexpr ts::Model bigModel{bigFields, ts::emptyCommands, services};
+// A group tree's Values file: one token per Field, a 4 KiB one among them.
+inline constexpr ts::Model bigModel{
+    ts::group("big", ts::field<&readCounter>("Small"), ts::field<&readBig>("Big"))};
 inline constexpr ::telemetry::descriptor::Descriptor bigDescriptor{bigModel};
 inline std::array<std::byte, bigModel.maxFieldScratch()> bigStorage;
 inline ts::Workspace bigWorkspace{bigStorage};

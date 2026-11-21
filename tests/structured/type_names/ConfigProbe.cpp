@@ -10,6 +10,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
 
 #include <cstdio>
@@ -27,9 +28,9 @@ Sample read() noexcept
 }
 
 inline constexpr ts::FieldTable fields{ts::field<&read>("Sample")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("config", fields)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("config", fields)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, noServices};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = ::telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace

@@ -625,10 +625,8 @@ struct HugeOwner {
 static void hugeTransfer() noexcept
 {
 	static HugeOwner owner;
-	static constexpr ts::CommandTable local{ts::command<&HugeOwner::run>("Huge", owner)};
-	static constexpr ts::CommandCatalogTable catalog{ts::group("huge", local)};
-	static constexpr ts::ServiceCatalogTable emptyServices{};
-	static constexpr ts::Model hugeModel{ts::emptyFields, catalog, emptyServices};
+	static constexpr ts::Model hugeModel{
+	    ts::group("huge", ts::command<&HugeOwner::run>("Huge", owner))};
 	static constexpr auto hugeView = hugeModel.view();
 	static Guarded<24 + 65536> storage;
 	static Guarded<hugeModel.maxScratch()> scratch;

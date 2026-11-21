@@ -9,6 +9,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
 
 #include <array>
@@ -92,7 +93,7 @@ struct telemetry::reflection::TypeReflection<negative::left::io::Status> {
 #endif
 
 namespace negative {
-inline constexpr ts::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
 
 #if CASE == 1 || CASE == 3 || CASE == 9 || CASE == 101 || CASE == 102 || CASE == 103 || CASE == 104
 // Two structs with the automatic name io::Status (case 3: io::Mode too).
@@ -110,8 +111,8 @@ inline constexpr ts::FieldTable rows{ts::field<&read<Local>>("Local")};
 #endif
 
 #if CASE == 1 || CASE == 2 || CASE == 3 || CASE == 12 || CASE >= 101
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", rows)};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("g", rows)};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, noServices};
 #endif
 
 #if CASE == 1 || CASE == 2 || CASE == 3 || CASE == 12 || CASE == 101 || CASE == 103 ||             \
@@ -141,11 +142,11 @@ struct Profile : ts::Limits {
 };
 
 inline constexpr ts::FieldTable shortRows{ts::field<&read<left::io::Status>>("a")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", shortRows)};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("g", shortRows)};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, noServices};
 
 template<class P, class F, class C, class S>
-constexpr auto withProfile(const ts::Model<F, C, S>& source) noexcept
+constexpr auto withProfile(const ts::testing::V30Model<F, C, S>& source) noexcept
 {
 	return ::telemetry::descriptor::Descriptor<F, C, S, P>{source};
 }

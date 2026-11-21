@@ -23,9 +23,9 @@ void serviceCall() noexcept
 inline constexpr ts::FieldTable fields{ts::field<&readValue>(names[0].data())};
 inline constexpr ts::CommandTable commands{ts::command<&commandCall>(names[1].data())};
 inline constexpr ts::ServiceTable services{ts::service<&serviceCall>(names[2].data())};
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group(names[3].data(), fields)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group(names[3].data(), commands)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group(names[3].data(), services)};
-inline constexpr ts::Model model{fieldCatalogs, commandCatalogs, serviceCatalogs};
+inline constexpr ts::Model model{ts::group(names[3].data(), ts::field<&readValue>(names[0].data()),
+                                           ts::command<&commandCall>(names[1].data()),
+                                           ts::service<&serviceCall>(names[2].data()))};
+static_assert(model.groupName(0)[0] == 'G');
 static_assert(fields.get<0>().name()[0] == 'F' && commands.get<0>().name()[0] == 'C' &&
               services.get<0>().name()[0] == 'S');

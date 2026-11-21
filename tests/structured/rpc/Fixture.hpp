@@ -149,27 +149,29 @@ struct Device {
 
 inline Device device;
 inline ts::OwnerSlot<Device> slot;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::read, &Device::write>("Config", device),
-    ts::field<&Device::read>("ReadOnly", device),
-    ts::field<&Device::read, &Device::write>("Optional", slot),
-    ts::field<&Device::readBig, &Device::writeBig>("Big", device),
-    ts::field<&Device::borrowed>("Borrowed", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::configure>("Configure", device),
-    ts::command<&Device::reset>("Reset", device), ts::command<&Device::configure>("Optional", slot),
-    ts::command<&Device::commandBig>("Big", device)};
-inline constexpr ts::CommandTable goldenCommands{ts::command<&Device::reset>("Zero", device),
-                                                 ts::command<&Device::reset>("One", device),
-                                                 ts::command<&Device::golden>("Golden", device)};
-inline constexpr ts::ServiceTable localServices{
-    ts::service<&Device::echo>("Echo", device), ts::service<&Device::ping>("Ping", device),
-    ts::service<&Device::echo>("Optional", slot), ts::service<&Device::large>("Large", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands),
-                                                  ts::group("golden", goldenCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+// Two groups: device holds every family, golden three more Commands. Names
+// are unique within a group across its families; IDs are group:position.
+inline constexpr ts::Model model{
+    ts::group("device", ts::field<&Device::read, &Device::write>("Config", device),
+              ts::field<&Device::read>("ReadOnly", device),
+              ts::field<&Device::read, &Device::write>("Optional", slot),
+              ts::field<&Device::readBig, &Device::writeBig>("Big", device),
+              ts::field<&Device::borrowed>("Borrowed", device),
+              ts::command<&Device::configure>("Configure", device),
+              ts::command<&Device::reset>("Reset", device),
+              ts::command<&Device::configure>("OptionalConfigure", slot),
+              ts::command<&Device::commandBig>("BigCommand", device),
+              ts::service<&Device::echo>("Echo", device),
+              ts::service<&Device::ping>("Ping", device),
+              ts::service<&Device::echo>("OptionalEcho", slot),
+              ts::service<&Device::large>("Large", device)),
+    ts::group("golden", ts::command<&Device::reset>("Zero", device),
+              ts::command<&Device::reset>("One", device),
+              ts::command<&Device::golden>("Golden", device))};
+static_assert(ts::idOf<model, "device/Borrowed">() == 4 &&
+              ts::idOf<model, "device/BigCommand">() == 3 &&
+              ts::idOf<model, "golden/Golden">() == 0x00010002u &&
+              ts::idOf<model, "device/Large">() == 3);
 inline constexpr auto view = model.view();
 
 template<class U>

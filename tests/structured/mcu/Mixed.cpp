@@ -45,13 +45,9 @@ struct LargeDevice {
 };
 
 LargeDevice largeDevice;
-inline constexpr ts::CommandTable largeCommands{
-    ts::command<&LargeDevice::accept>("Accept", largeDevice)};
-inline constexpr ts::ServiceTable largeServices{
-    ts::service<&LargeDevice::echo>("Echo", largeDevice)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group("large", largeCommands)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("large", largeServices)};
-inline constexpr ts::Model largeModel{ts::emptyFields, commandCatalogs, serviceCatalogs};
+inline constexpr ts::Model largeModel{
+    ts::group("large", ts::command<&LargeDevice::accept>("Accept", largeDevice),
+              ts::service<&LargeDevice::echo>("Echo", largeDevice))};
 inline constexpr auto largeView = largeModel.view();
 
 // The two populated groups select the same owner through different catalog

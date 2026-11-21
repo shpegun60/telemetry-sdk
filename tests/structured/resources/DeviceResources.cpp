@@ -39,10 +39,8 @@ std::uint32_t readRpcCounter() noexcept
 	return ++rpcReads;
 }
 
-constexpr telemetry::FieldTable rpcLocal{telemetry::field<&readRpcCounter>("Counter")};
-constexpr telemetry::FieldCatalogTable rpcFields{telemetry::group("rpc", rpcLocal)};
-constexpr telemetry::ServiceCatalogTable<> rpcServices{};
-constexpr telemetry::Model rpcModel{rpcFields, telemetry::emptyCommands, rpcServices};
+constexpr telemetry::Model rpcModel{
+    telemetry::group("rpc", telemetry::field<&readRpcCounter>("Counter"))};
 constexpr auto rpcView = rpcModel.view();
 std::array<std::byte, rpcModel.maxScratch()> rpcScratch{};
 telemetry::Workspace rpcWorkspace{rpcScratch};

@@ -16,9 +16,7 @@ Large large() noexcept
 	return {};
 }
 
-constexpr ts::FieldTable largeTable{ts::field<&large>("Large")};
-constexpr ts::FieldCatalogTable largeFields{ts::group("large", largeTable)};
-constexpr ts::Model largeModel{largeFields, ts::emptyCommands, services};
+constexpr ts::Model largeModel{ts::group("large", ts::field<&large>("Large"))};
 constexpr ::telemetry::descriptor::Descriptor largeDescriptor{largeModel};
 std::array<std::byte, largeModel.maxFieldScratch()> largeStorage;
 ts::Workspace largeWorkspace{largeStorage};
@@ -43,16 +41,19 @@ float nan() noexcept
 
 constexpr ts::FieldTable numeric{ts::field<&u64>("U64"), ts::field<&s64>("S64"),
                                  ts::field<&nan>("NaN")};
-constexpr ts::FieldCatalogTable numericFields{ts::group("numeric", numeric)};
-constexpr ts::Model numericModel{numericFields, ts::emptyCommands, services};
+// The catalog engine with deduced and explicit const-qualified arguments.
+constexpr fixture::v30::FieldCatalogTable numericFields{fixture::v30::group("numeric", numeric)};
+constexpr fixture::v30::V30Model numericModel{numericFields, fixture::v30::emptyCommands, services};
 constexpr ::telemetry::descriptor::Descriptor numericDescriptor{numericModel};
 std::array<std::byte, numericModel.maxFieldScratch()> numericStorage;
 ts::Workspace numericWorkspace{numericStorage};
 constexpr rs::ValuesFile numbers{numericDescriptor, numericWorkspace};
 
 using ExactCvNumericModel =
-    ts::Model<decltype(numericFields), decltype(ts::emptyCommands), decltype(services)>;
-constexpr ExactCvNumericModel exactCvNumericModel{numericFields, ts::emptyCommands, services};
+    fixture::v30::V30Model<decltype(numericFields), decltype(fixture::v30::emptyCommands),
+                           decltype(services)>;
+constexpr ExactCvNumericModel exactCvNumericModel{numericFields, fixture::v30::emptyCommands,
+                                                  services};
 constexpr ::telemetry::descriptor::Descriptor exactCvNumericDescriptor{exactCvNumericModel};
 constexpr rs::ValuesFile exactCvNumbers{exactCvNumericDescriptor, numericWorkspace};
 static_assert(exactCvNumericDescriptor.valid() &&

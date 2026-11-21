@@ -267,7 +267,7 @@ void aliases()
 		}
 	}
 	// Small local endpoints ignore even a Workspace aliasing the wire buffers.
-	if (localServices.data()[0].scratchBytes == 0) {
+	if (view.services.catalogs()[0].entries[0].scratchBytes == 0) {
 		auto request = valid;
 		ts::Workspace overlapping{request};
 		const auto result = rs::Exchange::process(peer, request, request, overlapping);
@@ -284,7 +284,7 @@ void scratch()
 	auto request = packet(Op::Service, 3, Config{1234, true});
 	std::array<std::byte, 24 + ts::wireSize<Big> + 8> output{};
 	std::array<std::byte, model.maxScratch() + 128> memory{};
-	const auto required = localServices.data()[3].scratchBytes;
+	const auto required = view.services.catalogs()[0].entries[3].scratchBytes;
 	for (unsigned alignment = 0; alignment < 8; ++alignment) {
 		for (int delta = -1; delta <= 1; ++delta) {
 			ts::Workspace workspace{Output{memory}.subspan(alignment, required + delta)};
@@ -362,7 +362,7 @@ ts::EncodedCallResult invalidResult(const void*, const std::byte*, std::byte*,
 void damagedAdapter()
 {
 	// Inject a broken custom erased handler, while retaining the native shape.
-	auto entry = localServices.data()[0];
+	auto entry = view.services.catalogs()[0].entries[0];
 	entry.invoke = invalidResult;
 	const ts::ServiceCatalog catalog{"broken", &entry, 1};
 	auto broken = view;

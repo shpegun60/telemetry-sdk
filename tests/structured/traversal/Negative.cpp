@@ -41,11 +41,11 @@ int main()
 #elif CASE == 39
 	(void)localServices.get<4>();
 #elif CASE == 40
-	(void)fields.get<telemetry::makeId<3, 0>()>();
+	(void)fields.get<telemetry::detail::makeId<3, 0>()>();
 #elif CASE == 41
-	(void)commands.get<telemetry::makeId<3, 0>()>();
+	(void)commands.get<telemetry::detail::makeId<3, 0>()>();
 #elif CASE == 42
-	(void)services.get<telemetry::makeId<3, 0>()>();
+	(void)services.get<telemetry::detail::makeId<3, 0>()>();
 #elif CASE == 43
 	(void)fields.get<Position::U16>();
 #elif CASE == 44
@@ -90,9 +90,9 @@ int main()
 #elif CASE == 62
 	(void)fields.get<UINT64_C(0x100000001)>();
 #elif CASE == 63
-	(void)commands.get<telemetry::makeId<0, 3>()>();
+	(void)commands.get<telemetry::detail::makeId<0, 3>()>();
 #elif CASE == 64
-	(void)services.get<telemetry::makeId<0, 4>()>();
+	(void)services.get<telemetry::detail::makeId<0, 4>()>();
 #else
 #error Unknown negative case
 #endif

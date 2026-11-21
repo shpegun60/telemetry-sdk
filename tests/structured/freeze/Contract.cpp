@@ -16,7 +16,8 @@ using fixture::Position;
 // These facts describe the public contract, independent of C++ struct padding.
 static_assert(std::same_as<telemetry::PackedId, std::uint32_t>);
 static_assert(std::same_as<ts::TypeId, std::uint32_t>);
-static_assert(telemetry::makeId(2u, 7u) == 0x00020007u);
+static_assert(telemetry::detail::makeId(2u, 7u) == 0x00020007u);
+static_assert(ts::idOf<fixture::model, "repeat/Config">() == 0x00020007u);
 static_assert(ts::structuredAbiRevision == 6);
 static_assert(TELEMETRY_STRUCTURED_LOCAL_BYTES == 32);
 static_assert(::telemetry::descriptor::binaryMajor == 3 &&
@@ -77,18 +78,18 @@ static_assert(std::same_as<decltype(fixture::localFields.read<Position::Mode>())
                            std::optional<fixture::Mode>>);
 static_assert(std::same_as<decltype(fixture::localFields.read<Position::Array>()),
                            std::optional<std::array<std::uint16_t, 2>>>);
-static_assert(std::same_as<decltype(fixture::fields.read<telemetry::makeId(2u, 7u)>()),
-                           std::optional<Config>>);
+static_assert(
+    std::same_as<decltype(ts::read<fixture::model, "repeat/Config">()), std::optional<Config>>);
 static_assert(std::same_as<decltype(fixture::fields.readAs<double>(7u)), std::optional<double>>);
 static_assert(
     std::same_as<decltype(fixture::fields.writeAs(7u, Config{})), telemetry::WriteResult>);
 static_assert(std::same_as<decltype(fixture::localFields.readAs<double, Position::U16>()),
                            std::optional<double>>);
-static_assert(std::same_as<decltype(fixture::fields.readAs<Config, telemetry::makeId(2u, 7u)>()),
+static_assert(std::same_as<decltype(ts::endpoint<fixture::model, "repeat/Config">.read()),
                            std::optional<Config>>);
 static_assert(std::same_as<decltype(fixture::localFields.writeAs<Position::U16>(1.0)),
                            telemetry::WriteResult>);
-static_assert(std::same_as<decltype(fixture::fields.writeAs<telemetry::makeId(0u, 7u)>(Config{})),
+static_assert(std::same_as<decltype(ts::write<fixture::model, "first/Config">(Config{})),
                            telemetry::WriteResult>);
 static_assert(std::same_as<decltype(fixture::model.view()), ts::ModelView>);
 static_assert(
@@ -98,12 +99,17 @@ static_assert(
     std::same_as<decltype(fixture::services.call<0>(Config{})), ts::ServiceResult<Config>>);
 static_assert(std::same_as<decltype(fixture::services.call<1>()), ts::ServiceResult<void>>);
 static_assert(fixture::model.view().fieldTypeId(7u) == fixture::model.view().commandTypeId(0u));
-static_assert(&fixture::fields.get<telemetry::makeId(2u, 7u)>() ==
-              &fixture::localFields.get<Position::Config>());
-static_assert(&fixture::commands.get<telemetry::makeId(2u, 0u)>() ==
-              &fixture::localCommands.get<0>());
-static_assert(&fixture::services.get<telemetry::makeId(2u, 0u)>() ==
-              &fixture::localServices.get<0>());
+static_assert(
+    std::same_as<std::remove_cvref_t<decltype(fixture::fields.get<0x00020007u>())>,
+                 std::remove_cvref_t<decltype(fixture::localFields.get<Position::Config>())>>);
+static_assert(std::same_as<std::remove_cvref_t<decltype(fixture::commands.get<0x00020000u>())>,
+                           std::remove_cvref_t<decltype(fixture::localCommands.get<0>())>>);
+static_assert(std::same_as<std::remove_cvref_t<decltype(fixture::services.get<0x00020000u>())>,
+                           std::remove_cvref_t<decltype(fixture::localServices.get<0>())>>);
+static_assert(
+    std::same_as<decltype(ts::call<fixture::model, "first/Reset">()), telemetry::CommandResult>);
+static_assert(std::same_as<decltype(ts::call<fixture::model, "first/Echo">(Config{})),
+                           ts::ServiceResult<Config>>);
 static_assert(fixture::noFields.begin() == fixture::noFields.end());
 static_assert(fixture::noCommands.begin() == fixture::noCommands.end());
 static_assert(fixture::noServices.begin() == fixture::noServices.end());
@@ -187,7 +193,7 @@ int main()
 	check(ts::encode(request, bytes) == ts::CodecStatus::Ok);
 	check(bytes == expected);
 	check(fixture::localFields.write<Position::Config>(request) == telemetry::WriteResult::Applied);
-	const auto value = fixture::fields.readAs<Config>(telemetry::makeId(2u, 7u));
+	const auto value = fixture::fields.readAs<Config>(ts::idOf<fixture::model, "repeat/Config">());
 	check(value && value->code == request.code);
 	check(fixture::commands.call<1>() == telemetry::CommandResult::Executed);
 	const auto response = fixture::services.call<0>(request);
