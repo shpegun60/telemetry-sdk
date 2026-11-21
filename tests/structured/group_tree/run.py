@@ -5,7 +5,8 @@ Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 Builds the two-branch fixture (AdcBranch.hpp, MetrologyBranch.hpp) with the
 host compiler and every --cross compiler and compares the written descriptor
 with tree.hex; with TELEMETRY_TYPE_NAMES=0 with the same tree without type
-names. Compiles every case of Negative.cpp (refusals with their diagnostic,
+names. Values.cpp serves the tree's live Values file and reads it back through
+the host's ValuesReader. Compiles every case of Negative.cpp (refusals with their diagnostic,
 controls that must build). With --arm-cxx: the ARM descriptor bytes, the
 size of encoded dispatch, group tree against flat catalogs, and the code of a
 named handle against the free path function and makeId access, with a linked
@@ -160,6 +161,12 @@ def main():
             raise RuntimeError(f'{compiler.label} without type names differs from the unnamed tree')
     summary['producers'] = sorted(produced)
     print('tree.hex from every compiler: ' + ', '.join(c.label for c in compilers), flush=True)
+
+    # 2b. The live Values file of the tree, read back by the host's reader.
+    program = out / f'Values{suffix}'
+    run(host.argv([*strict, *include, *options, HERE / 'Values.cpp',
+                   ROOT / 'lib/integration/telemetry/v3/detail/Values.cpp', '-o', program]), 'build-values')
+    summary['values'] = run(host.execute(program), 'execute-values').strip().splitlines()[-1]
 
     # 3. Refusals and controls, with what each diagnostic names.
     traces = {}

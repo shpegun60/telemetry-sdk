@@ -203,7 +203,7 @@ function(telemetry_headers target module prefix source)
     file(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE "${source}"
         "${source}/*.hpp" "${source}/*.h")
     foreach(_header IN LISTS _headers)
-        if(module STREQUAL "core" AND (_header MATCHES "^(client|protocol|runtime)/" OR _header STREQUAL "encoded/Batch.hpp"))
+        if(module STREQUAL "core" AND (_header MATCHES "^(client|protocol|runtime|testing)/" OR _header STREQUAL "encoded/Batch.hpp"))
             continue()
         endif()
         if(module STREQUAL "resource" AND _header MATCHES "^(telemetry|protocol)/")
