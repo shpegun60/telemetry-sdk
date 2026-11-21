@@ -36,13 +36,6 @@ def _aliases(endpoint):
             yield label, type_id
 
 
-def _groups(schema):
-    groups = {}
-    for endpoint in schema.endpoints:
-        groups.setdefault(endpoint.group, []).append(endpoint)
-    return groups
-
-
 def _reachable_types(schema):
     """Keep positional IDs while dropping definitions unreachable from endpoints."""
     pending = [0]
@@ -270,9 +263,8 @@ def _read_many_scalar(schema, type_id: int) -> int | None:
 def _endpoint_expression(schema, endpoint, wire_editing=False) -> str:
     parts = [f"id: {endpoint.id}", f"category: {endpoint.category}",
              f"catalogName: {_quote(endpoint.catalog_name)}", f"name: {_quote(endpoint.name)}"]
-    if schema.groups is not None:
-        # A group tree's endpoint carries its section-15 path, adc/channel1/Gain.
-        parts.append(f"path: {_quote(schema.endpoint_path(endpoint))}")
+    # Every endpoint carries its section-15 path: adc/channel1/Gain, motor/Config.
+    parts.append(f"path: {_quote(schema.endpoint_path(endpoint))}")
     if endpoint.category == 1:
         i = endpoint.value_type
         scalar = _read_many_scalar(schema, i)
@@ -324,41 +316,8 @@ def _runtime_exports(schema, typed: bool, wire_editing=False) -> list[str]:
             lines.append(f"  {_type_name(row['id'])}: {_enum_expression(schema, row)},")
     lines.append("});")
     lines += _named_types_runtime(schema, typed)
-    if schema.groups is not None:
-        return lines + (_tree_runtime_ts(schema, wire_editing) if typed
-                        else _tree_runtime_js(schema, wire_editing))
-    categories = {1: "fields", 2: "commands", 3: "services"}
-    for group, endpoints in _groups(schema).items():
-        aliases = dict(alias for endpoint in endpoints for alias in _aliases(endpoint))
-        if typed:
-            lines += [f"export namespace {group} {{", "  export namespace types {"]
-            for alias, type_id in aliases.items():
-                source = "enums" if schema.types[type_id]["kind"] == 2 else "codecs"
-                lines += [f"    export type {alias} = {_type_name(type_id)};",
-                          f"    export const {alias} = {source}.{_type_name(type_id)};"]
-            # A runtime marker keeps empty types namespaces identical to JS.
-            if not aliases:
-                lines.append("    export const _empty = undefined;")
-            lines.append("  }")
-        else:
-            lines += [f"export const {group} = Object.freeze({{", "  types: Object.freeze({"]
-            for alias, type_id in aliases.items():
-                source = "enums" if schema.types[type_id]["kind"] == 2 else "codecs"
-                lines.append(f"    [{_quote(alias)}]: {source}.{_type_name(type_id)},")
-            if not aliases:
-                lines.append("    _empty: undefined,")
-            lines.append("  }),")
-        for category, category_name in categories.items():
-            start = f"  export const {category_name} = Object.freeze({{" if typed else f"  {category_name}: Object.freeze({{"
-            lines.append(start)
-            for endpoint in endpoints:
-                if endpoint.category == category:
-                    lines.append(f"    [{_quote(endpoint.symbol)}]: {_endpoint_expression(schema, endpoint, wire_editing)},")
-            lines.append("  });" if typed else "  }),")
-        lines.append("}" if typed else "});")
-        if typed:
-            lines += [f"Object.freeze({group}.types);", f"Object.freeze({group});"]
-    return lines
+    return lines + (_tree_runtime_ts(schema, wire_editing) if typed
+                    else _tree_runtime_js(schema, wire_editing))
 
 
 def _type_source(schema, type_id) -> str:
@@ -431,12 +390,19 @@ _FAMILIES = ((1, "fields"), (2, "commands"), (3, "services"))
 def _tree_members(schema):
     """Per group index: its endpoints with their sibling symbols, and its child groups."""
     endpoints, children = {}, {}
-    for number, (endpoint, symbol) in enumerate(zip(schema.endpoints, schema.tree_symbols)):
-        endpoints.setdefault(endpoint.catalog_index, []).append((number, endpoint, symbol))
-    for group in schema.groups:
+    for number, (endpoint, group, symbol) in enumerate(zip(schema.endpoints, schema.api_group_of,
+                                                           schema.api_symbols)):
+        endpoints.setdefault(group, []).append((number, endpoint, symbol))
+    for group in schema.api_groups:
         if group.parent is not None:
             children.setdefault(group.parent, []).append(group)
     return endpoints, children
+
+
+def _group_comment(schema, separator):
+    if schema.groups is not None:
+        return f"// Group tree (descriptor v3.1): adc{separator}channel1{separator}Gain is the path adc/channel1/Gain."
+    return f"// Groups: the catalogs of one name are one group; motor{separator}Config is the path motor/Config."
 
 
 def _tree_runtime_js(schema, wire_editing=False) -> list[str]:
@@ -446,8 +412,8 @@ def _tree_runtime_js(schema, wire_editing=False) -> list[str]:
     Children are built before their parents, so every reference is defined.
     """
     endpoints, children = _tree_members(schema)
-    lines = ["// Group tree (descriptor v3.1): adc.channel1.Gain is the path adc/channel1/Gain."]
-    for group in reversed(schema.groups):
+    lines = [_group_comment(schema, ".")]
+    for group in reversed(schema.api_groups):
         rows = endpoints.get(group.index, ())
         for number, endpoint, _ in rows:
             lines.append(f"const _e{number} = {_endpoint_expression(schema, endpoint, wire_editing)};")
@@ -469,14 +435,14 @@ def _tree_runtime_js(schema, wire_editing=False) -> list[str]:
         for number, _, symbol in rows:
             lines.append(f"  [{_quote(symbol)}]: _e{number},")
         lines.append("});")
-    lines += [f"export const {group.symbol} = _g{group.index};" for group in schema.groups if group.parent is None]
+    lines += [f"export const {group.symbol} = _g{group.index};" for group in schema.api_groups if group.parent is None]
     return lines
 
 
 def _tree_runtime_ts(schema, wire_editing=False) -> list[str]:
     """The TS form of _tree_runtime_js: nested namespaces with the same values."""
     endpoints, children = _tree_members(schema)
-    lines = ["// Group tree (descriptor v3.1): adc.channel1.Gain is the path adc/channel1/Gain."]
+    lines = [_group_comment(schema, ".")]
 
     def emit(group, depth):
         pad = "  " * depth
@@ -502,10 +468,10 @@ def _tree_runtime_ts(schema, wire_editing=False) -> list[str]:
             lines.append(f"{pad}  export const {symbol} = {family}[{_quote(endpoint.symbol)}];")
         lines.append(f"{pad}}}")
 
-    for group in schema.groups:
+    for group in schema.api_groups:
         if group.parent is None:
             emit(group, 0)
-    for group in reversed(schema.groups):
+    for group in reversed(schema.api_groups):
         lines += [f"Object.freeze({group.js}.types);", f"Object.freeze({group.js});"]
     return lines
 
@@ -514,9 +480,7 @@ def _endpoint_declaration(schema, endpoint, wire_editing=False) -> str:
     """The declared type of one endpoint object, as the runtime builds it."""
     category = endpoint.category
     fields = [f"readonly id: {endpoint.id}", f"readonly category: {category}",
-              "readonly catalogName: string", "readonly name: string"]
-    if schema.groups is not None:
-        fields.append("readonly path: string")
+              "readonly catalogName: string", "readonly name: string", "readonly path: string"]
     i = endpoint.value_type if category == 1 else endpoint.request_type
     if category == 1:
         scalar = _read_many_scalar(schema, i)
@@ -568,7 +532,7 @@ def _tree_declarations(schema, wire_editing=False) -> list[str]:
             lines.append(f"{pad}  const {symbol}: (typeof {family})[{_quote(endpoint.symbol)}];")
         lines.append(f"{pad}}}")
 
-    for group in schema.groups:
+    for group in schema.api_groups:
         if group.parent is None:
             emit(group, 0)
     return lines
@@ -595,26 +559,7 @@ def _declarations(schema, wire_editing=False) -> str:
             lines.append(f"  {_type_name(row['id'])}: Readonly<{{{fields}}}>;")
     lines.append("}>;")
     lines += _named_types_declarations(schema)
-    if schema.groups is not None:
-        return "\n".join(lines + _tree_declarations(schema, wire_editing)) + "\n"
-    for group, endpoints in _groups(schema).items():
-        lines += [f"export declare namespace {group} {{", "  namespace types {"]
-        aliases = dict(alias for endpoint in endpoints for alias in _aliases(endpoint))
-        for alias, type_id in aliases.items():
-            source = "enums" if schema.types[type_id]["kind"] == 2 else "codecs"
-            lines += [f"    type {alias} = {_type_name(type_id)};",
-                      f"    const {alias}: typeof {source}.{_type_name(type_id)};"]
-        if not aliases:
-            lines.append("    const _empty: undefined;")
-        lines.append("  }")
-        for category, category_name in _FAMILIES:
-            lines.append(f"  const {category_name}: Readonly<{{")
-            for endpoint in endpoints:
-                if endpoint.category == category:
-                    lines.append(f"    readonly {_quote(endpoint.symbol)}: {_endpoint_declaration(schema, endpoint, wire_editing)};")
-            lines.append("  }>;")
-        lines.append("}")
-    return "\n".join(lines) + "\n"
+    return "\n".join(lines + _tree_declarations(schema, wire_editing)) + "\n"
 
 
 def _runtime(schema, typed: bool, wire_editing=False) -> str:
@@ -636,11 +581,10 @@ def generate_js(schema, client_runtime=False, wire_editing=False) -> dict[str, s
     files = {"js/device.js": _runtime(schema, False, wire_editing), "js/device.d.ts": _declarations(schema, wire_editing)}
     if client_runtime:
         files.update(_client_files("js", ("js", "d.ts")))
-        if schema.minor >= 1:
-            # v3.1: endpoint handles over the bundled client, nested and by path.
-            from .handles import web_handles, web_handles_declarations
-            files["js/handles.js"] = web_handles(schema, False)
-            files["js/handles.d.ts"] = web_handles_declarations(schema)
+        # Endpoint handles over the bundled client, nested by group and by path.
+        from .handles import web_handles, web_handles_declarations
+        files["js/handles.js"] = web_handles(schema, False)
+        files["js/handles.d.ts"] = web_handles_declarations(schema)
     return files
 
 
@@ -649,9 +593,8 @@ def generate_ts(schema, client_runtime=False, wire_editing=False) -> dict[str, s
     files = {"ts/device.ts": _runtime(schema, True, wire_editing)}
     if client_runtime:
         files.update(_client_files("ts", ("ts",)))
-        if schema.minor >= 1:
-            from .handles import web_handles
-            files["ts/handles.ts"] = web_handles(schema, True)
+        from .handles import web_handles
+        files["ts/handles.ts"] = web_handles(schema, True)
     return files
 
 

@@ -6,6 +6,10 @@ Descriptor v3.1 adds two symbol scopes, both additions to the v3.0 symbols:
 named types live in a dedicated `types` scope, nested by their own scope
 (`adc::Config` -> `types::adc::Config`), and a GroupTree descriptor maps every
 group to a nested scope that holds its subgroups and endpoints side by side.
+Every descriptor has that group form (`api_groups`, `api_symbols`): a catalog
+descriptor's catalogs of one name are one root group of all three families,
+and two endpoints of different families sharing a name there take a kind
+suffix (`Reset_Field`, `Reset_Command`), as their path names neither.
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 """
 
@@ -102,6 +106,11 @@ class Schema:
     type_symbols: tuple[Optional[TypeSymbol], ...] = ()
     groups: Optional[tuple[Group, ...]] = None
     tree_symbols: tuple[str, ...] = ()  # per endpoint: its symbol among its group's siblings
+    # The group form of the generated API, for every descriptor: a tree's own
+    # groups, or one root group per catalog name of a catalog descriptor.
+    api_groups: tuple[Group, ...] = ()
+    api_group_of: tuple[int, ...] = ()  # per endpoint: its index in api_groups
+    api_symbols: tuple[str, ...] = ()  # per endpoint: its symbol in its api group
 
     @property
     def types(self):
@@ -207,6 +216,7 @@ def load_schema(data: bytes, namespace="device_api", limits=Limits()):
         raise TypeError("load_schema requires immutable bytes")
     raw = parse(data, limits)
     groups, tree_symbols = None, {}
+    catalog_names = ()
     if raw["groups"] is not None:
         groups, tree_symbols = _group_tree(raw)
         group_symbols = None
@@ -255,6 +265,43 @@ def load_schema(data: bytes, namespace="device_api", limits=Limits()):
     enum_names = tuple(allocate((name for _, name in item.get("entries", ())),
                                 (f"Type_{item['id']}",))
                        for item in raw["types"])
+    if groups is not None:
+        api_groups, api_group_of, api_symbols = groups, tuple(
+            item["catalog_index"] for item in pending), tuple(siblings)
+    else:
+        api_groups, api_group_of, api_symbols = _catalog_groups(catalog_names, group_symbols, pending)
     return Schema(_freeze(raw), namespace, hashlib.sha256(data).hexdigest(),
                   tuple(Endpoint(**item) for item in pending), member_names, enum_names,
-                  _type_symbols(raw), groups, tuple(siblings))
+                  _type_symbols(raw), groups, tuple(siblings), api_groups, api_group_of, api_symbols)
+
+
+KIND_WORDS = ("", "Field", "Command", "Service")
+
+
+def _catalog_groups(catalog_names, group_symbols, pending):
+    """The group form of a catalog descriptor: one root group per catalog name.
+
+    A group holds the endpoints of all three families in family order, as a
+    tree group does. A name that endpoints of two families share is ambiguous
+    as a path (RuntimeSchema::findEndpoint refuses it too), so each of them
+    takes its kind as a suffix before the symbols are allocated.
+    """
+    from .parser import escape_segment
+    index = {name: position for position, name in enumerate(catalog_names)}
+    api_groups = tuple(Group(position, name, escape_segment(name), 0, None, group_symbols[name],
+                             group_symbols[name]) for position, name in enumerate(catalog_names))
+    api_group_of = tuple(index[item["catalog_name"]] for item in pending)
+    members = {}
+    for number, item in enumerate(pending):
+        members.setdefault(api_group_of[number], []).append(number)
+    api_symbols = [""] * len(pending)
+    for numbers in members.values():
+        families = {}
+        for number in numbers:
+            families.setdefault(pending[number]["name"], set()).add(pending[number]["category"])
+        bases = [pending[number]["name"] + "_" + KIND_WORDS[pending[number]["category"]]
+                 if len(families[pending[number]["name"]]) > 1 else pending[number]["name"]
+                 for number in numbers]
+        for number, symbol in zip(numbers, allocate(bases)):
+            api_symbols[number] = symbol
+    return api_groups, api_group_of, tuple(api_symbols)

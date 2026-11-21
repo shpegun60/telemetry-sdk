@@ -35,7 +35,7 @@ def text(data):
 
 class V30IdentityTests(unittest.TestCase):
     def test_v30_input_gives_the_frozen_output(self):
-        """Every core profile of the three v3.0 goldens matches the hashes frozen before v3.1."""
+        """Every core profile of the three v3.0 goldens matches the frozen hashes of the group form."""
         baseline = json.loads(LEGACY.read_text())["profiles"]
         for fixture in ("empty", "mixed", "edge"):
             schema = load_schema(names.fixture(fixture))
@@ -44,6 +44,17 @@ class V30IdentityTests(unittest.TestCase):
                 files = render(schema, ("cpp", "js", "ts"), client_runtime=options, structural_metadata=options)
                 hashes = {path: hashlib.sha256(data).hexdigest() for path, data in files.items()}
                 self.assertEqual(hashes, baseline[f"{fixture}-{profile}"]["generated"], fixture + "-" + profile)
+
+    def test_v30_input_gets_the_group_form(self):
+        """A v3.0 descriptor generates the group form beside its per-family symbols."""
+        files = render(load_schema(names.fixture("mixed")), ("cpp", "js", "ts"), client_runtime=True)
+        endpoints = files["cpp/device_api/Endpoints.hpp"].decode()
+        self.assertIn("namespace motor {\ninline constexpr auto Enabled = fields::Enabled;", endpoints)
+        self.assertIn("namespace motor::fields {", endpoints)  # kept until the old forms go
+        declarations = files["js/device.d.ts"].decode()
+        self.assertIn("export declare namespace motor {", declarations)
+        self.assertIn("""  const Enabled: (typeof fields)["Enabled"];""", declarations)
+        self.assertIn("readonly motor: Readonly<{", files["js/handles.d.ts"].decode())
 
 
 class GoldenTests(unittest.TestCase):
@@ -133,16 +144,15 @@ class SymbolTests(unittest.TestCase):
 
 
 class HandleTests(unittest.TestCase):
-    def test_handles_only_for_v31_and_with_the_client_runtime(self):
-        tree = load_schema(names.fixture("tree"))
-        files = render(tree, ("cpp", "js", "ts"), client_runtime=True)
-        self.assertIn("js/handles.js", files)
-        self.assertIn("ts/handles.ts", files)
-        self.assertIn("template<class Client> class Device {", files["cpp/device_api/ClientBindings.hpp"].decode())
-        self.assertNotIn("js/handles.js", render(tree, ("js",)))
-        mixed = render(load_schema(names.fixture("mixed")), ("cpp", "js", "ts"), client_runtime=True)
-        self.assertNotIn("js/handles.js", mixed)
-        self.assertNotIn("class Device", mixed["cpp/device_api/ClientBindings.hpp"].decode())
+    def test_handles_for_every_descriptor_with_the_client_runtime(self):
+        for name in ("tree", "named", "mixed"):
+            schema = load_schema(names.fixture(name))
+            files = render(schema, ("cpp", "js", "ts"), client_runtime=True)
+            self.assertIn("js/handles.js", files, name)
+            self.assertIn("ts/handles.ts", files, name)
+            self.assertIn("template<class Client> class Device {",
+                          files["cpp/device_api/ClientBindings.hpp"].decode(), name)
+            self.assertNotIn("js/handles.js", render(schema, ("js",)), name)
 
     def test_handle_tree_paths(self):
         from tools.telemetry_codegen.generators.handles import handle_tree
@@ -151,18 +161,30 @@ class HandleTests(unittest.TestCase):
         self.assertEqual([(leaf.path, leaf.access) for leaf in leaves][:3],
                          [("adc/Config", "adc.Config"), ("adc/Status", "adc.Status_value"),
                           ("adc/channel1/Gain", "adc.channel1.Gain")])
+        # A catalog descriptor has the same form: one group per catalog name.
         roots, leaves = handle_tree(load_schema(names.fixture("named")))
-        self.assertEqual(leaves[7].access, "motor.fields.Config")
-        self.assertEqual(leaves[10].access, "motor.services.Echo")
-        # A flat path naming endpoints of two families has no path form.
+        self.assertEqual(leaves[7].access, "motor.Config")
+        self.assertEqual(leaves[10].access, "motor.Echo")
+        # A path naming endpoints of two families has no path form; their
+        # symbols take the kind, and the root group is not a device method.
         groups = ((("read", [(2, "Reset"), (2, "Mode")]),), (("read", [(0, "Reset")]),), ())
         from test_core import descriptor
-        flat = bytearray(descriptor((golden.enum_type(12, 2, 1, [(0, "A")], name="Kind"),), groups))
-        flat[6] = 1  # the name makes it v3.1
-        roots, leaves = handle_tree(load_schema(golden.rehash(bytes(flat))))
-        self.assertEqual([symbol for symbol, _ in roots], ["read_2"])  # not a device method
-        self.assertEqual([(leaf.path, leaf.registered) for leaf in leaves],
-                         [("read/Reset", False), ("read/Mode", True), ("read/Reset", False)])
+        for minor in (0, 1):
+            flat = bytearray(descriptor((golden.enum_type(12, 2, 1, [(0, "A")], name="Kind"),), groups))
+            flat[6] = minor  # the name makes it v3.1; without it the input is v3.0
+            if minor == 0:
+                flat = bytearray(descriptor((golden.enum_type(12, 2, 1, [(0, "A")]),), groups))
+            schema = load_schema(golden.rehash(bytes(flat)))
+            self.assertEqual(schema.minor, minor)
+            roots, leaves = handle_tree(schema)
+            self.assertEqual([symbol for symbol, _ in roots], ["read_2"])
+            self.assertEqual([(leaf.path, leaf.registered, leaf.access) for leaf in leaves],
+                             [("read/Reset", False, "read_2.Reset_Field"), ("read/Mode", True, "read_2.Mode"),
+                              ("read/Reset", False, "read_2.Reset_Command")])
+            endpoints = generate_cpp(schema)["cpp/device_api/Endpoints.hpp"]
+            self.assertIn("namespace read {\ninline constexpr auto Reset_Field = fields::Reset;\n"
+                          "inline constexpr auto Mode = fields::Mode;\n"
+                          "inline constexpr auto Reset_Command = commands::Reset;\n}", endpoints)
 
 
 class AttributeTests(unittest.TestCase):

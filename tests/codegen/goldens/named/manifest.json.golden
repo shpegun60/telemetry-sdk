@@ -7,22 +7,22 @@
   ],
   "format": "telemetry-codegen-owned-output-v1",
   "generated_files": {
-    "cpp/device_api/ClientBindings.hpp": "0031030cfbc70dedfb0533b6ca54823d39b919787a03c797f0613dbf0633e66e",
+    "cpp/device_api/ClientBindings.hpp": "0b3bb846d4cad436d80d8a858b73801d44d5f2a58b870db2f22fc16527c199c3",
     "cpp/device_api/Codec.hpp": "cb5ab7c416b5b202b41cda50852030c7052a2814c5e251bdba03ce0f78985504",
     "cpp/device_api/EncodedBindings.hpp": "5be7af06db65062179aac241aac91813341eb886601f74949e6eaa990a0bc394",
-    "cpp/device_api/Endpoints.hpp": "443d5987e5100d6c748b905c9298008eadae14146447bdad445df6d60fb75d42",
+    "cpp/device_api/Endpoints.hpp": "6db59e08955e57c988360732a1cce85006d0ec0a9089d1ab10eead411b9875c3",
     "cpp/device_api/Metadata.hpp": "82d591ecd86072693b971b3ddc2d108c49f25a7199643064e10e88797b608b27",
     "cpp/device_api/RpcBindings.hpp": "efa67091e53c6b34ecd1ebc91f715ce61a34aacbd89219ca1582668344a7a7c6",
     "cpp/device_api/Schema.hpp": "72f1fa124477a6cb47667ab26cc38da3bf54e879e4a6b2e134fba9ccb8d06dfa",
     "cpp/device_api/TelemetryBindings.hpp": "29429a387e5b83c51a94b4e1d9b984a32c10b6f3bd362f8cd96ff23f23b8c526",
     "cpp/device_api/Types.hpp": "339521adcd7a25fe5e7294591fe8dcbfc28bbeeb6eb1fab918d66143324c9af2",
-    "js/device.d.ts": "7599d0a043435216627f6d87f20c9cfb2f3f67ed40970f4c02c67b17456f60cf",
-    "js/device.js": "326a890f8e5a76c2dbef932a9ae2b14b4b370b89b3e00398e5c0c695c558eb6b",
+    "js/device.d.ts": "1871ef19d96a5c05dce4f58320d2fb50ff0c9e081bf65632093bc66784e8edb1",
+    "js/device.js": "a3cc4318df48077e6a6d67d8491e69ecd4420033bc128391eb254fc173f40759",
     "js/device.metadata.d.ts": "bd912d9e9a5faecd3e0ffcbfc3ed09433845c4a6888934f7e5cc2097015974e3",
     "js/device.metadata.js": "625a03bd76a6ea8b3025d0a77ec90d2b3e8e1e9e9f6a5307798dd53a456c8d81",
     "metadata/schema.json": "e3ba17ebc61b9ab53640ef7f973618f58cbc96d27df3d9e749835f65fa142c85",
     "ts/device.metadata.ts": "4e6fc7a037990b4411844466209169cded4437603b0721bfeb1ece2448673bd6",
-    "ts/device.ts": "3e701cae4f4e9e0368719eca2352a3f0a4185fab2b0bccc20dfcb12f82082912"
+    "ts/device.ts": "83a83619fb77860ba668bc35e3c6f82f44b663b8e0b205e99e7db306eba17c08"
   },
   "generated_symbol_mapping": {
     "endpoints": [
@@ -40,6 +40,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Enabled",
+        "tree_symbol": "Enabled",
         "value_alias": "Enabled",
         "value_type": 1
       },
@@ -57,6 +58,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "RPM",
+        "tree_symbol": "RPM",
         "value_alias": "RPM",
         "value_type": 4
       },
@@ -74,6 +76,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Temperature",
+        "tree_symbol": "Temperature",
         "value_alias": "Temperature",
         "value_type": 10
       },
@@ -91,6 +94,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Precise",
+        "tree_symbol": "Precise",
         "value_alias": "Precise",
         "value_type": 11
       },
@@ -108,6 +112,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Mode",
+        "tree_symbol": "Mode",
         "value_alias": "Mode",
         "value_type": 12
       },
@@ -125,6 +130,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Samples",
+        "tree_symbol": "Samples",
         "value_alias": "Samples",
         "value_type": 13
       },
@@ -142,6 +148,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "State",
+        "tree_symbol": "State",
         "value_alias": "State",
         "value_type": 14
       },
@@ -159,6 +166,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Config",
+        "tree_symbol": "Config",
         "value_alias": "Config",
         "value_type": 15
       },
@@ -176,6 +184,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Configure",
+        "tree_symbol": "Configure",
         "value_alias": "",
         "value_type": 0
       },
@@ -193,6 +202,7 @@
         "response_alias": "",
         "response_type": 0,
         "symbol": "Reset",
+        "tree_symbol": "Reset",
         "value_alias": "",
         "value_type": 0
       },
@@ -210,6 +220,7 @@
         "response_alias": "EchoResponse",
         "response_type": 15,
         "symbol": "Echo",
+        "tree_symbol": "Echo",
         "value_alias": "",
         "value_type": 0
       }

@@ -1,14 +1,15 @@
-"""Endpoint handles of a bound device (descriptor v3.1): nested and path forms.
+"""Endpoint handles of a bound device: nested and path forms, for every descriptor.
 
 A handle keeps one client and one endpoint: it is cheap to copy and stays
 valid as long as the client does. `device.adc.channel1.Gain` (C++ and TS/JS)
 and the path forms `device.endpoint<"adc/channel1/Gain">()` (C++) or
 `device.endpoint("adc/channel1/Gain")` (TS/JS) give the same handle. Paths
-follow the section-15 grammar; a group tree nests its groups, a flat model
-keeps its families (`device.motor.fields.Config`, path `motor/Config`). A
-flat path that names endpoints of two families is ambiguous and has no path
-form, as RuntimeSchema::findEndpoint refuses it too.
-Only v3.1 descriptors get handles: a v3.0 input keeps byte-identical output.
+follow the section-15 grammar. A group tree nests its groups; a catalog
+descriptor (v3.0) has the same form with one root group per catalog name
+(`device.motor.Config`, path `motor/Config`). There two endpoints of
+different families sharing a name take a kind suffix (`Reset_Field`,
+`Reset_Command`) and have no path form: the path is ambiguous, and
+RuntimeSchema::findEndpoint refuses it too.
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 """
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ class Leaf:
 
 @dataclass
 class Node:
-    name: str  # generated struct name, Group<n> / Family<n>_<category>
+    name: str  # generated struct name, Group<n>
     members: list = field(default_factory=list)  # (symbol, Node | Leaf)
 
 
@@ -43,27 +44,15 @@ def handle_tree(schema):
     counts = {}
     for path in paths:
         counts[path] = counts.get(path, 0) + 1
-    if schema.groups is not None:
-        nodes = [Node(f"Group{group.index}") for group in schema.groups]
-        for group in schema.groups:
-            if group.parent is not None:
-                nodes[group.parent].members.append((group.symbol, nodes[group.index]))
-        for endpoint, symbol, path in zip(schema.endpoints, schema.tree_symbols, paths):
-            leaf = Leaf(endpoint, path, counts[path] == 1)
-            nodes[endpoint.catalog_index].members.append((symbol, leaf))
-            leaves.append(leaf)
-        roots = [(group.symbol, nodes[group.index]) for group in schema.groups if group.parent is None]
-    else:
-        groups = {}
-        for endpoint, path in zip(schema.endpoints, paths):
-            node = groups.get(endpoint.group)
-            if node is None:
-                node = groups[endpoint.group] = Node(f"Group{len(groups)}")
-                node.members = [(family, Node(f"{node.name}_{family}")) for family in FAMILIES[1:]]
-            leaf = Leaf(endpoint, path, counts[path] == 1)
-            node.members[endpoint.category - 1][1].members.append((endpoint.symbol, leaf))
-            leaves.append(leaf)
-        roots = list(groups.items())
+    nodes = [Node(f"Group{group.index}") for group in schema.api_groups]
+    for group in schema.api_groups:
+        if group.parent is not None:
+            nodes[group.parent].members.append((group.symbol, nodes[group.index]))
+    for endpoint, group, symbol, path in zip(schema.endpoints, schema.api_group_of, schema.api_symbols, paths):
+        leaf = Leaf(endpoint, path, counts[path] == 1)
+        nodes[group].members.append((symbol, leaf))
+        leaves.append(leaf)
+    roots = [(group.symbol, nodes[group.index]) for group in schema.api_groups if group.parent is None]
     # A root may not take a device method's name; such a group keeps a suffix.
     symbols = allocate((symbol for symbol, _ in roots), DEVICE_METHODS)
     roots = [(symbol, node) for symbol, (_, node) in zip(symbols, roots)]
@@ -99,7 +88,7 @@ def _constant(schema, endpoint):
 
 
 CPP_HANDLES = r"""
-// Endpoint handles (descriptor v3.1). A handle keeps its client and endpoint, is
+// Endpoint handles. A handle keeps its client and endpoint, is
 // cheap to copy and stays valid as long as the client does; results arrive through
 // the client's callbacks, as for client.read(endpoint, callback).
 namespace @NS@::client {
@@ -414,7 +403,7 @@ def web_handles(schema, typed):
                                   "this.#client.command(this.endpoint, value, timeoutMs as number | undefined)")
         runtime = runtime.replace("this.#client.service(this.endpoint, value, timeoutMs)",
                                   "this.#client.service(this.endpoint, value, timeoutMs as number | undefined)")
-    rows = ["// Generated endpoint handles (descriptor v3.1). SPDX-License-Identifier: MIT.",
+    rows = ["// Generated endpoint handles. SPDX-License-Identifier: MIT.",
             "// device.adc.channel1.Gain and device.endpoint('adc/channel1/Gain') are the same handle."]
     if typed:
         rows += ["import type {DeviceClient, RequestPromise} from './client.js';"]
@@ -448,7 +437,7 @@ def web_handles(schema, typed):
 
 def web_handles_declarations(schema):
     roots, leaves = handle_tree(schema)
-    rows = ["// Generated endpoint handles (descriptor v3.1). SPDX-License-Identifier: MIT.",
+    rows = ["// Generated endpoint handles. SPDX-License-Identifier: MIT.",
             "import type {DeviceClient, RequestPromise} from './client.js';",
             "import type * as api from './device.js';",
             "export declare function noEndpointError(path: unknown): Error;",

@@ -32,8 +32,7 @@ using DeviceClient = ::telemetry::client::DeviceClient<CodecPolicy, N, PayloadBy
                                                      CodecPolicy::scratchBytes, CodecPolicy::scratchAlign, Lock>;
 }} // namespace {schema.namespace}::client
 '''
-    if schema.minor >= 1:
-        # v3.1: endpoint handles of a bound device, nested and by path.
-        from .handles import cpp_handles
-        text += cpp_handles(schema)
+    # Endpoint handles of a bound device, nested by group and by path.
+    from .handles import cpp_handles
+    text += cpp_handles(schema)
     return {f"cpp/{schema.namespace.replace('::', '/')}/ClientBindings.hpp": text}
