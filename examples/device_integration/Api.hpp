@@ -23,7 +23,8 @@ using Input = std::span<const std::byte>;
 using Output = std::span<std::byte>;
 
 // IDs are positional: group in the high 16 bits, entry in the low 16 bits.
-// The operation selects the Field, Command or Service catalog.
+// The operation selects the Field, Command or Service family. Api.cpp checks
+// each against the ID of its path (idOf<model, "device/Period">()).
 enum class FieldId : std::uint32_t {
 	Period = 0,
 	Mode = 1,

@@ -196,8 +196,9 @@ void orderedBarrier()
 	}
 }
 
-// The descriptor read over the link names its enum and structs (v3.1), as
-// the Inspector shows them; with TELEMETRY_TYPE_NAMES 0 it is v3.0, unnamed.
+// The descriptor read over the link is a group tree (v3.1) that names its
+// enum and structs, as the Inspector shows them; with TELEMETRY_TYPE_NAMES 0
+// it is the same tree, unnamed.
 void typeNames(std::span<const std::byte> bytes)
 {
 	namespace rt = telemetry::runtime;
@@ -214,8 +215,8 @@ void typeNames(std::span<const std::byte> bytes)
 	const auto* status = schema.findField("device", "Status");
 	const auto* probe = schema.findField("device", "Probe");
 	CHECK(voltage && status && probe);
+	CHECK(schema.minorVersion() == 1 && schema.groupTree());
 #if TELEMETRY_TYPE_NAMES
-	CHECK(schema.minorVersion() == 1);
 	CHECK(schema.typeName(voltage->typeId) == "nucleo_demo::Voltage");
 	CHECK(schema.typeName(status->typeId) == "nucleo_demo::Status");
 	CHECK(schema.typeName(probe->typeId) == "nucleo_demo::Probe");
@@ -224,7 +225,6 @@ void typeNames(std::span<const std::byte> bytes)
 	const auto entries = schema.enumEntries(mode->id);
 	CHECK(entries.size() == 2 && entries[0].name == "Idle" && entries[1].name == "Active");
 #else
-	CHECK(schema.minorVersion() == 0);
 	CHECK(schema.typeName(voltage->typeId).empty() && schema.typeName(probe->typeId).empty());
 	CHECK(!schema.findType("nucleo_demo::Mode"));
 #endif
@@ -262,8 +262,11 @@ void descriptorAndReadOnly()
 		                  reply.response.data.size()) == 0);
 		typeNames(reply.response.data);
 	}
-	CHECK(nucleo_demo::model.view().commandCatalogCount == 0 &&
-	      nucleo_demo::model.view().serviceCatalogCount == 0);
+	// Every family has a row per group; no group holds a Command or Service.
+	const auto view = nucleo_demo::model.view();
+	CHECK(view.commandCatalogCount == view.fieldCatalogCount &&
+	      view.commands.catalogs()[0].count == 0 && view.services.catalogs()[1].count == 0);
+	CHECK(view.commands.find(0) == nullptr && view.services.find(0) == nullptr);
 	const auto fieldReads = nucleo_demo::status.fieldReads;
 	for (const auto op :
 	     {ew::Operation::FieldWrite, ew::Operation::Command, ew::Operation::Service}) {

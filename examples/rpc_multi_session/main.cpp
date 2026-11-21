@@ -46,10 +46,10 @@ Counter counter;
 inline constexpr auto branch = ts::group("counter", ts::service<&Counter::add>("Add", counter));
 inline constexpr ts::Model model{branch};
 inline constexpr auto view = model.view();
-// The Service's ID from its path; the positional form makeId<0, 0>() is being removed.
+// The Service's ID from its path: group 0, entry 0.
 inline constexpr ::telemetry::client::rpc::ServiceEndpoint<Add, Report> AddService{
     ts::idOf<model, "counter/Add">(), ::telemetry::client::rpc::trustedRpcMapping};
-static_assert(ts::idOf<model, "counter/Add">() == ts::makeId<0, 0>());
+static_assert(ts::idOf<model, "counter/Add">() == 0x00000000u);
 std::array<std::byte, model.maxScratch()> scratch{};
 ts::Workspace workspace{scratch};
 

@@ -354,7 +354,7 @@ void readErrorIsolated()
 	std::array<telemetry::FieldCatalog, 6> catalogs{};
 	std::copy_n(view.fields.catalogs(), catalogs.size(), catalogs.begin());
 	std::array<telemetry::FieldEntry, 8> rows{};
-	std::copy_n(demo::batch32Fields.data(), rows.size(), rows.begin());
+	std::copy_n(view.fields.catalogs()[2].entries, rows.size(), rows.begin()); // batch32
 	rows[0].read = +[](const void*, std::byte* bytes,
 	                   telemetry::Workspace&) noexcept -> telemetry::EncodedReadResult {
 		bytes[0] = std::byte{0x99};
