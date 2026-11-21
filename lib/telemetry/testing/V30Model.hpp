@@ -13,8 +13,9 @@
  * checks and an emulator's legacy profile still need v3.0 bytes: per-family
  * catalogs, where a Field group and a Command group may share a name and a
  * Field and a Command may share a path. This header names that producer, the
- * flat engine under every tree, so a check needs nothing else of the
- * per-family form:
+ * catalog engine under every tree, so a check needs nothing else of the
+ * per-family form; the engine's own checks (empty catalogs, runtime calls,
+ * repeated names a tree refuses) use it too:
  *
  *   namespace v30 = telemetry::testing;
  *   inline constexpr v30::FieldCatalogTable fields{v30::group("motor", motorFields)};

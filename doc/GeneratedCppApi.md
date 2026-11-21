@@ -4,12 +4,12 @@ Include `device_api/Codec.hpp` with the SDK's `cpp` directory in the include
 path. Types, schema constants, endpoints and codec need only the C++20 standard
 library: no Telemetry, Boost.PFR, magic_enum, heap, RTOS or network dependencies.
 
-Address endpoints by path. For a v3.1 descriptor `ClientBindings.hpp` gives
+Address endpoints by path. For every descriptor `ClientBindings.hpp` gives
 the device's handles, `device.read<"adc/Config">(callback)`,
-`device.adc.channel1.Gain` and `device_api::client::endpoint<"adc/channel1/Gain">(device)`;
-named types are `types::adc::Config`, and a group tree's namespaces hold its
-endpoint constants without a family level (`codec::encode(adc::Calibrate,
-request, bytes)`). See [type names, group trees and endpoint
+`device.adc.channel1.Gain` and `device_api::client::endpoint<"adc/channel1/Gain">(device)`,
+and the group namespaces hold their endpoint constants without a family level
+(`codec::encode(adc::Calibrate, request, bytes)`; for a v3.0 descriptor one
+group per catalog name). Named types (v3.1) are `types::adc::Config`. See [type names, group trees and endpoint
 handles](GeneratedNamesAndHandles.md) and the
 [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях). The examples
 below use the per-family constants (`device::services::Inspect`) of a flat

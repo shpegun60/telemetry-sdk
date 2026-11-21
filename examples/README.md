@@ -21,7 +21,7 @@ required only by the examples that explicitly select them.
 | Build the Model from one file per subsystem, with named handles, paths and type names | [Group tree](group_tree/README.md), `group_tree/CMakeLists.txt` |
 | A first Model: one group, handles and a member path | [User-guide programs](user_guide/README.md); start with `QuickStart.cpp`, no Qt or transport |
 | Local Native Field, Command and Service without a Model | [User-guide programs](user_guide/README.md), `NativeOnly.cpp` |
-| Integrate your device class and receive complete requests | [Device integration](device_integration/README.md), `device_integration/CMakeLists.txt`; its Model is still in the flat form, which is being removed |
+| Integrate your device class and receive complete requests | [Device integration](device_integration/README.md), `device_integration/CMakeLists.txt`; one group, `device`, with handles for the facade |
 | Read a Field without the SDK, byte by byte | [Reading a Field without the SDK](../doc/user/ReadingAFieldByHand.md), checked by [field_by_hand](../tests/field_by_hand/README.md) |
 | Inspect or transactionally edit unknown DTO bytes offline | [Runtime schema](runtime_schema/README.md); standalone reader/writer commands |
 | Call unknown runtime endpoints | [DynamicClient](dynamic_client/README.md), `dynamic_client/CMakeLists.txt` |

@@ -9,8 +9,9 @@
 
 `namespace ts = telemetry;` далі лише скорочення. Фрагменти дерева груп
 використовують named objects із [group_tree](../../examples/group_tree/README.md);
-фрагменти плоских таблиць у розділі [Виводиться з ужитку](#виводиться-з-ужитку) —
-з [Native.cpp](../../examples/user_guide/Native.cpp). Усі callbacks — `noexcept`;
+фрагменти плоских таблиць у розділі [Виводиться з ужитку](#виводиться-з-ужитку)
+показують стару форму; [Native.cpp](../../examples/user_guide/Native.cpp) уже
+побудований на дереві груп. Усі callbacks — `noexcept`;
 owners, names і slots живуть довше за Model.
 
 Одна операція на пристрої, у Static C++, TS/JS і Dynamic клієнті зведена в
@@ -257,7 +258,8 @@ catalogs і формує structural registry, а не зберігає всі li
 
 Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1;
 новий код використовує дерево груп, шляхи й handles вище. Фрагменти нижче
-використовують named objects із [Native.cpp](../../examples/user_guide/Native.cpp).
+показують стару форму тих самих endpoints, що в
+[Native.cpp](../../examples/user_guide/Native.cpp), який уже на дереві груп.
 
 ### Створити плоску Model
 

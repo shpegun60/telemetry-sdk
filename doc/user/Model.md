@@ -154,7 +154,7 @@ const auto gain = telemetry::read<model, "adc/channel1/Gain">();        // std::
 const auto rate = telemetry::read<model, "adc/Config.rateHz">();        // член Field
 const auto status = telemetry::write<model, "adc/channel2/Gain">(2.5f); // лише цілі Fields
 const auto reset = telemetry::call<model, "adc/Reset">();               // Command або Service
-static_assert(model.idOf<"adc/channel1/Gain">() == telemetry::makeId(1, 0));
+static_assert(model.idOf<"adc/channel1/Gain">() == 0x00010000u); // група 1, позиція 0
 ```
 
 - `read<>` приймає Field, його член або елемент: виконує getter усього Field і

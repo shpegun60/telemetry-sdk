@@ -398,7 +398,7 @@ Local tables мають ті самі форми з position замість pack
 альтернативний native виклик лише Command з Request `Query`:
 
 ```cpp
-const auto runtimeId = ts::makeId<0, 2>(); // Select у Native.cpp.
+const auto runtimeId = ts::idOf<model, "control/Select">(); // Select у Native.cpp: 2:2.
 ts::CommandResult result = ts::CommandResult::NotFound;
 bool invoked = false;
 const bool found = commands.visit(runtimeId, [&](const auto& definition) {

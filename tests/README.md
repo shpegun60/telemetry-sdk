@@ -101,8 +101,20 @@ The [group-tree suite](structured/group_tree/README.md) qualifies a Model
 mounted from branch files: `tree.hex` from every compiler, the outline and
 shared IDs, compile-time path access and named endpoint handles
 (`endpoint<model, "adc/channel1/Gain">`), their refusals at the declaration
-and at the use, and on ARM a handle's code against the free path function and
-`makeId` access (identical instructions) and an image with no path text.
+and at the use, the tree's live Values file read back by the host's reader,
+and on ARM a handle's code against the free path function and access by a
+`detail::makeId` ID (identical instructions) and an image with no path text.
+
+Every check builds its device as a group tree, `Model{ts::group(...)}`, and
+names endpoints by path (`idOf<model, "adc/Gain">()`, `read<model, path>()`)
+or handle. Two kinds of check need the per-family catalog form instead, and
+take it from [telemetry/testing/V30Model.hpp](../lib/telemetry/testing/V30Model.hpp),
+which `Telemetry.hpp` does not include and the SDK does not install: the
+producers of descriptor v3.0 bytes (the frozen goldens `mixed`, `edge`,
+`empty` and `values.hex`, the type-names switch, the runtime schema's mutation
+corpus, the scalability root-type gate) and the checks of that catalog engine
+itself (its empty catalogs, runtime calls, scale probes and refusals, and
+repeated or duplicate names a tree cannot hold). Checks of the ID packing call `detail::makeId`.
 
 Run the shared ID, slot and numeric checks from the repository root:
 

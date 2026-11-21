@@ -3,13 +3,14 @@
 The JS target is a browser-compatible ES module plus `.d.ts`; the TS target is
 a strict TypeScript source module. They expose the same runtime contract.
 Neither imports the Descriptor parser or walks a runtime type graph.
-Address endpoints by path. For a v3.1 descriptor, `bindDevice(client)` (with
+Address endpoints by path. For every descriptor, `bindDevice(client)` (with
 `--client-runtime`) gives `await device.read('adc/Config')`,
 `await device.write('adc/Config', value)`, `await device.call('adc/Reset')`
 and the handles `device.adc.channel1.Gain` and
 `device.endpoint('adc/channel1/Gain')`; TypeScript checks the path and the
-value type. Named types are `types.adc.Config`, and a group tree's objects hold
-its endpoints without a family level (`adc.channel1.Gain`). See [type names,
+value type. The group objects hold their endpoints without a family level
+(`adc.channel1.Gain`; for a v3.0 descriptor one group per catalog name), and
+named types (v3.1) are `types.adc.Config`. See [type names,
 group trees and endpoint handles](GeneratedNamesAndHandles.md) and the
 [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях). The example
 below uses the per-family exports (`device.services.Inspect`) of a flat

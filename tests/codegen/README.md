@@ -45,8 +45,9 @@ byte oracle. Default generated SDKs retain their prior output without that optio
 
 Descriptor v3.1 ([names.py](names.py), [test_names.py](test_names.py)): goldens for a
 named flat model and a two-branch tree ([goldens](goldens), refreshed only by
-`python tests/codegen/names.py write-goldens`); v3.0 inputs against the frozen hashes
-of `../ux_codegen_extension`; named, tree and attributed fixtures through every web
+`python tests/codegen/names.py write-goldens`); v3.0 inputs, which get the same group
+form and handles (a kind suffix where two families share a name), against the
+frozen hashes of `../ux_codegen_extension`; named, tree and attributed fixtures through every web
 check; a native Model rebuilt from the generated DTOs re-emits the named, tree,
 unnamed-tree, v3.0 and native descriptors byte for byte; RuntimeSchema against
 generated metadata and `typeName<T>()` for every name and path; code written for a
