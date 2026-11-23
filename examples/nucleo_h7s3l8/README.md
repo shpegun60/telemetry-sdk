@@ -84,8 +84,9 @@ above do not change. Hosts older than the SDK that introduced v3.1 refuse it
 either way, so a project that must serve them rebuilds its hosts. The image size
 with and without names is in the
 [ARM descriptor size report](../../tests/README.md#arm-descriptor-size-report);
-the tree's group records cost the default image 676 bytes of text against the
-flat catalogs it had before (22984 to 23660 bytes, CubeIDE GCC 14.3, offline).
+the tree costs the default image 676 bytes of text against the flat catalogs
+it had before (22984 to 23660 bytes, CubeIDE GCC 14.3, offline); its packed
+descriptor keeps its size.
 
 The enum declares Idle=-7 and Active=12; -2 must display as an unknown signed code.
 Status is captured by the single owner at dispatch. Its counter values include

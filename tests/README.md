@@ -253,7 +253,7 @@ Measured on 20 November 2026 with arm-none-eabi-g++ 14.3.1 (STM32CubeIDE
 | Model, form | `.text` O2 | `.text` Os | `.rodata` O2 names / off | `.rodata` Os names / off |
 | --- | ---: | ---: | ---: | ---: |
 | NUCLEO demo, packed | 56 / 52 | 40 / 40 | 963 / 873 (+90) | 963 / 873 (+90) |
-| NUCLEO demo, streaming | 7704 / 7704 | 2136 / 2136 | 2232 / 2008 (+224) | 2216 / 1992 (+224) |
+| NUCLEO demo, streaming | 7704 / 7704 | 2136 / 2136 | 2376 / 2152 (+224) | 2360 / 2136 (+224) |
 | Group-tree fixture as a tree, packed | 56 / 52 | 40 / 40 | 1130 / 1025 (+105) | 1130 / 1025 (+105) |
 | Group-tree fixture as a tree, streaming | 7832 / 7832 | 2200 / 2200 | 2793 / 2553 (+240) | 2758 / 2518 (+240) |
 | The same endpoints as flat catalogs, packed | 52 / 56 | 40 / 40 | 1192 / 1087 (+105) | 1192 / 1087 (+105) |
@@ -276,9 +276,12 @@ Measured on 20 November 2026 with arm-none-eabi-g++ 14.3.1 (STM32CubeIDE
   (one row per group in each family, empty where a group has none of it);
   the emitter code is the same.
 
-The real firmware agrees: the NUCLEO-H7S3L8 image built by
+The NUCLEO demo has been a tree of two Fields-only groups since 23 November
+2026 (re-measured then): its packed descriptor keeps its size, and streaming
+it reads 144 B more `.rodata`, the empty Command and Service rows of each
+group. The real firmware agrees: the NUCLEO-H7S3L8 image built by
 [Build.ps1](../examples/nucleo_h7s3l8/README.md#offline-build) (packed,
-`-Os`, LTO) has 22,984 B of text and 72 B of data with names, against 22,892
-and 72 B built the same way with `-DTELEMETRY_TYPE_NAMES=0`: 92 B of Flash,
-the 90-byte descriptor difference and alignment. These are offline linked
-sizes; no image is run.
+`-Os`, LTO) has 23,660 B of text and 72 B of data with names, against 23,576
+and 72 B built the same way with `-DTELEMETRY_TYPE_NAMES=0`: 84 B of Flash for
+the 90-byte descriptor difference, after alignment. As flat catalogs the image
+had 22,984 and 22,892 B. These are offline linked sizes; no image is run.
