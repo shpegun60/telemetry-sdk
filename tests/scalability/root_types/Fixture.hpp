@@ -12,7 +12,6 @@
 #pragma once
 
 #include <telemetry/Telemetry.hpp>
-#include <telemetry/testing/V30Model.hpp>
 #ifndef TELEMETRY_TEST_MODULAR_LAYOUT
 #define TELEMETRY_TEST_MODULAR_LAYOUT 1
 #endif
@@ -217,9 +216,8 @@ inline constexpr ts::FieldTable fieldB{ts::field<&Device::modeB>("ModeB", device
                                        ts::field<&Device::secondB>("SecondB", device),
                                        ts::field<&Device::leaf>("Leaf", device)};
 inline constexpr ts::FieldTable<> emptyField{};
-inline constexpr ts::testing::FieldCatalogTable fields{ts::testing::group("first", fieldA),
-                                                       ts::testing::group("empty", emptyField),
-                                                       ts::testing::group("last", fieldB)};
+inline constexpr ts::FieldCatalogTable fields{
+    ts::group("first", fieldA), ts::group("empty", emptyField), ts::group("last", fieldB)};
 
 inline constexpr ts::CommandTable commandA{ts::command<&Device::reset>("Reset", device),
                                            ts::command<&Device::accept>("AcceptA", device),
@@ -228,9 +226,8 @@ inline constexpr ts::CommandTable commandB{ts::command<&Device::acceptSame>("Acc
                                            ts::command<&Device::reset>("ResetAgain", device),
                                            ts::command<&Device::acceptLeaf>("AcceptLeaf", device)};
 inline constexpr ts::CommandTable<> emptyCommand{};
-inline constexpr ts::testing::CommandCatalogTable commands{
-    ts::testing::group("first", commandA), ts::testing::group("empty", emptyCommand),
-    ts::testing::group("last", commandB)};
+inline constexpr ts::CommandCatalogTable commands{
+    ts::group("first", commandA), ts::group("empty", emptyCommand), ts::group("last", commandB)};
 
 inline constexpr ts::ServiceTable serviceA{ts::service<&Device::echo>("Echo", device),
                                            ts::service<&Device::lookup>("Lookup", device),
@@ -241,10 +238,9 @@ inline constexpr ts::ServiceTable serviceB{
     ts::service<&Device::convert>("Convert", device),
     ts::service<&Device::borrowReply>("BorrowReply", device)};
 inline constexpr ts::ServiceTable<> emptyService{};
-inline constexpr ts::testing::ServiceCatalogTable services{
-    ts::testing::group("first", serviceA), ts::testing::group("empty", emptyService),
-    ts::testing::group("last", serviceB)};
-inline constexpr ts::testing::V30Model model{fields, commands, services};
+inline constexpr ts::ServiceCatalogTable services{
+    ts::group("first", serviceA), ts::group("empty", emptyService), ts::group("last", serviceB)};
+inline constexpr ts::Model model{fields, commands, services};
 inline constexpr descriptor_api::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = descriptor_api::packDescriptor<descriptor>();
 inline std::array<std::byte, 128> scratch{};
@@ -290,7 +286,7 @@ struct LegacyFields {
 };
 
 inline constexpr LegacyFields legacyFields{};
-inline constexpr ts::testing::V30Model legacyModel{legacyFields, commands, services};
+inline constexpr ts::Model legacyModel{legacyFields, commands, services};
 static_assert(legacyModel.types().count == model.types().count);
 static_assert(legacyModel.typeId<Query>() == model.typeId<Query>());
 
@@ -317,7 +313,7 @@ static_assert(std::is_same_v<typename decltype(services)::RegistryRootTypes,
 static_assert(decltype(emptyField)::RegistryRootTypes::size == 0);
 static_assert(decltype(emptyCommand)::RegistryRootTypes::size == 0);
 static_assert(decltype(emptyService)::RegistryRootTypes::size == 0);
-static_assert(ts::testing::EmptyEndpointCatalog::RegistryRootTypes::size == 0);
+static_assert(ts::EmptyEndpointCatalog::RegistryRootTypes::size == 0);
 
 // A helper that merely moves N-root recursion elsewhere fails this control.
 template<std::size_t>

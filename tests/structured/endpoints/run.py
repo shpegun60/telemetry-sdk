@@ -161,7 +161,8 @@ def main():
             print(opt, results[opt], flush=True)
         (output/'arm-results.json').write_text(json.dumps(results, indent=2)+'\n')
         sections = run([objdump, '-h', output/'O2-MixedProbe.o'], 'table-storage')
-        for name in ('mixedFields', 'localCommands', 'localServices', 'model'):
+        # The group tree owns its tables; the local tables are not addressed.
+        for name in ('model',):
             if re.search(r'\.rodata\.[^\s]*'+name+r'E\b', sections) is None:
                 raise RuntimeError(name+' did not remain in read-only storage')
         if re.search(r'\.(?:init_array|preinit_array|ctors)\b', sections):

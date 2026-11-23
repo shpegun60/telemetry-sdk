@@ -120,9 +120,10 @@ def main() -> None:
         table_sections = run(
             [str(objdump), "-h", str(output / "O2-ModelProbe-ModelProbe.o")],
             "sections-O2-ModelProbe")
-        for symbol in ("local", "services"):
+        # The group tree owns its tables; nothing takes the local table's address.
+        for symbol in ("model",):
             if re.search(rf"\.rodata\._ZN5probe\d+{symbol}E\b", table_sections) is None:
-                raise RuntimeError(f"{symbol} table did not remain in ARM read-only storage")
+                raise RuntimeError(f"{symbol} tree did not remain in ARM read-only storage")
         if re.search(r"\.(?:preinit_array|init_array|ctors)\b", table_sections):
             raise RuntimeError("Service tables unexpectedly require startup constructors")
 
@@ -141,8 +142,7 @@ def main() -> None:
                          str(SOURCES / "ArmModelCodegen.cpp"), "-o", str(obj)],
                 f"compile-{optimization}-ArmModelCodegen")
             usage = obj.with_suffix(".su").read_text(encoding="utf-8")
-            for symbol in ("model_direct", "model_local", "model_handle", "model_path",
-                           "model_encoded"):
+            for symbol in ("model_direct", "model_handle", "model_path", "model_encoded"):
                 match = re.search(rf"\b{symbol}\([^\n]*\)\s*\t(\d+)\tstatic", usage)
                 if match is None or int(match.group(1)) > 192:
                     raise RuntimeError(f"{optimization} {symbol} exceeds 192 B stack")
@@ -150,15 +150,15 @@ def main() -> None:
 
             if optimization in ("O2", "Os") and not args.null_checks:
                 images = []
-                for symbol in ("model_direct", "model_local", "model_handle", "model_path"):
+                for symbol in ("model_direct", "model_handle", "model_path"):
                     image = output / f"{optimization}-{symbol}.bin"
                     run([str(objcopy), "--dump-section",
                          f".text.{symbol}={image}", str(obj)],
                         f"codegen-{optimization}-{symbol}")
                     images.append(image.read_bytes())
                 if not images[0] or any(images[0] != image for image in images[1:]):
-                    raise RuntimeError(f"{optimization}: local/handle/path native call differs from direct")
-                print(f"{optimization}: direct/local/handle/path each {len(images[0])} identical bytes",
+                    raise RuntimeError(f"{optimization}: handle/path native call differs from direct")
+                print(f"{optimization}: direct/handle/path each {len(images[0])} identical bytes",
                       flush=True)
 
         arm_link = ["-nostdlib", "-Wl,-e,main", "-Wl,--gc-sections", "-lc", "-lgcc"]

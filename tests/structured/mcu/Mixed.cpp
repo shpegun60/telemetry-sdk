@@ -136,14 +136,16 @@ std::uint32_t serviceDirect(std::uint32_t) noexcept
 	return device.echo(Config{17, true}).code;
 }
 
+// A handle and a path reach the same Service definition, the tree's own copy:
+// with null checks both load that one owner address.
 std::uint32_t serviceLocal(std::uint32_t) noexcept
 {
-	return localServices.call<0>(Config{17, true}).value().code;
+	return ts::endpoint<model, "first/Echo">.call(Config{17, true}).value().code;
 }
 
 std::uint32_t serviceGlobal(std::uint32_t) noexcept
 {
-	return services.call<0>(Config{17, true}).value().code;
+	return ts::call<model, "first/Echo">(Config{17, true}).value().code;
 }
 
 std::uint32_t serviceEncoded(std::uint32_t inputId) noexcept

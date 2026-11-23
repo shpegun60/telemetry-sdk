@@ -1,6 +1,6 @@
 /*
  * @file ArmModelCodegen.cpp
- * @brief Compare direct, local and global native Service calls on Cortex-M7.
+ * @brief Compare direct, handle and path native Service calls on Cortex-M7.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  */
@@ -21,7 +21,7 @@ struct Response {
 	std::uint32_t result;
 };
 
-// Service owner supplies the same response to direct/local/global offline ARM roots.
+// Service owner supplies the same response to direct/handle/path offline ARM roots.
 // API: read().
 struct Device {
 	std::uint32_t base;
@@ -33,7 +33,6 @@ struct Device {
 };
 
 Device device{100};
-inline constexpr telemetry::ServiceTable local{telemetry::service<&Device::read>("Read", device)};
 inline constexpr telemetry::Model model{
     telemetry::group("device", telemetry::service<&Device::read>("Read", device))};
 inline constexpr auto read = telemetry::endpoint<model, "device/Read">;
@@ -46,12 +45,6 @@ model_direct(const arm_model::Request& request) noexcept
 	return telemetry::ServiceResult<arm_model::Response>::successFrom([&]() -> arm_model::Response {
 		return arm_model::device.read(request);
 	});
-}
-
-extern "C" __attribute__((noinline)) telemetry::ServiceResult<arm_model::Response>
-model_local(const arm_model::Request& request) noexcept
-{
-	return arm_model::local.call<0>(request);
 }
 
 extern "C" __attribute__((noinline)) telemetry::ServiceResult<arm_model::Response>

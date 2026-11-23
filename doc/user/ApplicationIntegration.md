@@ -94,7 +94,7 @@ integration `.cpp`, у порядку оголошення. Рядкові лі�
 прив'яжіть object під час запуску модуля — це показано у кроці 4.
 
 ```cpp
-// Такий порядок уже використаний у Native.cpp.
+// Плоска форма; Native.cpp будує ті самі endpoints групами дерева.
 inline Device device;
 inline constexpr ts::FieldTable localFields{
     ts::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device)};
@@ -105,7 +105,7 @@ inline constexpr ts::Model model{fields, commands, services};
 ```
 
 Це скорочена альтернативна таблиця з одним Field; наступні фрагменти
-використовують повні таблиці з `Native.cpp`.
+плоскої форми відповідають endpoints із `Native.cpp`.
 Таблиці й slots не можна копіювати або переміщувати. Не збирайте view із
 локальної таблиці функції та не повертайте його після виходу з цієї функції.
 `Model` приймає named lvalue catalogs. Він не зберігає копію всіх поточних
@@ -401,7 +401,7 @@ Local tables мають ті самі форми з position замість pack
 const auto runtimeId = ts::idOf<model, "control/Select">(); // Select у Native.cpp: 2:2.
 ts::CommandResult result = ts::CommandResult::NotFound;
 bool invoked = false;
-const bool found = commands.visit(runtimeId, [&](const auto& definition) {
+const bool found = model.commands().visit(runtimeId, [&](const auto& definition) {
     using Definition = std::remove_cvref_t<decltype(definition)>;
     if constexpr (std::is_same_v<typename Definition::Request, Query>) {
         invoked = true;
@@ -487,8 +487,8 @@ application types та функції; `.cpp` викликає точний `rea
 У повному [device integration](../../examples/device_integration/README.md)
 [Api.hpp](../../examples/device_integration/Api.hpp) оголошує звичайні функції
 `app::api::readPeriod`, `writePeriod`, `readDisplay` і `writeDisplay`.
-[Api.cpp](../../examples/device_integration/Api.cpp) тримає declarations та
-викликає `readAs`/`writeAs` для власних відомих IDs. Consumer включає `Api.hpp`:
+[Api.cpp](../../examples/device_integration/Api.cpp) тримає групу `device` та
+викликає handles (`period.read()`, `period.write(value)`). Consumer включає `Api.hpp`:
 
 ```cpp
 std::uint32_t period = 0;
