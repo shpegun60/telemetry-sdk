@@ -75,8 +75,6 @@ struct Device {
 // A Field whose owner is not bound: the device serves it Unavailable.
 telemetry::OwnerSlot<Device> absent;
 
-constexpr telemetry::FieldTable measure{telemetry::field<&Device::readCount>("Count", device),
-                                        telemetry::field<&Device::readStatus>("Status", device)};
 constexpr telemetry::Model model{
     telemetry::group("measure", telemetry::field<&Device::readCount>("Count", device),
                      telemetry::field<&Device::readStatus>("Status", device)),

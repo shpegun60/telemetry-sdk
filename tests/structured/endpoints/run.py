@@ -135,7 +135,10 @@ def main():
         for opt in optimizations:
             obj = output / (opt+'-ArmCodegen.o')
             run(flags + ['-'+opt, '-c', HERE/'ArmCodegen.cpp', '-o', obj], 'codegen-'+opt)
-            asm = run([objdump, '-drC', obj], 'assembly-'+opt)
+            # The mixed reads' path route is compiled in a unit of its own.
+            path_obj = output / (opt+'-ArmCodegenPath.o')
+            run(flags + ['-'+opt, '-c', HERE/'ArmCodegenPath.cpp', '-o', path_obj], 'codegen-path-'+opt)
+            asm = run([objdump, '-drC', obj], 'assembly-'+opt) + run([objdump, '-drC', path_obj], 'assembly-path-'+opt)
             if re.search(r'telemetry::(?:Scalar|Getter|Setter)', asm):
                 raise RuntimeError('Legacy value erasure leaked into native codegen')
             layout = output/(opt+'-layout.bin')
@@ -148,7 +151,8 @@ def main():
                     for route in ('direct', 'local', 'handle', 'path'):
                         symbol = operation+'_'+route
                         path = output / (opt+'-'+symbol+'.bin')
-                        run([objcopy, '--dump-section', f'.text.{symbol}={path}', obj], 'bytes-'+opt+'-'+symbol)
+                        source = path_obj if route == 'path' and operation not in ('read', 'write', 'command') else obj
+                        run([objcopy, '--dump-section', f'.text.{symbol}={path}', source], 'bytes-'+opt+'-'+symbol)
                         code.append(path.read_bytes())
                     if not code[0] or any(code[0] != other for other in code[1:]):
                         raise RuntimeError(f'{opt}: {operation} direct/local/handle/path code differs')

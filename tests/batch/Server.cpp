@@ -126,9 +126,6 @@ static constexpr ts::FieldTable fields{ts::field<&Owner::read, &Owner::write>("C
                                        ts::field<&Owner::read>("Missing", absent),
                                        ts::field<&Owner::real>("Real", owner),
                                        ts::field<&Owner::mode>("Mode", owner)};
-static constexpr ts::ServiceTable services{
-    ts::service<&Owner::echo>("Echo", owner), ts::service<&Owner::busy>("Busy", owner),
-    ts::service<&Owner::ping>("Ping", owner), ts::service<&Owner::empty>("Empty", owner)};
 // One group, device, of every family: each family's IDs are 0, 1, ...
 static constexpr ts::Model model{ts::group(
     "device", ts::field<&Owner::read, &Owner::write>("Config", owner),

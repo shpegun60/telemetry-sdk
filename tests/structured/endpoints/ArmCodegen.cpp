@@ -109,7 +109,10 @@ PROBE telemetry::CommandResult command_path(const probe::Request& value) noexcep
 }
 
 // Return-type and data-shape differences must not reintroduce runtime type
-// switches when the position and binding are known to the compiler.
+// switches when the position and binding are known to the compiler. The path
+// route of these reads is in ArmCodegenPath.cpp: with a handle and a path
+// reading the tree's table in one unit, GCC 13 at -Os keeps the shared read<I>
+// out of line instead of inlining it at both call sites.
 #define MIXED_READ(label, index, path, method, Value)                                              \
 	PROBE std::optional<Value> label##_direct() noexcept                                           \
 	{                                                                                              \
@@ -122,10 +125,6 @@ PROBE telemetry::CommandResult command_path(const probe::Request& value) noexcep
 	PROBE std::optional<Value> label##_handle() noexcept                                           \
 	{                                                                                              \
 		return ts::endpoint<fixture::model, path>.read();                                          \
-	}                                                                                              \
-	PROBE std::optional<Value> label##_path() noexcept                                             \
-	{                                                                                              \
-		return ts::read<fixture::model, path>();                                                   \
 	}
 MIXED_READ(boolean, 0, "motor/Enabled", enabled, bool)
 MIXED_READ(u16, 1, "motor/RPM", rpm, std::uint16_t)

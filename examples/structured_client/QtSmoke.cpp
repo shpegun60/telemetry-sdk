@@ -29,9 +29,8 @@ int main(int argc, char** argv)
 	                                   static_cast<std::size_t>(output.size())};
 	if (ts::encode(ex::request, inputBytes) != ts::CodecStatus::Ok)
 		return 1;
-	const auto result =
-	    ex::model.serviceIndex().callEncoded(ts::idOf<ex::model, "device/Inspect">(), inputBytes,
-	                                    outputBytes, ex::workspace);
+	const auto result = ex::model.serviceIndex().callEncoded(
+	    ts::idOf<ex::model, "device/Inspect">(), inputBytes, outputBytes, ex::workspace);
 	if (result.dispatch != ts::DispatchStatus::Ok ||
 	    result.endpointStatus != ts::ServiceStatus::Ok || result.written != outputBytes.size() ||
 	    ex::device.calls != 1)
@@ -43,7 +42,8 @@ int main(int argc, char** argv)
 	if (response->config.serial != UINT64_MAX || response->config.offset != INT64_MIN ||
 	    response->config.mode != static_cast<ex::Mode>(-2) || response->checksum != 263168)
 		return 4;
-	const auto native = ex::model.fields().readAs<ex::Config>(ts::idOf<ex::model, "device/Config">());
+	const auto native =
+	    ex::model.fields().readAs<ex::Config>(ts::idOf<ex::model, "device/Config">());
 	if (!native || native->serial != response->config.serial)
 		return 5;
 	// Qt JSON has no lossless integer64 number. Decimal strings are a desktop
