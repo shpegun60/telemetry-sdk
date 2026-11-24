@@ -105,7 +105,7 @@ class Check {
 	std::array<rt::RuntimeType, 64> types_{};
 	std::array<rt::RuntimeMember, 128> members_{};
 	std::array<rt::RuntimeEnumEntry, 32> enums_{};
-	std::array<rt::RuntimeCatalog, 16> catalogs_{};
+	std::array<rt::RuntimeCatalog, 18> catalogs_{}; // six groups, three families
 	std::array<rt::RuntimeEndpoint, 64> endpoints_{};
 	rt::RuntimeSchemaWorkspace metadata_{types_, members_, enums_, catalogs_, endpoints_};
 	rt::RuntimeSchema schema_;

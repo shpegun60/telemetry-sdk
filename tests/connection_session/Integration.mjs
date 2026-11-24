@@ -119,7 +119,7 @@ for (const mode of ['static', 'dynamic']) {
 		equal(results[6].succeeded, false);
 		equal(results[6].endpointStatus, 3);
 		equal(results[6].valueStatus, 'NoValue');
-		results.push(await session.service(endpoint(S.Empty), undefined));
+		results.push(await session.service(endpoint(S.EmptyService), undefined));
 		truth(results[7].value !== undefined);
 		equal(Object.keys(results[7].value), []);
 		equal(results[7].valueStatus, 'Ok');

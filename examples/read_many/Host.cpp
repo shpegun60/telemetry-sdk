@@ -20,7 +20,7 @@ int main()
 	std::array<rt::RuntimeType, 32> types{};
 	std::array<rt::RuntimeMember, 1> members{};
 	std::array<rt::RuntimeEnumEntry, 1> enums{};
-	std::array<rt::RuntimeCatalog, 4> catalogs{};
+	std::array<rt::RuntimeCatalog, 6> catalogs{}; // two groups, three families
 	std::array<rt::RuntimeEndpoint, 8> endpoints{};
 	rt::RuntimeSchemaWorkspace metadata{types, members, enums, catalogs, endpoints};
 	const auto parsed = rt::RuntimeSchema::parse(peer::descriptorBytes, metadata);

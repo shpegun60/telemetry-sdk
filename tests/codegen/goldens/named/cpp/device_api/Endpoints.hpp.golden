@@ -85,4 +85,19 @@ inline constexpr endpoint::Command<detail::Type_0> Reset{1, 0, 0};
 namespace motor::services {
 inline constexpr endpoint::Service<detail::Type_15, detail::Type_15> Echo{0, 15, 15, 7, 7};
 } // namespace motor::services
+
+// Groups: the catalogs of one name are one group; api::motor::Config is the path motor/Config.
+namespace motor {
+inline constexpr auto Enabled = fields::Enabled;
+inline constexpr auto RPM = fields::RPM;
+inline constexpr auto Temperature = fields::Temperature;
+inline constexpr auto Precise = fields::Precise;
+inline constexpr auto Mode = fields::Mode;
+inline constexpr auto Samples = fields::Samples;
+inline constexpr auto State = fields::State;
+inline constexpr auto Config = fields::Config;
+inline constexpr auto Configure = commands::Configure;
+inline constexpr auto Reset = commands::Reset;
+inline constexpr auto Echo = services::Echo;
+} // namespace motor
 } // namespace device_api

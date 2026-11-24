@@ -18,7 +18,9 @@ struct NameVisitor {
 extern "C" void consumer_typed() noexcept
 {
 	using namespace fixture;
-	check(&fields.get<0>() == &localFields.get<0>());
+	// The tree's first group holds the local table's definitions again.
+	check(std::is_same_v<std::remove_cvref_t<decltype(fields.get<0>())>,
+	                     std::remove_cvref_t<decltype(localFields.get<0>())>>);
 	check(fields.readAs<std::uint64_t>(4u) == UINT64_MAX);
 	check(fields.readAs<std::int64_t>(3u) == INT64_MIN);
 	check(fields.writeAs(1u, 123.75) == W::Applied && device.integer == 123);

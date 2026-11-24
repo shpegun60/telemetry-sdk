@@ -55,10 +55,10 @@ def program(rows, family, layout, shard_rows, targets):
                     entries.append(f'    ts::{name}<{", ".join(selected)}>("{name}_{i:04}", devices[{i}])')
                 declarations.append(f"inline constexpr ts::{table_type}Table {name}Table{group}{{\n" +
                                     ",\n".join(entries) + "\n};")
-            group_args = [f'ts::group("{name}_{i:04}", {name}Table{i})' for i in range(groups)]
+            group_args = [f'ts::testing::group("{name}_{i:04}", {name}Table{i})' for i in range(groups)]
         else:
             group_args = []
-        declarations.append(f"inline constexpr ts::{table_type}CatalogTable {name}s{{" +
+        declarations.append(f"inline constexpr ts::testing::{table_type}CatalogTable {name}s{{" +
                             ",\n    ".join(group_args) + "};")
     loops = []
     for name in active:
@@ -121,6 +121,7 @@ def program(rows, family, layout, shard_rows, targets):
  * Public Device methods read/write native Payload, configure a Command, and echo a Service.
  * Distinct helpers deliberately create separate endpoint target specializations. */
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <cstdio>
 
@@ -159,7 +160,7 @@ inline Device devices[ROWS];
     source += "\n".join(declarations)
     source += """
 #ifdef SCALE_FULL_MODEL
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::testing::V30Model model{fields, commands, services};
 static_assert(decltype(model)::Registry::typeCount == 13);
 // Keep the actual registry records reachable in the measured linked image.
 [[gnu::noinline]] ts::TypeRegistryView observedRegistry() noexcept {

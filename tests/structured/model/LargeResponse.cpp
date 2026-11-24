@@ -46,9 +46,8 @@ ts::ServiceResult<Response> wrapped(const Request& request) noexcept
 	});
 }
 
-inline constexpr ts::ServiceTable table{ts::service<&raw>("Raw"), ts::service<&wrapped>("Wrapped")};
-inline constexpr ts::ServiceCatalogTable catalogs{ts::group("large", table)};
-inline constexpr ts::Model model{ts::emptyFields, ts::emptyCommands, catalogs};
+inline constexpr ts::Model model{
+    ts::group("large", ts::service<&raw>("Raw"), ts::service<&wrapped>("Wrapped"))};
 
 static_assert(model.maxServiceResponseWireSize() == 4096);
 static_assert(model.maxServiceScratch() ==
@@ -59,8 +58,8 @@ static_assert(model.maxServiceScratch() ==
 
 int main()
 {
-	constexpr auto rawId = telemetry::makeId<0, 0>();
-	constexpr auto wrappedId = telemetry::makeId<0, 1>();
+	constexpr auto rawId = ts::idOf<large::model, "large/Raw">();
+	constexpr auto wrappedId = ts::idOf<large::model, "large/Wrapped">();
 	std::array<std::byte, 1> input{std::byte{42}};
 	std::array<std::byte, 4096> output{};
 	std::array<std::byte, large::model.maxServiceScratch()> scratch{};

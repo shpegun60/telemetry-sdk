@@ -170,6 +170,14 @@ template<class... Explicit, class Group, class Position,
                           int> = 0>
 PackedId makeId(Group, Position) = delete;
 
+// The packing helpers under their internal name. A device names an endpoint
+// by its path (idOf<model, "adc/Gain">()) or a handle (.id); a check of the
+// ID packing itself, or of an ID no model holds, uses detail::makeId.
+namespace detail {
+using ::telemetry::makeId;
+using ::telemetry::tryMakeId;
+} // namespace detail
+
 template<class... Explicit, class Id,
          std::enable_if_t<sizeof...(Explicit) == 0 && detail::isPackedIdInput<Id>, int> = 0>
 constexpr std::optional<GroupId> tryGroupOf(Id id) noexcept

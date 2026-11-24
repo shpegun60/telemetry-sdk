@@ -70,9 +70,10 @@ int main(int argc, char** argv)
 	const auto checks = compare(df::mixed, df::mixedBytes) + compare(df::edge, df::edgeBytes) +
 	                    compare(df::empty, df::emptyBytes);
 	const telemetry::FieldTable fields{telemetry::field<&df::read<std::uint32_t>>("value")};
-	const telemetry::FieldCatalogTable groups{telemetry::group("same", fields),
-	                                          telemetry::group("same", fields)};
-	const telemetry::Model model{groups, telemetry::emptyCommands, df::noServices};
+	const telemetry::testing::FieldCatalogTable groups{telemetry::testing::group("same", fields),
+	                                                   telemetry::testing::group("same", fields)};
+	const telemetry::testing::V30Model model{groups, telemetry::testing::emptyCommands,
+	                                         df::noServices};
 	const td::Descriptor invalid{model};
 	assert(invalid.error() == td::DescriptorError::DuplicateName && invalid.size() == 0 &&
 	       invalid.fingerprint() == 0);

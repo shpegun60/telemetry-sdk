@@ -105,21 +105,15 @@ struct Device {
 
 inline Device device;
 inline ts::OwnerSlot<Device> optionalOwner;
-inline constexpr ts::FieldTable fieldTable{
-    ts::field<&Device::read, &Device::write>("Config", device),
+inline constexpr ts::Model model{ts::group(
+    "device", ts::field<&Device::read, &Device::write>("Config", device),
     ts::field<&Device::read>("ReadOnly", device), ts::field<&Device::borrowed>("Borrowed", device),
     ts::field<&Device::readBig>("Big", device),
-    ts::field<&Device::read, &Device::write>("Optional", optionalOwner)};
-inline constexpr ts::CommandTable commandTable{ts::command<&Device::command>("Configure", device),
-                                               ts::command<&Device::reset>("Reset", device),
-                                               ts::command<&Device::accept>("Accepted", device)};
-inline constexpr ts::ServiceTable serviceTable{ts::service<&Device::echo>("Echo", device),
-                                               ts::service<&Device::ping>("Ping", device),
-                                               ts::service<&Device::refuse>("Busy", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", fieldTable)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", commandTable)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", serviceTable)};
-inline constexpr ts::Model model{fields, commands, services};
+    ts::field<&Device::read, &Device::write>("Optional", optionalOwner),
+    ts::command<&Device::command>("Configure", device),
+    ts::command<&Device::reset>("Reset", device), ts::command<&Device::accept>("Accepted", device),
+    ts::service<&Device::echo>("Echo", device), ts::service<&Device::ping>("Ping", device),
+    ts::service<&Device::refuse>("Busy", device))};
 inline constexpr auto modelView = model.view();
 
 inline void put32(Output output, std::size_t offset, std::uint32_t value) noexcept

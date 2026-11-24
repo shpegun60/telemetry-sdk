@@ -23,6 +23,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
 
 #include <array>
@@ -141,9 +142,9 @@ inline constexpr ts::FieldTable fields{ts::field<&read<Mode>>("mode"),
                                        ts::field<&read<Sealed>>("sealed"),
                                        ts::field<&read<Global>>("global"),
                                        ts::field<&read<std::array<Board::Probe, 2>>>("probes")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("device", fields)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("device", fields)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, noServices};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = ::telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace device

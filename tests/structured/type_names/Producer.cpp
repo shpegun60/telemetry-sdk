@@ -15,6 +15,7 @@
 #include "../descriptor/Fixture.hpp"
 
 #include <telemetry/abi/StructuredAbi.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <array>
 #include <cstdio>
@@ -108,16 +109,20 @@ inline constexpr ts::FieldTable explicitFields{
     ts::field<&read<Pair<float>>>("Pair"), ts::field<&read<Internal>>("Internal"),
     ts::field<&read<Phase>>("Phase"), ts::field<&read<Level>>("Level"),
     ts::field<&read<std::array<Level, 2>>>("Levels")};
-inline constexpr ts::FieldCatalogTable explicitCatalog{ts::group("names", explicitFields)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model explicitModel{explicitCatalog, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable explicitCatalog{
+    ts::testing::group("names", explicitFields)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model explicitModel{explicitCatalog, ts::testing::emptyCommands,
+                                                     noServices};
 inline constexpr ::telemetry::descriptor::Descriptor explicitDescriptor{explicitModel};
 inline constexpr auto explicitBytes = ::telemetry::descriptor::packDescriptor<explicitDescriptor>();
 
 inline constexpr ts::FieldTable clashFields{ts::field<&read<left::io::Status>>("Left"),
                                             ts::field<&read<right::io::Status>>("Right")};
-inline constexpr ts::FieldCatalogTable clashCatalog{ts::group("clash", clashFields)};
-inline constexpr ts::Model clashModel{clashCatalog, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable clashCatalog{
+    ts::testing::group("clash", clashFields)};
+inline constexpr ts::testing::V30Model clashModel{clashCatalog, ts::testing::emptyCommands,
+                                                  noServices};
 
 // The seam: automatic scoped names (innermost scope only), explicit and removed
 // names, no name on arrays, scalars and Void, whatever the switch says about
@@ -185,10 +190,10 @@ bool write(const char* directory, const char* name, const std::array<std::byte, 
 }
 
 // Defaults through the project switch; the profile strips on every build.
-inline constexpr ::telemetry::descriptor::Descriptor defaultMixed{fixture::model};
+inline constexpr ::telemetry::descriptor::Descriptor defaultMixed{fixture::v30Model};
 inline constexpr ::telemetry::descriptor::Descriptor defaultEdge{df::model};
 inline constexpr ::telemetry::descriptor::Descriptor defaultEmpty{df::emptyModel};
-inline constexpr auto strippedMixed = ::telemetry::descriptor::withoutTypeNames(fixture::model);
+inline constexpr auto strippedMixed = ::telemetry::descriptor::withoutTypeNames(fixture::v30Model);
 inline constexpr auto strippedEdge = ::telemetry::descriptor::withoutTypeNames(df::model);
 inline constexpr auto strippedEmpty = ::telemetry::descriptor::withoutTypeNames(df::emptyModel);
 
@@ -198,13 +203,13 @@ struct TightProfile : ts::Limits {
 };
 
 template<class Profile, class F, class C, class S>
-constexpr auto withProfile(const ts::Model<F, C, S>& model) noexcept
+constexpr auto withProfile(const ts::testing::V30Model<F, C, S>& model) noexcept
 {
 	return ::telemetry::descriptor::Descriptor<F, C, S, Profile>{model};
 }
 
 inline constexpr auto tightStripped =
-    withProfile<::telemetry::descriptor::WithoutTypeNames<TightProfile>>(fixture::model);
+    withProfile<::telemetry::descriptor::WithoutTypeNames<TightProfile>>(fixture::v30Model);
 
 static_assert(strippedMixed.valid() && strippedMixed.fingerprint() == tightStripped.fingerprint());
 static_assert(::telemetry::descriptor::packDescriptor<strippedMixed>() == df::mixedBytes);

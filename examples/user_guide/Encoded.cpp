@@ -111,26 +111,23 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::readConfig, &Device::writeConfig>("Config", device),
-    ts::field<&Device::readReport>("Report", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::increment>("Increment", device),
-    ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{
-    ts::service<&Device::copyReport>("CopyReport", device),
-    ts::service<&Device::viewReport>("ViewReport", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::Model model{
+    ts::group("device", ts::field<&Device::readConfig, &Device::writeConfig>("Config", device),
+              ts::field<&Device::readReport>("Report", device),
+              ts::command<&Device::increment>("Increment", device),
+              ts::command<&Device::reset>("Reset", device),
+              ts::service<&Device::copyReport>("CopyReport", device),
+              ts::service<&Device::viewReport>("ViewReport", device))};
 inline constexpr auto view = model.view();
-inline constexpr ts::PackedId ConfigId = ts::makeId<0, 0>();
-inline constexpr ts::PackedId ReportId = ts::makeId<0, 1>();
-inline constexpr ts::PackedId IncrementId = ts::makeId<0, 0>();
-inline constexpr ts::PackedId ResetId = ts::makeId<0, 1>();
-inline constexpr ts::PackedId CopyReportId = ts::makeId<0, 0>();
-inline constexpr ts::PackedId ViewReportId = ts::makeId<0, 1>();
+// The runtime IDs a packet carries, each from its endpoint's path. The three
+// families share the group's position and number their own entries.
+inline constexpr ts::PackedId ConfigId = ts::idOf<model, "device/Config">();
+inline constexpr ts::PackedId ReportId = ts::idOf<model, "device/Report">();
+inline constexpr ts::PackedId IncrementId = ts::idOf<model, "device/Increment">();
+inline constexpr ts::PackedId ResetId = ts::idOf<model, "device/Reset">();
+inline constexpr ts::PackedId CopyReportId = ts::idOf<model, "device/CopyReport">();
+inline constexpr ts::PackedId ViewReportId = ts::idOf<model, "device/ViewReport">();
+static_assert(ConfigId == 0 && ReportId == 1 && IncrementId == 0 && ViewReportId == 1);
 static_assert(ts::wireSize<Config> == 5 && ts::wireSize<Report> == 64);
 static_assert(ts::maxLocalObjectBytes == 32,
               "This example demonstrates the default local payload budget");

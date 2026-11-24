@@ -92,17 +92,12 @@ struct Owner {
 };
 
 static Owner owner;
-static constexpr ts::FieldTable localFields{ts::field<&Owner::read, &Owner::write>("Value", owner),
-                                            ts::field<&Owner::read>("ReadOnly", owner)};
-static constexpr ts::CommandTable localCommands{ts::command<&Owner::command>("Command", owner),
-                                                ts::command<&Owner::noRequest>("NoRequest", owner)};
-static constexpr ts::ServiceTable localServices{ts::service<&Owner::service>("Service", owner),
-                                                ts::service<&Owner::empty>("Empty", owner),
-                                                ts::service<&Owner::noResponse>("Void", owner)};
-static constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-static constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-static constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-static constexpr ts::Model model{fields, commands, services};
+static constexpr ts::Model model{ts::group(
+    "device", ts::field<&Owner::read, &Owner::write>("Value", owner),
+    ts::field<&Owner::read>("ReadOnly", owner), ts::command<&Owner::command>("Command", owner),
+    ts::command<&Owner::noRequest>("NoRequest", owner),
+    ts::service<&Owner::service>("Service", owner), ts::service<&Owner::empty>("Empty", owner),
+    ts::service<&Owner::noResponse>("Void", owner))};
 
 static auto encoded(Value value)
 {

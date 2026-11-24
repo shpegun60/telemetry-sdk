@@ -36,8 +36,16 @@ constexpr auto table(std::index_sequence<I...>) noexcept
 	return ts::FieldTable{ts::field<&Device::read<I>>(labels[I].data(), device)...};
 }
 
+template<std::size_t... I>
+constexpr auto branch(std::index_sequence<I...>) noexcept
+{
+	return ts::group("scale", ts::field<&Device::read<I>>(labels[I].data(), device)...);
+}
+
 inline constexpr auto local = table(std::make_index_sequence<rows>{});
-inline constexpr ts::FieldCatalogTable fields{ts::group("scale", local)};
+// The same Fields as one group of a tree; its catalog table selects a row by runtime ID.
+inline constexpr ts::Model model{branch(std::make_index_sequence<rows>{})};
+inline constexpr auto& fields = model.fields();
 
 std::uint32_t direct(std::uint32_t id) noexcept
 {
@@ -94,7 +102,7 @@ std::uint32_t encoded(std::uint32_t id) noexcept
 {
 	std::array<std::byte, 4> bytes;
 	ts::Workspace workspace{std::span<std::byte>{}};
-	const auto result = fields.index().readEncoded(id, bytes, workspace);
+	const auto result = model.fieldIndex().readEncoded(id, bytes, workspace);
 	if (result.dispatch != ts::DispatchStatus::Ok)
 		return 0;
 	std::uint32_t value = 0;

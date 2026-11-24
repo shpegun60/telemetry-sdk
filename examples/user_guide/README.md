@@ -7,10 +7,10 @@
 групі `ts::group("device", ...)`, named handles (`config.read()`,
 `reset.call()`) і шлях члена `ts::read<model, "device/Config.voltage">()`.
 Модель із кількох файлів гілок показує [group_tree](../group_tree/README.md).
-Native, Encoded, Ergonomics і FlatNative ще показують local tables, catalogs і
-`makeId` — плоску форму, що [виводиться з ужитку](../../doc/user/APIOverview.md#виводиться-з-ужитку);
-їхні runtime-ID виклики (`readAs`, `visit`, `callAs`) поки що не мають форми
-шляху.
+Native, Encoded, Ergonomics і FlatNative теж будують `Model{...}` з груп:
+типізований доступ іде через шляхи й handles, а runtime-ID виклики (`readAs`,
+`visit`, `callAs`) — через `model.fields()`, `model.commands()` і
+`model.services()` з ID від `idOf<model, "path">()` або `handle.id`.
 
 | Програма | Що показує | Compiled sources |
 | --- | --- | --- |

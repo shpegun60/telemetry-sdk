@@ -45,13 +45,9 @@ struct LargeDevice {
 };
 
 LargeDevice largeDevice;
-inline constexpr ts::CommandTable largeCommands{
-    ts::command<&LargeDevice::accept>("Accept", largeDevice)};
-inline constexpr ts::ServiceTable largeServices{
-    ts::service<&LargeDevice::echo>("Echo", largeDevice)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group("large", largeCommands)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("large", largeServices)};
-inline constexpr ts::Model largeModel{ts::emptyFields, commandCatalogs, serviceCatalogs};
+inline constexpr ts::Model largeModel{
+    ts::group("large", ts::command<&LargeDevice::accept>("Accept", largeDevice),
+              ts::service<&LargeDevice::echo>("Echo", largeDevice))};
 inline constexpr auto largeView = largeModel.view();
 
 // The two populated groups select the same owner through different catalog
@@ -140,14 +136,16 @@ std::uint32_t serviceDirect(std::uint32_t) noexcept
 	return device.echo(Config{17, true}).code;
 }
 
+// A handle and a path reach the same Service definition, the tree's own copy:
+// with null checks both load that one owner address.
 std::uint32_t serviceLocal(std::uint32_t) noexcept
 {
-	return localServices.call<0>(Config{17, true}).value().code;
+	return ts::endpoint<model, "first/Echo">.call(Config{17, true}).value().code;
 }
 
 std::uint32_t serviceGlobal(std::uint32_t) noexcept
 {
-	return services.call<0>(Config{17, true}).value().code;
+	return ts::call<model, "first/Echo">(Config{17, true}).value().code;
 }
 
 std::uint32_t serviceEncoded(std::uint32_t inputId) noexcept

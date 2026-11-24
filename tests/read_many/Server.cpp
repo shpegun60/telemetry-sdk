@@ -61,9 +61,32 @@ static constexpr auto fields(std::index_sequence<I...>)
 
 static constexpr auto left = fields<0>(std::make_index_sequence<16>{});
 static constexpr auto right = fields<16>(std::make_index_sequence<16>{});
-static constexpr ts::FieldCatalogTable catalogs{ts::group("left", left), ts::group("right", right)};
-static constexpr ts::ServiceCatalogTable<> noServices{};
-static constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+
+// Names in one group are unique in a tree: Value0..Value15.
+static constexpr std::array<std::array<char, 8>, 16> valueNames = [] {
+	std::array<std::array<char, 8>, 16> names{};
+	for (std::size_t i = 0; i < names.size(); ++i)
+		names[i] = {'V',
+		            'a',
+		            'l',
+		            'u',
+		            'e',
+		            char(i < 10 ? '0' + i : '1'),
+		            char(i < 10 ? '\0' : '0' + i - 10),
+		            '\0'};
+	return names;
+}();
+
+template<std::size_t Offset, std::size_t... I>
+static constexpr auto branch(const char* name, std::index_sequence<I...>)
+{
+	return ts::group(
+	    name, ts::field<&ScalarOwner::template read<Offset + I>>(valueNames[I].data(), scalar)...);
+}
+
+// The same 32 getters as two Fields-only groups of a tree.
+static constexpr ts::Model model{branch<0>("left", std::make_index_sequence<16>{}),
+                                 branch<16>("right", std::make_index_sequence<16>{})};
 
 enum class Mode : std::int16_t {
 	Reverse = -7,
@@ -130,8 +153,13 @@ static constexpr ts::FieldTable mixedFields{ts::field<&MixedOwner::enabled>("Boo
                                             ts::field<&MixedOwner::record>("Struct4", mixed),
                                             ts::field<&MixedOwner::array>("Array4", mixed),
                                             ts::field<&MixedOwner::wide>("Unavailable", absent)};
-static constexpr ts::FieldCatalogTable mixedCatalogs{ts::group("mixed", mixedFields)};
-static constexpr ts::Model mixedModel{mixedCatalogs, ts::emptyCommands, noServices};
+static constexpr ts::Model mixedModel{ts::group(
+    "mixed", ts::field<&MixedOwner::enabled>("Bool", mixed),
+    ts::field<&MixedOwner::wide>("U64", mixed), ts::field<&MixedOwner::signedWide>("S64", mixed),
+    ts::field<&MixedOwner::real>("F32", mixed), ts::field<&MixedOwner::mode>("Enum", mixed),
+    ts::field<&MixedOwner::record>("Struct4", mixed),
+    ts::field<&MixedOwner::array>("Array4", mixed),
+    ts::field<&MixedOwner::wide>("Unavailable", absent))};
 
 struct alignas(16) AlignedScratch {
 	std::array<std::byte, 16> bytes;

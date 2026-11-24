@@ -8,7 +8,7 @@
 #include <type_traits>
 
 using namespace fixture;
-using telemetry::makeId;
+using telemetry::detail::makeId;
 using std::string_view;
 
 // Move-only visitor proves traversal borrows one visitor instead of copying it per row.
@@ -31,9 +31,18 @@ static_assert(
         const std::tuple_element_t<
             1, std::tuple<decltype(ts::field<&Device::readBool, &Device::setBool>("x", device)),
                           decltype(ts::field<&Device::readU16, &Device::setU16>("x", device))>>&>);
-static_assert(&fields.get<makeId<2, 7>()>() == &localFields.get<7>());
-static_assert(&commands.get<makeId<2, 0>()>() == &localCommands.get<0>());
-static_assert(&services.get<makeId<2, 0>()>() == &localServices.get<0>());
+// The tree's group "repeat" (2) holds the local tables' definitions again.
+template<class A, class B>
+inline constexpr bool sameDefinition =
+    std::is_same_v<std::remove_cvref_t<A>, std::remove_cvref_t<B>>;
+static_assert(
+    sameDefinition<decltype(fields.get<makeId<2, 7>()>()), decltype(localFields.get<7>())>);
+static_assert(
+    sameDefinition<decltype(commands.get<makeId<2, 0>()>()), decltype(localCommands.get<0>())>);
+static_assert(
+    sameDefinition<decltype(services.get<makeId<2, 0>()>()), decltype(localServices.get<0>())>);
+static_assert(ts::idOf<model, "repeat/Config">() == makeId<2, 7>() &&
+              ts::idOf<model, "repeat/Echo">() == makeId<2, 0>());
 static_assert(noFields.empty() && noCommands.empty() && noServices.empty());
 static_assert(noFields.begin() == noFields.end());
 static_assert(noCommands.begin() == noCommands.end());
@@ -112,7 +121,7 @@ void checkGlobal(const Table& table)
 
 void conversions()
 {
-	constexpr auto u16 = makeId<2, 1>();
+	constexpr auto u16 = ts::idOf<model, "repeat/U16">();
 	assert((localFields.readAs<float, 1>() == 65535.0f));
 	assert(fields.readAs<float>(u16) == 65535.0f);
 	assert(fields.writeAs(u16, 12.75) == W::Applied && device.integer == 12);
@@ -123,44 +132,47 @@ void conversions()
 		assert(fields.writeAs(u16, value) == W::InvalidValue);
 	assert(device.writes == writes);
 	assert(fields.writeAs(u16, UINT64_MAX) == W::InvalidValue);
-	assert(fields.writeAs(makeId<0, 4>(), INT64_C(-1)) == W::InvalidValue);
-	assert(!fields.readAs<std::uint64_t>(makeId<0, 3>()));
-	assert(!fields.readAs<std::int64_t>(makeId<0, 4>()));
-	assert(fields.readAs<std::uint64_t>(makeId<0, 4>()) == UINT64_MAX);
-	assert(fields.readAs<std::int64_t>(makeId<0, 3>()) == INT64_MIN);
-	assert(fields.readAs<double>(makeId<0, 4>()) == static_cast<double>(UINT64_MAX));
-	assert(fields.readAs<std::int16_t>(makeId<0, 5>()) == 2);
-	assert(fields.writeAs(makeId<0, 5>(), -2) == W::Applied);
-	assert(fields.readAs<Mode>(makeId<0, 5>()) == static_cast<Mode>(-2));
-	assert(fields.readAs<float>(makeId<0, 5>()) == -2.0f);
-	assert(fields.writeAs(makeId<0, 5>(), INT32_MAX) == W::InvalidValue);
+	assert(fields.writeAs(ts::idOf<model, "first/U64">(), INT64_C(-1)) == W::InvalidValue);
+	assert(!fields.readAs<std::uint64_t>(ts::idOf<model, "first/S64">()));
+	assert(!fields.readAs<std::int64_t>(ts::idOf<model, "first/U64">()));
+	assert(fields.readAs<std::uint64_t>(ts::idOf<model, "first/U64">()) == UINT64_MAX);
+	assert(fields.readAs<std::int64_t>(ts::idOf<model, "first/S64">()) == INT64_MIN);
+	assert(fields.readAs<double>(ts::idOf<model, "first/U64">()) ==
+	       static_cast<double>(UINT64_MAX));
+	assert(fields.readAs<std::int16_t>(ts::idOf<model, "first/Mode">()) == 2);
+	assert(fields.writeAs(ts::idOf<model, "first/Mode">(), -2) == W::Applied);
+	assert(fields.readAs<Mode>(ts::idOf<model, "first/Mode">()) == static_cast<Mode>(-2));
+	assert(fields.readAs<float>(ts::idOf<model, "first/Mode">()) == -2.0f);
+	assert(fields.writeAs(ts::idOf<model, "first/Mode">(), INT32_MAX) == W::InvalidValue);
 	device.real = std::numeric_limits<double>::quiet_NaN();
-	assert(!fields.readAs<bool>(makeId<0, 2>()) && !fields.readAs<std::uint32_t>(makeId<0, 2>()));
-	assert(std::isnan(*fields.readAs<float>(makeId<0, 2>())));
+	assert(!fields.readAs<bool>(ts::idOf<model, "first/Float">()) &&
+	       !fields.readAs<std::uint32_t>(ts::idOf<model, "first/Float">()));
+	assert(std::isnan(*fields.readAs<float>(ts::idOf<model, "first/Float">())));
 	device.real = std::numeric_limits<double>::infinity();
-	assert(std::isinf(*fields.readAs<float>(makeId<0, 2>())));
+	assert(std::isinf(*fields.readAs<float>(ts::idOf<model, "first/Float">())));
 	device.real = std::numeric_limits<double>::max();
-	assert(!fields.readAs<float>(makeId<0, 2>()));
+	assert(!fields.readAs<float>(ts::idOf<model, "first/Float">()));
 	device.real = -0.0;
-	assert(std::bit_cast<std::uint64_t>(*fields.readAs<double>(makeId<0, 2>())) == UINT64_C(1)
-	                                                                                   << 63);
-	assert(fields.writeAs(makeId<0, 0>(), -2) == W::Applied && device.boolean);
-	assert(fields.writeAs(makeId<0, 0>(), std::numeric_limits<double>::quiet_NaN()) ==
-	       W::InvalidValue);
-	assert(!fields.readAs<float>(makeId<0, 7>()));
+	assert(std::bit_cast<std::uint64_t>(*fields.readAs<double>(ts::idOf<model, "first/Float">())) ==
+	       UINT64_C(1) << 63);
+	assert(fields.writeAs(ts::idOf<model, "first/Bool">(), -2) == W::Applied && device.boolean);
+	assert(fields.writeAs(ts::idOf<model, "first/Bool">(),
+	                      std::numeric_limits<double>::quiet_NaN()) == W::InvalidValue);
+	assert(!fields.readAs<float>(ts::idOf<model, "first/Config">()));
 	const auto reads = device.reads;
-	assert(!fields.readAs<Config>(makeId<0, 1>()));
-	assert((!fields.readAs<std::array<std::uint16_t, 2>>(makeId<0, 7>())));
+	assert(!fields.readAs<Config>(ts::idOf<model, "first/U16">()));
+	assert((!fields.readAs<std::array<std::uint16_t, 2>>(ts::idOf<model, "first/Config">())));
 	assert(device.reads == reads); // Structural mismatch does not touch the source.
-	assert(fields.writeAs(makeId<0, 7>(), std::array<std::uint16_t, 2>{}) == W::InvalidValue);
-	assert(fields.writeAs(makeId<0, 6>(), 42) == W::ReadOnly);
-	assert(fields.writeAs(makeId<0, 7>(), Config{99, false}) == W::Applied);
-	assert(fields.readAs<Config>(makeId<0, 7>())->code == 99);
-	assert(!fields.readAs<Config>(makeId<0, 9>()));
-	assert(fields.writeAs(makeId<0, 9>(), Config{}) == W::Unavailable);
+	assert(fields.writeAs(ts::idOf<model, "first/Config">(), std::array<std::uint16_t, 2>{}) ==
+	       W::InvalidValue);
+	assert(fields.writeAs(ts::idOf<model, "first/Array">(), 42) == W::ReadOnly);
+	assert(fields.writeAs(ts::idOf<model, "first/Config">(), Config{99, false}) == W::Applied);
+	assert(fields.readAs<Config>(ts::idOf<model, "first/Config">())->code == 99);
+	assert(!fields.readAs<Config>(ts::idOf<model, "first/Slot">()));
+	assert(fields.writeAs(ts::idOf<model, "first/Slot">(), Config{}) == W::Unavailable);
 	slot.bind(device);
-	assert(fields.readAs<Config>(makeId<0, 9>())->code == 99);
-	assert(fields.writeAs(makeId<0, 9>(), Config{43, true}) == W::Applied);
+	assert(fields.readAs<Config>(ts::idOf<model, "first/Slot">())->code == 99);
+	assert(fields.writeAs(ts::idOf<model, "first/Slot">(), Config{43, true}) == W::Applied);
 	slot.reset();
 	assert(!fields.readAs<float>(-1) && !fields.readAs<float>(UINT64_C(0x100000001)));
 	assert(fields.writeAs(UINT64_C(0x100000001), 1) == W::NotFound);
@@ -168,8 +180,9 @@ void conversions()
 	assert(!localFields.readAs<float>(UINT64_C(0x100000001)));
 	assert(localFields.writeAs(-1, 1) == W::NotFound);
 	assert(localFields.readAs<double>(Position::Float) == -0.0);
-	const auto big = fields.readAs<Big>(makeId<0, 8>());
-	assert(big->words[2] == 3 && fields.writeAs(makeId<0, 8>(), *big) == W::Applied);
+	const auto big = fields.readAs<Big>(ts::idOf<model, "first/Big">());
+	assert(big->words[2] == 3 &&
+	       fields.writeAs(ts::idOf<model, "first/Big">(), *big) == W::Applied);
 }
 
 int main()

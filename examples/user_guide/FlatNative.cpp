@@ -68,24 +68,27 @@ private:
 };
 
 Device device;
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::configure>("Configure", device)};
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::inspect>("Inspect", device),
-                                                ts::service<&Device::config>("Config", device),
-                                                ts::service<&Device::notify>("Notify", device)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("Device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("Device", localServices)};
+inline constexpr ts::Model model{ts::group("Device",
+                                           ts::command<&Device::configure>("Configure", device),
+                                           ts::service<&Device::inspect>("Inspect", device),
+                                           ts::service<&Device::config>("Config", device),
+                                           ts::service<&Device::notify>("Notify", device))};
+inline constexpr auto& commands = model.commands();
+inline constexpr auto& services = model.services();
 } // namespace
 
 int main()
 {
-	const auto status = commands.call(ts::makeId<0, 0>(), SetPeriod{25});
+	// Runtime calls take an ID that arrives at run time, here from the paths.
+	constexpr auto configure = ts::idOf<model, "Device/Configure">();
+	constexpr auto inspect = ts::idOf<model, "Device/Inspect">();
+	const auto status = commands.call(configure, SetPeriod{25});
 	CHECK(status == ts::CommandCallStatus::Executed);
 	CHECK(commands.call(0, SetPeriod{0}) == ts::CommandCallStatus::InvalidValue);
 	CHECK(commands.call(0, Config{25}) == ts::CommandCallStatus::SignatureMismatch);
 	CHECK(commands.call(0xffff, SetPeriod{25}) == ts::CommandCallStatus::NotFound);
 
-	const auto response = services.callAs<Reply>(ts::makeId<0, 0>(), SetPeriod{1});
+	const auto response = services.callAs<Reply>(inspect, SetPeriod{1});
 	CHECK(response && response.hasValue());
 	CHECK(response.status() == ts::ServiceCallStatus::Ok);
 	CHECK(response.value().period == 25);
@@ -98,15 +101,15 @@ int main()
 	CHECK(services.callAs<Reply>(0xffff, SetPeriod{1}).status() == ts::ServiceCallStatus::NotFound);
 
 	// Borrowed access neither copies the configuration nor extends its lifetime.
-	const auto config = services.callBorrowed<Config>(ts::makeId<0, 1>());
+	const auto config = services.callBorrowed<Config>(ts::idOf<model, "Device/Config">());
 	CHECK(config && config.valueOrNull() == &device.config());
-	CHECK(localCommands.call(0, SetPeriod{50}) == ts::CommandCallStatus::Executed);
+	CHECK(commands.call(configure, SetPeriod{50}) == ts::CommandCallStatus::Executed);
 	CHECK(config.value().period == 50 && response.value().period == 25);
 	CHECK(services.callAs<Config>(1).status() == ts::ServiceCallStatus::SignatureMismatch);
 	CHECK(services.callBorrowed<Reply>(0, SetPeriod{1}).status() ==
 	      ts::ServiceCallStatus::SignatureMismatch);
 
-	const auto notified = services.callAs<void>(ts::makeId<0, 2>());
+	const auto notified = services.callAs<void>(ts::idOf<model, "Device/Notify">());
 	CHECK(notified && notified.status() == ts::ServiceCallStatus::Ok);
 	notified.value(); // Successful void operation; no payload object.
 	CHECK(device.notifications == 1);
@@ -115,6 +118,6 @@ int main()
 	const auto detailed = services.callAs<ts::ServiceResult<Reply>>(0, SetPeriod{0});
 	CHECK(detailed.status() == ts::NativeCallStatus::Ok);
 	CHECK(detailed.value().status() == ts::ServiceStatus::Busy);
-	CHECK((commands.call<ts::makeId<0, 0>()>(SetPeriod{75}) == ts::CommandResult::Executed));
+	CHECK((ts::call<model, "Device/Configure">(SetPeriod{75}) == ts::CommandResult::Executed));
 	std::printf("Flat native guide: %u checks passed\n", checks);
 }

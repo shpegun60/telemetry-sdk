@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/model/Model.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <cstdint>
 
@@ -25,7 +26,9 @@ Response readValue(const Request& request) noexcept
 }
 
 inline constexpr ts::ServiceTable local{ts::service<&readValue>("Read")};
-inline constexpr ts::ServiceCatalogTable global{ts::group("group", local)};
+// The catalog engine's refusals, through the testing header.
+namespace v30 = ts::testing;
+inline constexpr v30::ServiceCatalogTable global{v30::group("group", local)};
 enum class BigPosition : std::uint64_t {
 	Invalid = 0x100000000ULL
 };
@@ -38,30 +41,30 @@ auto bad = local.call<1>(Request{});
 #elif CASE == 2
 auto bad = local.call<BigPosition::Invalid>(Request{});
 #elif CASE == 3
-auto bad = global.call<telemetry::makeId<1, 0>()>(Request{});
+auto bad = global.call<ts::detail::makeId<1, 0>()>(Request{});
 #elif CASE == 4
-auto bad = global.call<telemetry::makeId<0, 1>()>(Request{});
+auto bad = global.call<ts::detail::makeId<0, 1>()>(Request{});
 #elif CASE == 5
 auto bad = global.call<LocalPosition::First>(Request{});
 #elif CASE == 6
 ts::ServiceTable bad{local};
 #elif CASE == 7
-auto bad = ts::group("temporary", ts::ServiceTable{ts::service<&readValue>("Read")});
+auto bad = v30::group("temporary", ts::ServiceTable{ts::service<&readValue>("Read")});
 #elif CASE == 8
 auto bad = global.index().find<std::uint16_t>(65537);
 #elif CASE == 9
-auto bad =
-    ts::Model{ts::emptyFields, ts::emptyCommands, global}.view().serviceTypeIds<std::uint16_t>(
-        65537);
+auto bad = v30::V30Model{v30::emptyFields, v30::emptyCommands, global}
+               .view()
+               .serviceTypeIds<std::uint16_t>(65537);
 #elif CASE == 10
 auto bad = ts::ServiceTable{ts::service<&readValue>("Read")}.data();
 #elif CASE == 11
-auto bad = ts::ServiceCatalogTable{ts::group("group", local)}.index();
+auto bad = v30::ServiceCatalogTable{v30::group("group", local)}.index();
 #elif CASE == 12
-auto bad = ts::Model{ts::emptyFields, ts::emptyCommands,
-                     ts::ServiceCatalogTable{ts::group("group", local)}};
+auto bad = v30::V30Model{v30::emptyFields, v30::emptyCommands,
+                         v30::ServiceCatalogTable{v30::group("group", local)}};
 #elif CASE == 13
-auto bad = ts::Model{ts::EmptyEndpointCatalog{}, ts::emptyCommands, global};
+auto bad = v30::V30Model{v30::EmptyEndpointCatalog{}, v30::emptyCommands, global};
 #else
 #error Select a negative case
 #endif

@@ -52,11 +52,8 @@ struct Device {
 	}
 } device;
 
-constexpr telemetry::FieldTable localFields{telemetry::field<&Device::read>("Value", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("test", localFields)};
-constexpr telemetry::CommandCatalogTable commands{};
-constexpr telemetry::ServiceCatalogTable services{};
-constexpr telemetry::Model model{fields, commands, services};
+constexpr telemetry::Model model{
+    telemetry::group("test", telemetry::field<&Device::read>("Value", device))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto packed = telemetry::descriptor::packDescriptor<descriptor>();
 

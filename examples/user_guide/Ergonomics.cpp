@@ -61,19 +61,21 @@ private:
 };
 
 Device device;
-inline constexpr ts::FieldTable localFields{ts::field<&Device::config>("Config", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::configure>("Configure", device)};
-inline constexpr ts::ServiceTable localServices{ts::service<&Device::inspect>("Inspect", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("Device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("Device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("Device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::Model model{ts::group("Device", ts::field<&Device::config>("Config", device),
+                                           ts::command<&Device::configure>("Configure", device),
+                                           ts::service<&Device::inspect>("Inspect", device))};
 } // namespace
 
 int main()
 {
-	const ts::PackedId id = ts::makeId<0, 0>();
+	// Runtime calls take an ID that arrives at run time; the three endpoints
+	// share it here, one per family, in the group's first position.
+	const ts::PackedId id = ts::idOf<model, "Device/Config">();
+	CHECK(
+	    (id == ts::idOf<model, "Device/Configure">() && id == ts::idOf<model, "Device/Inspect">()));
+	const auto& fields = model.fields();
+	const auto& commands = model.commands();
+	const auto& services = model.services();
 	const auto config = fields.readBorrowed<Config>(id);
 	CHECK(config && config.valueOrNull() == &device.config());
 	const auto copy = fields.readAsResult<Config>(id);

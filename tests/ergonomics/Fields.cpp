@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/field/FieldCatalogs.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <cmath>
 #include <concepts>
@@ -202,10 +203,19 @@ void fields()
 	                     ts::field("late integer", lateInt),
 	                     ts::field<&Meter::getBig>("late owner", owner)};
 	ts::FieldTable empty;
-	ts::FieldCatalogTable catalogs{ts::group("empty", empty), ts::group("meter", local)};
-	ts::FieldCatalogTable noCatalogs;
-	constexpr auto bigId = ts::makeId<1, 0>();
-	constexpr auto intId = ts::makeId<1, 2>();
+	// The same Fields in a runtime tree after an empty group: meter is group 1.
+	ts::Model model{
+	    ts::group("empty"),
+	    ts::group(
+	        "meter", ts::field<&Meter::getBig>("borrowed", meter),
+	        ts::field<&Meter::ownBig>("owning", meter), ts::field<&Meter::getInt>("integer", meter),
+	        ts::field<&Meter::getReal>("real", meter), ts::field<&Meter::getWide>("wide", meter),
+	        ts::field<&Meter::getCode>("code", meter), ts::field("late big", lateBig),
+	        ts::field("late integer", lateInt), ts::field<&Meter::getBig>("late owner", owner))};
+	const auto& catalogs = model.fields();
+	ts::testing::FieldCatalogTable noCatalogs;
+	constexpr auto bigId = ts::detail::makeId<1, 0>();
+	constexpr auto intId = ts::detail::makeId<1, 2>();
 	static_assert(std::same_as<decltype(local.readBorrowed<Big>(0)), ts::BorrowedValue<Big>>);
 	static_assert(
 	    std::same_as<decltype(catalogs.readBorrowed<BigAlias>(bigId)), ts::BorrowedValue<Big>>);
@@ -235,7 +245,7 @@ void fields()
 	meter.big.words[0] += 1;
 	check(view->words[0] == initial + 1 && owned->words[0] == initial);
 	const auto beforeOwningGetter = meter.calls[1];
-	auto nativeOwned = catalogs.readAsResult<Big>(ts::makeId<1, 1>());
+	auto nativeOwned = catalogs.readAsResult<Big>(ts::detail::makeId<1, 1>());
 	expect(nativeOwned, Status::Ok);
 	check(nativeOwned.value() == meter.big && meter.calls[1] == beforeOwningGetter + 1);
 	expect(local.readAsResult<Other>(0), Status::TypeMismatch);
@@ -249,7 +259,7 @@ void fields()
 	// Declared shape is checked before an unavailable binding is observed.
 	expect(local.readAsResult<Other>(6), Status::TypeMismatch);
 	check(!local.readBorrowed<Big>(6) && !local.readBorrowed<Big>(8));
-	expect(catalogs.readAsResult<Big>(ts::makeId<1, 6>()), Status::Unavailable);
+	expect(catalogs.readAsResult<Big>(ts::detail::makeId<1, 6>()), Status::Unavailable);
 
 	lateBig.bind(&functionBig);
 	lateInt.bind(&functionInt);
@@ -318,9 +328,9 @@ void fields()
 	check(!local.readBorrowed<Big>(Position::Negative));
 	expect(local.readAsResult<Big>(std::uint64_t{1} << 32), Status::NotFound);
 	expect(catalogs.readAsResult<Big>(std::uint64_t{1} << 32), Status::NotFound);
-	expect(catalogs.readAsResult<Big>(ts::makeId<1, 9>()), Status::NotFound);
-	expect(catalogs.readAsResult<Big>(ts::makeId<2, 0>()), Status::NotFound);
-	expect(catalogs.readAsResult<Big>(ts::makeId<0, 0>()), Status::NotFound);
+	expect(catalogs.readAsResult<Big>(ts::detail::makeId<1, 9>()), Status::NotFound);
+	expect(catalogs.readAsResult<Big>(ts::detail::makeId<2, 0>()), Status::NotFound);
+	expect(catalogs.readAsResult<Big>(ts::detail::makeId<0, 0>()), Status::NotFound);
 	expect(empty.readAsResult<Big>(0), Status::NotFound);
 	check(!empty.readBorrowed<Big>(0));
 	expect(noCatalogs.readAsResult<Big>(0), Status::NotFound);

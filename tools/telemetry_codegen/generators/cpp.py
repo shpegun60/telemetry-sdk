@@ -199,24 +199,29 @@ def _endpoints(schema):
             arguments = f"{endpoint.id}, {q}, {r}, {schema.types[q]['wire']}, {schema.types[r]['wire']}"
         rows.append(f"inline constexpr endpoint::{signature} {endpoint.symbol}{{{arguments}}};\n")
         rows.append(f"}} // namespace {endpoint.group}::{category}\n")
-    if schema.groups is not None:
-        rows.append(_tree_endpoints(schema))
+    rows.append(_group_endpoints(schema))
     rows.append(f"}} // namespace {schema.namespace}\n")
     return "".join(rows)
 
 
-def _tree_endpoints(schema):
-    """A GroupTree descriptor: one namespace per group, its endpoints as constants in it.
+def _group_endpoints(schema):
+    """One namespace per group, its endpoints as constants in it, for every descriptor.
 
-    The fields::/commands::/services:: constants above are the ones a flat model
-    with the same group names generates, so existing static code keeps compiling;
-    each endpoint is also a constant beside the group's subgroups, the path's form.
+    A GroupTree descriptor nests its groups; a catalog descriptor's catalogs of
+    one name are one root group of all three families, where two endpoints of
+    different families sharing a name take a kind suffix (Reset_Field and
+    Reset_Command) and have no path. The fields::/commands::/services::
+    constants above stay beside them for now; each endpoint is also a constant
+    beside the group's subgroups, the path's form.
     """
-    rows = ["\n// Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.\n"]
+    if schema.groups is not None:
+        rows = ["\n// Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.\n"]
+    else:
+        rows = ["\n// Groups: the catalogs of one name are one group; api::motor::Config is the path motor/Config.\n"]
     members = {}
-    for endpoint, symbol in zip(schema.endpoints, schema.tree_symbols):
-        members.setdefault(endpoint.catalog_index, []).append((endpoint, symbol))
-    for group in schema.groups:
+    for endpoint, group, symbol in zip(schema.endpoints, schema.api_group_of, schema.api_symbols):
+        members.setdefault(group, []).append((endpoint, symbol))
+    for group in schema.api_groups:
         rows.append(f"namespace {group.qualified} {{\n")
         for endpoint, symbol in members.get(group.index, ()):
             family = ("", "fields", "commands", "services")[endpoint.category]

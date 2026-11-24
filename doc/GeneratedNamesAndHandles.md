@@ -15,9 +15,11 @@ but are [being removed](user/APIOverview.md#виводиться-з-ужитку
 Descriptor v3.1 adds three things to a device's descriptor: a unique type name on
 an enum or struct (`adc::Config`), a group tree (groups inside groups, each holding
 Fields, Commands and Services side by side) and a skippable attribute area. The
-generator reads all three. Everything here is an **addition**: every symbol that a
-v3.0 descriptor generates keeps its name and signature, and a v3.0 input gives
-byte-identical output (pinned by `tests/ux_codegen_extension/legacy_output_hashes.json`
+generator reads all three. Every descriptor gets the same group form: a v3.0
+descriptor's catalogs of one name are one root group of all three families
+([v3.0 input](#a-v30-descriptor)). Every symbol a v3.0 descriptor generated before
+keeps its name and signature; the group constants and handles are added beside them
+(the frozen hashes are in `tests/ux_codegen_extension/legacy_output_hashes.json`
 and `tests/codegen/test_names.py`).
 
 ## Type names
@@ -79,6 +81,25 @@ scope; a support name such as `Status` gets the same `_value` suffix it gets in 
 flat `fields::` namespace (`adc::Status_value`). Every JS/TS endpoint object of a tree
 carries its `path`.
 
+## A v3.0 descriptor
+
+A v3.0 descriptor has per-family catalogs instead of a tree. The generator gives it
+the group form all the same: the catalogs of one name, whichever families hold them,
+are one root group, and each endpoint is a constant in it (`api::motor::Config`,
+`motor.Config`, path `motor/Config`). In a v3.0 descriptor a Field and a Command may
+share a name in one group; the path `control/Reset` then names neither, so both
+take their kind as a suffix and have no path form, as `RuntimeSchema::findEndpoint`
+refuses that path too:
+
+```cpp
+namespace control {
+inline constexpr auto Reset_Field = fields::Reset;
+inline constexpr auto Reset_Command = commands::Reset;
+}
+```
+
+The handles of a bound device follow the same groups (`device.control.Reset_Field`).
+
 ## Attributes
 
 The IR keeps every attribute area raw, as (record, tag, bytes); host outputs (types,
@@ -99,14 +120,15 @@ the attributes:
 
 ## Endpoint handles of a bound device
 
-For a v3.1 descriptor the generated client also binds every endpoint to a client as
+For every descriptor the generated client also binds every endpoint to a client as
 a **handle**. A handle keeps its client and endpoint (its PackedId and value type),
 is cheap to copy and stays valid as long as the client does. The nested form, the
 path form and, in C++, the free function give the same handle. A group tree nests
-groups (`device.adc.channel1.Gain`); a flat model keeps its families
-(`device.motor.fields.Config`, path `motor/Config`). A flat path that names
-endpoints of two families has no path form, as `RuntimeSchema::findEndpoint`
-refuses it too; a root group named like a device method gets a suffix (`read_2`).
+groups (`device.adc.channel1.Gain`); a v3.0 descriptor has the same form with one
+root group per catalog name (`device.motor.Config`, path `motor/Config`). A v3.0
+path that names endpoints of two families has no path form, as
+`RuntimeSchema::findEndpoint` refuses it too, and the two handles take a kind
+suffix; a root group named like a device method gets a suffix (`read_2`).
 
 ### C++ (`ClientBindings.hpp`)
 

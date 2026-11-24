@@ -1,5 +1,5 @@
 /*
- * Own the binding tables, runtime routing and example stream assembly.
+ * Own the group tree, runtime routing and example stream assembly.
  *
  * One translation unit keeps process-lifetime owners and shared Workspace
  * behind an ordinary application facade. Direct endpoint packets and generic
@@ -21,28 +21,6 @@ namespace ts = telemetry;
 // Owner and every descriptor/provider have a stable address for the process.
 // There is no init ordering dependency on application calls or a live device.
 constinit Device device;
-enum class FieldPosition : unsigned {
-	Period,
-	Mode,
-	Gains,
-	Display
-};
-enum class CommandPosition : unsigned {
-	Reset,
-	Configure
-};
-enum class ServicePosition : unsigned {
-	Sample,
-	Query
-};
-inline constexpr unsigned DeviceGroup = 0;
-constexpr ts::FieldTable localFields{
-    ts::field<&Device::readPeriod, &Device::writePeriod>("Period", device),
-    ts::field<&Device::readMode, &Device::writeMode>("Mode", device),
-    ts::field<&Device::readGains, &Device::writeGains>("Gains", device),
-    ts::field<&Device::readDisplay, &Device::writeDisplay>("Display", device)};
-constexpr ts::CommandTable localCommands{ts::command<&Device::reset>("Reset", device),
-                                         ts::command<&Device::configure>("Configure", device)};
 
 ts::ServiceResult<Snapshot> query(const Query& request) noexcept
 {
@@ -52,27 +30,38 @@ ts::ServiceResult<Snapshot> query(const Query& request) noexcept
 	return ts::ServiceResult<Snapshot>::success(*result);
 }
 
-constexpr ts::ServiceTable localServices{ts::service<&Device::sample>("Sample", device),
-                                         ts::service<&query>("Query")};
-constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-constexpr ts::Model model{fields, commands, services};
+// One group holds the whole device: its Fields, Commands and Services.
+constexpr ts::Model model{
+    ts::group("device", ts::field<&Device::readPeriod, &Device::writePeriod>("Period", device),
+              ts::field<&Device::readMode, &Device::writeMode>("Mode", device),
+              ts::field<&Device::readGains, &Device::writeGains>("Gains", device),
+              ts::field<&Device::readDisplay, &Device::writeDisplay>("Display", device),
+              ts::command<&Device::reset>("Reset", device),
+              ts::command<&Device::configure>("Configure", device),
+              ts::service<&Device::sample>("Sample", device), ts::service<&query>("Query"))};
 constexpr auto modelView = model.view();
 std::array<std::byte, model.maxScratch()> scratch{};
 ts::Workspace workspace{scratch};
 
-template<auto Position>
-inline constexpr auto packed = ts::makeId<DeviceGroup, static_cast<unsigned>(Position)>();
-static_assert(static_cast<std::uint32_t>(FieldId::Period) == packed<FieldPosition::Period>);
-static_assert(static_cast<std::uint32_t>(FieldId::Mode) == packed<FieldPosition::Mode>);
-static_assert(static_cast<std::uint32_t>(FieldId::Gains) == packed<FieldPosition::Gains>);
-static_assert(static_cast<std::uint32_t>(FieldId::Display) == packed<FieldPosition::Display>);
-static_assert(static_cast<std::uint32_t>(CommandId::Reset) == packed<CommandPosition::Reset>);
-static_assert(static_cast<std::uint32_t>(CommandId::Configure) ==
-              packed<CommandPosition::Configure>);
-static_assert(static_cast<std::uint32_t>(ServiceId::Sample) == packed<ServicePosition::Sample>);
-static_assert(static_cast<std::uint32_t>(ServiceId::Query) == packed<ServicePosition::Query>);
+// Named handles for the facade's native operations.
+constexpr auto period = ts::endpoint<model, "device/Period">;
+constexpr auto mode = ts::endpoint<model, "device/Mode">;
+constexpr auto gains = ts::endpoint<model, "device/Gains">;
+constexpr auto display = ts::endpoint<model, "device/Display">;
+
+// The published IDs of Api.hpp are the IDs of these paths.
+template<class Id>
+constexpr std::uint32_t wire(Id id) noexcept
+{
+	return static_cast<std::uint32_t>(id);
+}
+
+static_assert(wire(FieldId::Period) == period.id && wire(FieldId::Mode) == mode.id);
+static_assert(wire(FieldId::Gains) == gains.id && wire(FieldId::Display) == display.id);
+static_assert(wire(CommandId::Reset) == ts::idOf<model, "device/Reset">());
+static_assert(wire(CommandId::Configure) == ts::idOf<model, "device/Configure">());
+static_assert(wire(ServiceId::Sample) == ts::idOf<model, "device/Sample">());
+static_assert(wire(ServiceId::Query) == ts::idOf<model, "device/Query">());
 static_assert(ts::wireSize<DisplayConfig> == 2 && ts::wireSize<Gains> == 6);
 static_assert(ts::wireSize<Configure> == 13 && ts::wireSize<Snapshot> == 8);
 static_assert(static_cast<unsigned>(Dispatch::Ok) == static_cast<unsigned>(ts::DispatchStatus::Ok));
@@ -154,10 +143,10 @@ PacketReply invalidPacket(Output response) noexcept
 	return {PacketStatus::InvalidPacket, 2};
 }
 
-template<class T, FieldPosition Position>
-bool nativeRead(T& value) noexcept
+template<class T, class Handle>
+bool nativeRead(Handle handle, T& value) noexcept
 {
-	const auto result = fields.readAs<T, packed<Position>>();
+	const auto result = handle.read();
 	if (!result)
 		return false;
 	value = *result;
@@ -167,43 +156,43 @@ bool nativeRead(T& value) noexcept
 
 bool readPeriod(std::uint32_t& value) noexcept
 {
-	return nativeRead<std::uint32_t, FieldPosition::Period>(value);
+	return nativeRead(period, value);
 }
 
 WriteStatus writePeriod(std::uint32_t value) noexcept
 {
-	// Local native access uses a named position, not a global packed ID.
-	return localFields.writeAs<FieldPosition::Period>(value);
+	// Native access by handle: the path was checked where the handle is declared.
+	return period.write(value);
 }
 
 bool readMode(Mode& value) noexcept
 {
-	return nativeRead<Mode, FieldPosition::Mode>(value);
+	return nativeRead(mode, value);
 }
 
 WriteStatus writeMode(Mode value) noexcept
 {
-	return fields.writeAs<packed<FieldPosition::Mode>>(value);
+	return mode.write(value);
 }
 
 bool readGains(Gains& value) noexcept
 {
-	return nativeRead<Gains, FieldPosition::Gains>(value);
+	return nativeRead(gains, value);
 }
 
 WriteStatus writeGains(const Gains& value) noexcept
 {
-	return fields.writeAs<packed<FieldPosition::Gains>>(value);
+	return gains.write(value);
 }
 
 bool readDisplay(DisplayConfig& value) noexcept
 {
-	return nativeRead<DisplayConfig, FieldPosition::Display>(value);
+	return nativeRead(display, value);
 }
 
 WriteStatus writeDisplay(const DisplayConfig& value) noexcept
 {
-	return fields.writeAs<packed<FieldPosition::Display>>(value);
+	return display.write(value);
 }
 
 Diagnostics diagnostics() noexcept

@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/field/FieldCatalogs.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <cstdint>
 #include <utility>
@@ -43,7 +44,7 @@ void reject()
 	(void)proxy;
 	ts::FieldTable table{ts::field<&Owner::get>("borrowed", owner),
 	                     ts::field<&Owner::own>("owning", owner)};
-	ts::FieldCatalogTable catalogs{ts::group("group", table)};
+	ts::testing::FieldCatalogTable catalogs{ts::testing::group("group", table)};
 	(void)catalogs;
 #if CASE == 1
 	(void)std::move(table).readBorrowed<Big>(0);

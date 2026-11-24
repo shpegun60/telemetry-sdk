@@ -27,8 +27,6 @@ struct Bundle {
 	std::array<std::uint32_t, 8> values;
 };
 
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-
 template<std::size_t Count, std::size_t Stride>
 struct DataModel {
 	static_assert(Count <= 32 && 7 * Stride < Count);
@@ -78,23 +76,18 @@ struct DataModel {
 	static inline Owner owner;
 
 	template<std::size_t... I>
-	static constexpr auto makeFields(std::index_sequence<I...>) noexcept
+	static constexpr auto makeGroup(std::index_sequence<I...>) noexcept
 	{
-		return ts::FieldTable{ts::field<&Owner::template read<I>>(names[I], owner)...};
+		return ts::group("data", ts::field<&Owner::template read<I>>(names[I], owner)...);
 	}
 
-	static inline constexpr auto scalarFields = makeFields(std::make_index_sequence<Count>{});
-	static inline constexpr ts::FieldCatalogTable scalarCatalogs{ts::group("data", scalarFields)};
-	static inline constexpr ts::Model scalarModel{scalarCatalogs, ts::emptyCommands, noServices};
+	// One Fields-only group, data, in two projections of the same owner.
+	static inline constexpr ts::Model scalarModel{makeGroup(std::make_index_sequence<Count>{})};
 	static inline constexpr ts::descriptor::Descriptor scalarDescriptor{scalarModel};
 	static inline constexpr auto scalarBytes = ts::descriptor::packDescriptor<scalarDescriptor>();
 	// This is an ALTERNATIVE projection, never a ninth/33rd Field in ValuesFile.
-	static inline constexpr ts::FieldTable aggregateFields{
-	    ts::field<&Owner::aggregate>("Snapshot", owner)};
-	static inline constexpr ts::FieldCatalogTable aggregateCatalogs{
-	    ts::group("data", aggregateFields)};
-	static inline constexpr ts::Model aggregateModel{aggregateCatalogs, ts::emptyCommands,
-	                                                 noServices};
+	static inline constexpr ts::Model aggregateModel{
+	    ts::group("data", ts::field<&Owner::aggregate>("Snapshot", owner))};
 	static inline constexpr ts::descriptor::Descriptor aggregateDescriptor{aggregateModel};
 	static inline constexpr auto aggregateBytes =
 	    ts::descriptor::packDescriptor<aggregateDescriptor>();

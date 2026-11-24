@@ -58,16 +58,11 @@ struct Device {
 };
 
 Device device;
-constexpr telemetry::FieldTable localFields{telemetry::field<&Device::voltage>("Voltage", device),
-                                            telemetry::field<&Device::counter>("Counter", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("measure", localFields)};
-constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::calibrate>("Calibrate", device)};
-constexpr telemetry::CommandCatalogTable commands{telemetry::group("control", localCommands)};
-constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Device::identity>("Identity", device)};
-constexpr telemetry::ServiceCatalogTable services{telemetry::group("device", localServices)};
-constexpr telemetry::Model model{fields, commands, services};
+constexpr telemetry::Model model{
+    telemetry::group("measure", telemetry::field<&Device::voltage>("Voltage", device),
+                     telemetry::field<&Device::counter>("Counter", device)),
+    telemetry::group("control", telemetry::command<&Device::calibrate>("Calibrate", device)),
+    telemetry::group("device", telemetry::service<&Device::identity>("Identity", device))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto bytes = telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace peer

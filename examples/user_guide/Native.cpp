@@ -1,8 +1,8 @@
 /*
- * Native C++20 endpoint, catalog, reflection and slot examples.
+ * Native C++20 endpoint, group tree, reflection and slot examples.
  *
- * Exercise compile-time calls and runtime encoded access over one set of
- * stable owners. Borrowed values retain their owner lifetime; Workspace leases
+ * Exercise paths, named handles, runtime IDs and encoded access over one set
+ * of stable owners. Borrowed values retain their owner lifetime; Workspace leases
  * bound decoded objects and release scratch in reverse acquisition order.
  *
  * Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
@@ -246,77 +246,74 @@ inline telemetry::ContextFunctionSlot<float() noexcept> contextSlot;
 inline telemetry::DelegateRefSlot<float() noexcept> referenceSlot;
 inline telemetry::DelegateSlot<float() noexcept, 32> ownedSlot;
 
-enum class Position : unsigned {
-	Voltage,
-	SettingsCopy,
-	SettingsView,
-	BlockView,
-	Limits
-};
-inline constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device),
+// One group per subsystem: meter and callbacks hold Fields, control the
+// Commands and queries the Services. A group's position in the tree is the
+// group part of every ID in it; paths and handles name the endpoints.
+inline constexpr auto meter = telemetry::group(
+    "meter", telemetry::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device),
     telemetry::field<&Device::readSettings, &Device::writeSettings>("SettingsCopy", device),
     telemetry::field<&Device::borrowSettings>("SettingsView", device),
     telemetry::field<&Device::readBlock, &Device::writeBlock>("BlockView", device),
-    telemetry::field<&Device::readLimits>("Limits", fixedDevice),
-};
-inline constexpr telemetry::FieldTable callbackFields{
-    telemetry::field<&readFree, &writeFree>("Free"),
+    telemetry::field<&Device::readLimits>("Limits", fixedDevice));
+inline constexpr auto callbacks = telemetry::group(
+    "callbacks", telemetry::field<&readFree, &writeFree>("Free"),
     telemetry::field("RuntimeFunction", &readFree),
     telemetry::field("Stateless",
                      []() noexcept -> std::uint32_t {
 	                     return 42;
                      }),
-    telemetry::field("Functor", functor),
-    telemetry::field("Closure", closure),
+    telemetry::field("Functor", functor), telemetry::field("Closure", closure),
     telemetry::field<&Device::readVoltage>("OwnerSlot", ownerSlot),
-    telemetry::field("FunctionSlot", functionSlot),
-    telemetry::field("ContextSlot", contextSlot),
+    telemetry::field("FunctionSlot", functionSlot), telemetry::field("ContextSlot", contextSlot),
     telemetry::field("DelegateRefSlot", referenceSlot),
-    telemetry::field("DelegateSlot", ownedSlot),
-};
-inline constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::reset>("Reset", device),
-    telemetry::command<&Device::configure>("Configure", device),
-    telemetry::command<&Device::select>("Select", device),
-};
-inline constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Device::sample>("Sample", device),
-    telemetry::service<&Device::query>("Query", device),
-    telemetry::service<&Device::borrowSettings>("Settings", device),
-    telemetry::service<&Device::live>("Live", device),
-    telemetry::service<&Device::ping>("Ping", device),
-    telemetry::service<&Device::validate>("Validate", device),
-    telemetry::service<&Device::echoBlock>("EchoBlock", device),
-};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("meter", localFields),
-                                                     telemetry::group("callbacks", callbackFields)};
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("control", localCommands)};
-inline constexpr telemetry::ServiceCatalogTable services{
-    telemetry::group("queries", localServices)};
-inline constexpr telemetry::Model model{fields, commands, services};
+    telemetry::field("DelegateSlot", ownedSlot));
+inline constexpr auto control =
+    telemetry::group("control", telemetry::command<&Device::reset>("Reset", device),
+                     telemetry::command<&Device::configure>("Configure", device),
+                     telemetry::command<&Device::select>("Select", device));
+inline constexpr auto queries =
+    telemetry::group("queries", telemetry::service<&Device::sample>("Sample", device),
+                     telemetry::service<&Device::query>("Query", device),
+                     telemetry::service<&Device::borrowSettings>("Settings", device),
+                     telemetry::service<&Device::live>("Live", device),
+                     telemetry::service<&Device::ping>("Ping", device),
+                     telemetry::service<&Device::validate>("Validate", device),
+                     telemetry::service<&Device::echoBlock>("EchoBlock", device));
+inline constexpr telemetry::Model model{meter, callbacks, control, queries};
+
+// Named handles: the path is checked once, here; the handle carries the ID
+// and the value type and costs nothing at run time.
+inline constexpr auto voltage = telemetry::endpoint<model, "meter/Voltage">;
+inline constexpr auto settingsCopy = telemetry::endpoint<model, "meter/SettingsCopy">;
+inline constexpr auto settingsView = telemetry::endpoint<model, "meter/SettingsView">;
+inline constexpr auto ownerVoltage = telemetry::endpoint<model, "callbacks/OwnerSlot">;
+inline constexpr auto select = telemetry::endpoint<model, "control/Select">;
+inline constexpr auto live = telemetry::endpoint<model, "queries/Live">;
 
 static_assert(telemetry::reflection::memberCount<Settings> == 3);
 static_assert(telemetry::reflection::memberName<0, Settings>() == "calibration");
 static_assert(telemetry::reflection::Enum<Mode>::entryCount == 3);
 static_assert(telemetry::reflection::Enum<Label>::entryName<1>() == "Віддалений");
 static_assert(telemetry::wireSize<Snapshot> == sizeof(float) + sizeof(std::int16_t));
-static_assert(
-    std::is_same_v<decltype(localFields.read<Position::SettingsCopy>()), std::optional<Settings>>);
-static_assert(std::is_same_v<decltype(localFields.read<Position::SettingsView>()),
-                             telemetry::BorrowedValue<Settings>>);
-static_assert(
-    std::is_same_v<decltype(localServices.call<2>()), telemetry::BorrowedServiceResult<Settings>>);
+static_assert(std::is_same_v<decltype(settingsCopy.read()), std::optional<Settings>>);
+static_assert(std::is_same_v<decltype(settingsView.read()), telemetry::BorrowedValue<Settings>>);
+static_assert(std::is_same_v<decltype(telemetry::call<model, "queries/Settings">()),
+                             telemetry::BorrowedServiceResult<Settings>>);
+// A member path reads one member of the whole Field's value.
+static_assert(std::is_same_v<decltype(telemetry::read<model, "meter/SettingsCopy.mode">()),
+                             std::optional<Mode>>);
 static_assert(model.maxFieldScratch() >= telemetry::scratchBytes<Block>);
 static_assert(model.typeId<Calibration>() != model.typeId<Settings>());
+// Groups are numbered in tree order across all three families.
+static_assert(voltage.id == telemetry::idOf<model, "meter/Voltage">() && voltage.id == 0x00000000u);
+static_assert(select.id == 0x00020002u && live.id == 0x00030003u);
 
 void demonstrate()
 {
 	const auto referenceWrapperService =
 	    telemetry::service<&Device::sample>("Reference wrapper", std::cref(device));
 	assert(referenceWrapperService.call().value().voltage == device.voltage);
-	assert(!callbackFields.read<5>() && !callbackFields.read<6>());
+	assert((!ownerVoltage.read() && !telemetry::read<model, "callbacks/FunctionSlot">()));
 	ownerSlot.bind(device);
 	functionSlot.bind(+[]() noexcept -> float {
 		return 12.0f;
@@ -330,63 +327,62 @@ void demonstrate()
 	ownedSlot.bind([bias = 0.5f, owner = &device]() noexcept -> float {
 		return owner->readVoltage() + bias;
 	});
-	assert(callbackFields.read<5>() == device.voltage);
-	assert(callbackFields.read<6>() == 12.0f);
-	assert(callbackFields.read<7>() == device.voltage);
-	assert(callbackFields.read<8>() == device.voltage);
-	assert(callbackFields.read<9>() == device.voltage + 0.5f);
+	assert(ownerVoltage.read() == device.voltage);
+	assert((telemetry::read<model, "callbacks/FunctionSlot">() == 12.0f));
+	assert((telemetry::read<model, "callbacks/ContextSlot">() == device.voltage));
+	assert((telemetry::read<model, "callbacks/DelegateRefSlot">() == device.voltage));
+	assert((telemetry::read<model, "callbacks/DelegateSlot">() == device.voltage + 0.5f));
 
-	assert(localFields.write<Position::Voltage>(240.0f) == WriteResult::Applied);
-	assert((localFields.readAs<double, Position::Voltage>() == 240.0));
-	constexpr auto voltageId = telemetry::makeId<0, Position::Voltage>();
+	// Typed access by handle and by path, then the same Field by its runtime ID.
+	assert(voltage.write(240.0f) == WriteResult::Applied);
+	assert((voltage.read() == 240.0f && telemetry::read<model, "meter/Voltage">() == 240.0f));
+	constexpr auto voltageId = voltage.id;
 	assert(telemetry::groupOf(voltageId) == 0 && telemetry::indexOf(voltageId) == 0);
 	assert(telemetry::tryGroupOf(voltageId) == 0 && telemetry::tryIndexOf(voltageId) == 0);
 	assert(!telemetry::tryGroupOf(-1) && !telemetry::tryIndexOf(std::uint64_t{1} << 32));
-	assert((fields.read<voltageId>() == 240.0f));
+	const auto& fields = model.fields();
 	assert(fields.readAs<double>(voltageId) == 240.0);
 	assert(fields.writeAs(voltageId, 241) == WriteResult::Applied);
 	assert(fields.writeAs(voltageId, 400) == WriteResult::InvalidValue);
-	assert(fields.writeAs(telemetry::makeId<9, 0>(), 1) == WriteResult::NotFound);
+	assert(fields.writeAs(0x00090000u, 1) == WriteResult::NotFound); // no group 9
 	assert(!fields.readAs<double>(-1));
 
-	const auto view = localFields.read<Position::SettingsView>();
-	const auto copy = localFields.readAs<Settings, Position::SettingsView>();
-	assert(view && copy && view.valueOrNull() == &device.settings);
-	assert(localCommands.call<0>() == CommandResult::Executed);
-	assert((commands.call<telemetry::makeId<0, 1>()>(Configure{device.settings}) ==
+	const auto view = settingsView.read();
+	assert(view && view.valueOrNull() == &device.settings);
+	assert((telemetry::read<model, "meter/SettingsView.mode">() == device.settings.mode));
+	assert((telemetry::call<model, "control/Reset">() == CommandResult::Executed));
+	assert((telemetry::call<model, "control/Configure">(Configure{device.settings}) ==
 	        CommandResult::Executed));
-	assert(localCommands.call<2>(Query{9}) == CommandResult::InvalidValue);
-	const auto response = services.call<telemetry::makeId<0, 1>()>(Query{0});
+	assert(select.call(Query{9}) == CommandResult::InvalidValue);
+	const auto response = telemetry::call<model, "queries/Query">(Query{0});
 	assert(response.hasValue() && response.value().voltage == device.voltage);
-	const auto borrowedResponse = localServices.call<3>(Query{0});
+	const auto borrowedResponse = live.call(Query{0});
 	assert(borrowedResponse && borrowedResponse.valueOrNull() == &device.settings);
 	device.busy = true;
-	assert(localServices.call<3>(Query{0}).status() == ServiceStatus::Busy);
+	assert(live.call(Query{0}).status() == ServiceStatus::Busy);
 	device.busy = false;
-	assert(localServices.call<4>().status() == ServiceStatus::Ok);
-	assert(localServices.call<5>(Query{9}).status() == ServiceStatus::InvalidArgument);
+	assert((telemetry::call<model, "queries/Ping">().status() == ServiceStatus::Ok));
+	assert((telemetry::call<model, "queries/Validate">(Query{9}).status() ==
+	        ServiceStatus::InvalidArgument));
 
-	unsigned nativeCount = 0;
-	localFields.forEach([&]<std::size_t I>(const auto& definition) {
-		assert(I == nativeCount && definition.name() != nullptr);
-		++nativeCount;
-	});
+	// Typed traversal of every Field: G is the group, I the position in it.
+	unsigned meterCount = 0;
 	unsigned globalCount = 0;
 	fields.forEach(
 	    [&]<std::size_t G, std::size_t I>(std::string_view name, const auto& definition) {
 		    assert(name == fields[G].name && definition.name() == fields[G].entries[I].name);
+		    meterCount += name == "meter" ? 1u : 0u;
 		    ++globalCount;
 	    });
-	assert(nativeCount == localFields.size() &&
-	       globalCount == localFields.size() + callbackFields.size());
+	assert(meterCount == 5 && globalCount == 15);
 	assert(fields.visit(voltageId, [](const auto& definition) {
 		assert(definition.name() != nullptr);
 	}));
-	assert(!fields.visit(telemetry::makeId<9, 0>(), [](const auto&) {
+	assert(!fields.visit(0x00090000u, [](const auto&) {
 	}));
 	auto request = Query{0};
 	CommandResult commandStatus = CommandResult::NotFound;
-	const bool selected = commands.visit(telemetry::makeId<0, 2>(), [&](const auto& definition) {
+	const bool selected = model.commands().visit(select.id, [&](const auto& definition) {
 		using Definition = std::remove_cvref_t<decltype(definition)>;
 		if constexpr (std::is_same_v<typename Definition::Request, Query>)
 			commandStatus = definition.call(request);
@@ -403,11 +399,11 @@ void demonstrate()
 	std::array<std::byte, model.maxScratch()> scratch{};
 	telemetry::Workspace workspace{scratch};
 	std::array<std::byte, telemetry::wireSize<float>> voltageWire{};
-	assert(fields.index().readEncoded(voltageId, voltageWire, workspace).dispatch ==
+	assert(model.fieldIndex().readEncoded(voltageId, voltageWire, workspace).dispatch ==
 	       telemetry::DispatchStatus::Ok);
 	const float replacement = 242.0f;
 	assert(telemetry::encode(replacement, voltageWire) == telemetry::CodecStatus::Ok);
-	assert(fields.index().writeEncoded(voltageId, voltageWire, workspace).endpointStatus ==
+	assert(model.fieldIndex().writeEncoded(voltageId, voltageWire, workspace).endpointStatus ==
 	       WriteResult::Applied);
 	std::array<std::byte, telemetry::wireSize<Query>> queryWire{};
 	std::array<std::byte, telemetry::wireSize<Snapshot>> snapshotWire{};
@@ -422,16 +418,15 @@ void demonstrate()
 		assert(decoded == nullptr); // Failure clears the pointer; lease owns the first object.
 	}
 	assert(workspace.used() == 0);
-	const auto encoded =
-	    services.index().callEncoded(telemetry::makeId<0, 1>(), queryWire, snapshotWire, workspace);
+	const auto encoded = model.serviceIndex().callEncoded(telemetry::idOf<model, "queries/Query">(),
+	                                                      queryWire, snapshotWire, workspace);
 	assert(encoded.dispatch == telemetry::DispatchStatus::Ok &&
 	       encoded.endpointStatus == ServiceStatus::Ok);
 	assert(encoded.written == snapshotWire.size());
-	assert(commands.index()
-	           .executeEncoded(telemetry::makeId<0, 2>(), queryWire, workspace)
-	           .endpointStatus == CommandResult::Executed);
+	assert(model.commandIndex().executeEncoded(select.id, queryWire, workspace).endpointStatus ==
+	       CommandResult::Executed);
 	assert(workspace.used() == 0);
-	const auto blockEntry = fields.index().find(telemetry::makeId<0, Position::BlockView>());
+	const auto blockEntry = model.fieldIndex().find(telemetry::idOf<model, "meter/BlockView">());
 	assert(blockEntry != nullptr && blockEntry->readScratchBytes == 0);
 	assert(blockEntry->writeScratchBytes == telemetry::scratchBytes<Block>);
 
@@ -440,7 +435,7 @@ void demonstrate()
 	contextSlot.reset();
 	referenceSlot.reset();
 	ownedSlot.reset();
-	assert(!callbackFields.read<5>() && !callbackFields.read<9>());
+	assert((!ownerVoltage.read() && !telemetry::read<model, "callbacks/DelegateSlot">()));
 }
 } // namespace guide
 

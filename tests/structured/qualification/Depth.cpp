@@ -20,11 +20,7 @@ Nested<DEPTH> readValue() noexcept
 	return {};
 }
 
-inline constexpr ts::FieldTable table{ts::field<&readValue>("nested")};
-inline constexpr ts::FieldCatalogTable fields{ts::group("depth", table)};
-inline constexpr ts::CommandCatalogTable<> commands{};
-inline constexpr ts::ServiceCatalogTable<> services{};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::Model model{ts::group("depth", ts::field<&readValue>("nested"))};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = ::telemetry::descriptor::packDescriptor<descriptor>();
 static_assert(ts::wireSize<Nested<DEPTH>> == 4);

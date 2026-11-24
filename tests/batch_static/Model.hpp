@@ -210,46 +210,28 @@ inline void reset() noexcept
 	traceCount = 0;
 }
 
-constexpr auto fieldTable(Device& owner) noexcept
+// One group per owner: its Fields, Commands and Services, names unique in the group.
+constexpr auto branch(const char* name, Device& owner) noexcept
 {
-	return ts::FieldTable{ts::field<&Device::read, &Device::write>("Config", owner),
-	                      ts::field<&Device::counter>("Counter", owner),
-	                      ts::field<&Device::readOnly>("ReadOnly", owner),
-	                      ts::field<&Device::empty>("Empty", owner),
-	                      ts::field<&Device::flag>("Bool", owner),
-	                      ts::field<&Device::read>("Unavailable", absent)};
+	return ts::group(
+	    name, ts::field<&Device::read, &Device::write>("Config", owner),
+	    ts::field<&Device::counter>("Counter", owner),
+	    ts::field<&Device::readOnly>("ReadOnly", owner), ts::field<&Device::empty>("Empty", owner),
+	    ts::field<&Device::flag>("Bool", owner), ts::field<&Device::read>("Unavailable", absent),
+	    ts::command<&Device::configure>("Configure", owner),
+	    ts::command<&Device::reset>("Reset", owner),
+	    ts::command<&Device::accepted>("Accepted", owner),
+	    ts::command<&Device::emptyArgument>("EmptyArgument", owner),
+	    ts::command<&Device::reject>("Reject", owner), ts::service<&Device::echo>("Echo", owner),
+	    ts::service<&Device::ping>("Ping", owner),
+	    ts::service<&Device::emptyService>("EmptyService", owner),
+	    ts::service<&Device::busy>("Busy", owner), ts::service<&Device::consume>("Consume", owner),
+	    ts::service<&Device::emptyRequest>("EmptyRequest", owner),
+	    ts::service<&Device::flagService>("Flag", owner));
 }
 
-constexpr auto commandTable(Device& owner) noexcept
-{
-	return ts::CommandTable{ts::command<&Device::configure>("Configure", owner),
-	                        ts::command<&Device::reset>("Reset", owner),
-	                        ts::command<&Device::accepted>("Accepted", owner),
-	                        ts::command<&Device::emptyArgument>("EmptyArgument", owner),
-	                        ts::command<&Device::reject>("Reject", owner)};
-}
-
-constexpr auto serviceTable(Device& owner) noexcept
-{
-	return ts::ServiceTable{ts::service<&Device::echo>("Echo", owner),
-	                        ts::service<&Device::ping>("Ping", owner),
-	                        ts::service<&Device::emptyService>("Empty", owner),
-	                        ts::service<&Device::busy>("Busy", owner),
-	                        ts::service<&Device::consume>("Consume", owner),
-	                        ts::service<&Device::emptyRequest>("EmptyRequest", owner),
-	                        ts::service<&Device::flagService>("Flag", owner)};
-}
-
-inline constexpr auto decoyFields = fieldTable(decoy), fields = fieldTable(device);
-inline constexpr auto decoyCommands = commandTable(decoy), commands = commandTable(device);
-inline constexpr auto decoyServices = serviceTable(decoy), services = serviceTable(device);
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group("decoy", decoyFields),
-                                                     ts::group("control", fields)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group("decoy", decoyCommands),
-                                                         ts::group("control", commands)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("decoy", decoyServices),
-                                                         ts::group("control", services)};
-inline constexpr ts::Model model{fieldCatalogs, commandCatalogs, serviceCatalogs};
+// The decoy group first, so control's IDs carry group 1 in every family.
+inline constexpr ts::Model model{branch("decoy", decoy), branch("control", device)};
 inline constexpr ts::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = ts::descriptor::packDescriptor<descriptor>();
 } // namespace static_batch_fixture

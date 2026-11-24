@@ -130,14 +130,9 @@ struct Device {
 };
 
 Device device;
-constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read, &Device::write>("Value", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("test", localFields)};
-constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::command>("Count", device)};
-constexpr telemetry::CommandCatalogTable commands{telemetry::group("test", localCommands)};
-constexpr telemetry::ServiceCatalogTable services{};
-constexpr telemetry::Model model{fields, commands, services};
+constexpr telemetry::Model model{
+    telemetry::group("test", telemetry::field<&Device::read, &Device::write>("Value", device),
+                     telemetry::command<&Device::command>("Count", device))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();
 constexpr resource::telemetry::v3::DescriptorFile descriptorFile{descriptorBytes};

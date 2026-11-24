@@ -59,19 +59,11 @@ struct Owner {
 };
 
 inline Owner owner;
-inline constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Owner::read, &Owner::write>("Config", owner),
-    telemetry::field<&Owner::wide>("ReadOnly", owner)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("workbench", localFields)};
-inline constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Owner::command>("Command", owner)};
-inline constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Owner::service>("Service", owner)};
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("workbench", localCommands)};
-inline constexpr telemetry::ServiceCatalogTable services{
-    telemetry::group("workbench", localServices)};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("workbench", telemetry::field<&Owner::read, &Owner::write>("Config", owner),
+                     telemetry::field<&Owner::wide>("ReadOnly", owner),
+                     telemetry::command<&Owner::command>("Command", owner),
+                     telemetry::service<&Owner::service>("Service", owner))};
 inline const auto view = model.view();
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();

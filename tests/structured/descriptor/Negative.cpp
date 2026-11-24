@@ -14,7 +14,7 @@ constexpr auto bad = ts::command<&fixture::Device::reset>("\xc0\x80", fixture::d
 #elif CASE == 3
 constexpr auto bad = ts::service<&df::ping>("");
 #elif CASE == 4
-constexpr auto bad = ts::group("a\0b", df::extraFields);
+constexpr auto bad = ts::testing::group("a\0b", df::extraFields);
 #elif CASE == 5
 constexpr auto bad = ts::field<&df::read<std::uint32_t>>(nullptr);
 #elif CASE == 6
@@ -22,17 +22,17 @@ constexpr auto bad = ts::field<&df::read<std::uint32_t>>("\xed\xa0\x80");
 #elif CASE == 7
 constexpr auto bad = ts::service<&df::ping>("\xf4\x90\x80\x80");
 #elif CASE == 8
-constexpr auto bad = ts::group("\xe2\x82", df::extraFields);
+constexpr auto bad = ts::testing::group("\xe2\x82", df::extraFields);
 #elif CASE == 9
 inline constexpr ts::FieldTable rows{ts::field<&df::read<int>>("x"),
                                      ts::field<&df::read<int>>("x")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", rows)};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, df::noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("g", rows)};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, df::noServices};
 constexpr ::telemetry::descriptor::Descriptor bad{model};
 #elif CASE == 10
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("g", df::extraFields),
-                                                ts::group("g", df::noFields)};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, df::noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("g", df::extraFields),
+                                                         ts::testing::group("g", df::noFields)};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, df::noServices};
 constexpr ::telemetry::descriptor::Descriptor bad{model};
 #elif CASE == 11
 auto bad = ::telemetry::descriptor::Descriptor{df::model}.view();
@@ -66,7 +66,7 @@ struct Profile : ts::Limits {
 };
 
 constexpr ::telemetry::descriptor::Descriptor<std::remove_cv_t<decltype(df::fields)>,
-                                              std::remove_cv_t<decltype(fixture::commands)>,
+                                              std::remove_cv_t<decltype(fixture::v30Commands)>,
                                               std::remove_cv_t<decltype(df::services)>, Profile>
     bad{df::model};
 #endif

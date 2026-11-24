@@ -133,10 +133,9 @@ bool roundtrip(Getter& getter, Setter& setter, Command& command)
 	using fixture::Value;
 	ts::FieldTable fields{ts::field("value", getter, setter)};
 	ts::CommandTable commands{ts::command("update", command)};
-	ts::FieldCatalogTable fieldCatalogs{ts::group("test", fields)};
-	ts::CommandCatalogTable commandCatalogs{ts::group("test", commands)};
-	ts::ServiceCatalogTable services{};
-	ts::Model model{fieldCatalogs, commandCatalogs, services};
+	// The same bindings in one group of a runtime tree, for encoded access.
+	ts::Model model{
+	    ts::group("test", ts::field("value", getter, setter), ts::command("update", command))};
 	std::array<std::byte, 64> scratch{}, output{};
 	ts::Workspace workspace{scratch};
 	std::array<std::byte, ts::wireSize<Value>> bytes{};
@@ -159,8 +158,8 @@ bool empty(Getter& getter, Setter& setter, Command& command)
 	using fixture::Value;
 	ts::FieldTable fields{ts::field("value", getter, setter)};
 	ts::CommandTable commands{ts::command("update", command)};
-	ts::FieldCatalogTable fieldCatalogs{ts::group("test", fields)};
-	ts::CommandCatalogTable commandCatalogs{ts::group("test", commands)};
+	ts::Model model{
+	    ts::group("test", ts::field("value", getter, setter), ts::command("update", command))};
 	const int before = fixture::device.reads + fixture::device.writes + fixture::device.calls;
 	std::array<std::byte, 64> scratch{};
 	std::array<std::byte, ts::wireSize<Value>> bytes{};
@@ -168,18 +167,18 @@ bool empty(Getter& getter, Setter& setter, Command& command)
 	if (fields.template read<0>() || fields.template write<0>(Value{}) != WR::Unavailable ||
 	    commands.template call<0>(Value{}) != CR::Unavailable)
 		return false;
-	if (fieldCatalogs.index().readEncoded(0, bytes, workspace).dispatch !=
+	if (model.fieldIndex().readEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::Unavailable ||
-	    fieldCatalogs.index().writeEncoded(0, bytes, workspace).dispatch !=
+	    model.fieldIndex().writeEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::Unavailable ||
-	    commandCatalogs.index().executeEncoded(0, bytes, workspace).dispatch !=
+	    model.commandIndex().executeEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::Unavailable)
 		return false;
 	// Malformed values are rejected before availability, as with Services.
 	bytes.back() = std::byte{2};
-	if (fieldCatalogs.index().writeEncoded(0, bytes, workspace).dispatch !=
+	if (model.fieldIndex().writeEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::InvalidPayload ||
-	    commandCatalogs.index().executeEncoded(0, bytes, workspace).dispatch !=
+	    model.commandIndex().executeEncoded(0, bytes, workspace).dispatch !=
 	        ts::DispatchStatus::InvalidPayload)
 		return false;
 	return before == fixture::device.reads + fixture::device.writes + fixture::device.calls &&
@@ -359,22 +358,19 @@ int main()
 	int snapshots = 0;
 	ts::FieldDefinition countedField{"snapshots", Snapshot<Value() noexcept, &get>{&snapshots},
 	                                 Snapshot<WR(Value) noexcept, &set>{&snapshots}};
-	ts::CommandDefinition countedCommand{"snapshots",
+	ts::CommandDefinition countedCommand{"update",
 	                                     Snapshot<CR(const Value&) noexcept, &call>{&snapshots}};
 	ts::FieldTable countedFields{countedField};
 	ts::CommandTable countedCommands{countedCommand};
-	ts::FieldCatalogTable fieldCatalogs{ts::group("test", countedFields)};
-	ts::CommandCatalogTable commandCatalogs{ts::group("test", countedCommands)};
+	ts::Model model{ts::group("test", countedField, countedCommand)};
 	std::array<std::byte, 64> scratch{};
 	std::array<std::byte, ts::wireSize<Value>> bytes{};
 	ts::Workspace workspace{scratch};
-	CHECK(fieldCatalogs.index().readEncoded(0, bytes, workspace).dispatch ==
-	          ts::DispatchStatus::Ok &&
+	CHECK(model.fieldIndex().readEncoded(0, bytes, workspace).dispatch == ts::DispatchStatus::Ok &&
 	      snapshots == 1);
-	CHECK(fieldCatalogs.index().writeEncoded(0, bytes, workspace).dispatch ==
-	          ts::DispatchStatus::Ok &&
+	CHECK(model.fieldIndex().writeEncoded(0, bytes, workspace).dispatch == ts::DispatchStatus::Ok &&
 	      snapshots == 2);
-	CHECK(commandCatalogs.index().executeEncoded(0, bytes, workspace).dispatch ==
+	CHECK(model.commandIndex().executeEncoded(0, bytes, workspace).dispatch ==
 	          ts::DispatchStatus::Ok &&
 	      snapshots == 3);
 	CHECK(countedFields.read<0>() && snapshots == 4);

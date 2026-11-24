@@ -5,6 +5,7 @@
 // The wrappers separate high-bit rejection from the known-target path without claiming target timing.
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 using namespace telemetry;
 float idBoundaryRead() noexcept;
@@ -12,9 +13,9 @@ CommandResult idBoundaryCommand() noexcept;
 
 namespace {
 constexpr FieldTable rows{field<&idBoundaryRead>("value")};
-constexpr FieldCatalogTable fields{group("fields", rows)};
+constexpr testing::FieldCatalogTable fields{testing::group("fields", rows)};
 constexpr CommandTable commands{command<&idBoundaryCommand>("run")};
-constexpr CommandCatalogTable grouped{group("commands", commands)};
+constexpr testing::CommandCatalogTable grouped{testing::group("commands", commands)};
 } // namespace
 
 extern "C" {

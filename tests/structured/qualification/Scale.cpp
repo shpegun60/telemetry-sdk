@@ -35,11 +35,12 @@ inline constexpr auto labels = names();
 template<std::size_t... I>
 constexpr auto make(std::index_sequence<I...>)
 {
-	return ts::FieldTable{ts::field<&Device::read<I>>(labels[I].data(), device)...};
+	return ts::group("scale", ts::field<&Device::read<I>>(labels[I].data(), device)...);
 }
 
-inline constexpr auto table = make(std::make_index_sequence<ROWS>{});
-inline constexpr ts::FieldCatalogTable fields{ts::group("scale", table)};
+// One group of ROWS Fields; its catalog table selects a row by runtime ID.
+inline constexpr ts::Model model{make(std::make_index_sequence<ROWS>{})};
+inline constexpr auto& fields = model.fields();
 
 // Named visitor reuses one concrete visitor type across all selected Field rows.
 // API: operator().
@@ -87,7 +88,7 @@ extern "C" std::uint32_t scale_consumer(std::uint32_t id, unsigned operation) no
 	// Baseline does the same native read through the encoded runtime index.
 	std::array<std::byte, 4> bytes;
 	ts::Workspace workspace{std::span<std::byte>{}};
-	const auto status = scale::fields.index().readEncoded(id, bytes, workspace);
+	const auto status = scale::model.fieldIndex().readEncoded(id, bytes, workspace);
 	if (status.dispatch != ts::DispatchStatus::Ok)
 		return 0;
 	std::uint32_t value = 0;

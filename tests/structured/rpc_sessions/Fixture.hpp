@@ -46,15 +46,14 @@ struct Counter {
 };
 
 inline Counter first, second;
-inline constexpr ts::ServiceTable firstLocal{ts::service<&Counter::add>("Add", first)};
-inline constexpr ts::ServiceTable secondLocal{ts::service<&Counter::add>("Add", second)};
-inline constexpr ts::ServiceCatalogTable firstServices{ts::group("counter", firstLocal)};
-inline constexpr ts::ServiceCatalogTable secondServices{ts::group("counter", secondLocal)};
-inline constexpr ts::Model firstModel{ts::emptyFields, ts::emptyCommands, firstServices};
-inline constexpr ts::Model secondModel{ts::emptyFields, ts::emptyCommands, secondServices};
+inline constexpr ts::Model firstModel{
+    ts::group("counter", ts::service<&Counter::add>("Add", first))};
+inline constexpr ts::Model secondModel{
+    ts::group("counter", ts::service<&Counter::add>("Add", second))};
 inline constexpr auto firstView = firstModel.view();
 inline constexpr auto secondView = secondModel.view();
-inline constexpr auto AddId = ts::makeId<0, 0>();
+inline constexpr auto AddId = ts::idOf<firstModel, "counter/Add">();
+static_assert(AddId == ts::idOf<secondModel, "counter/Add">());
 
 // A second file exercises routing and cannot touch a mailbox or Workspace.
 struct ExtraFile {

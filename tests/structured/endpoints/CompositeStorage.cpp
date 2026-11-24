@@ -57,10 +57,12 @@ Nine nine() noexcept
 
 inline constexpr ts::FieldTable fields{ts::field<&get, &set>("small"), ts::field<&nine>("nine")};
 inline constexpr ts::CommandTable commands{ts::command<&call>("small")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("p", fields)};
-inline constexpr ts::CommandCatalogTable actions{ts::group("p", commands)};
-inline constexpr ts::ServiceTable replies{ts::service<&service>("Echo")};
-inline constexpr ts::ServiceCatalogTable replyCatalogs{ts::group("p", replies)};
+// The same endpoints in one group of a tree, for the encoded indexes.
+inline constexpr ts::Model model{ts::group("p", ts::field<&get, &set>("small"),
+                                           ts::field<&nine>("nine"), ts::command<&call>("call"),
+                                           ts::service<&service>("Echo"))};
+static_assert(model.fieldIndex().find(0)->readScratchBytes == fields.data()[0].readScratchBytes &&
+              model.commandIndex().find(0)->scratchBytes == commands.data()[0].scratchBytes);
 static_assert(fields.data()[0].readScratchBytes ==
               (sizeof(Value) <= ts::maxLocalObjectBytes ? 0 : ts::scratchBytes<Value>));
 static_assert(fields.data()[0].writeScratchBytes == fields.data()[0].readScratchBytes);
@@ -75,25 +77,26 @@ int main()
 	ts::Workspace none{std::span<std::byte>{}};
 	std::array<std::byte, 9> bytes{};
 	if constexpr (sizeof(small::Value) > ts::maxLocalObjectBytes) {
-		if (small::catalogs.index().readEncoded(0, bytes, none).dispatch !=
+		if (small::model.fieldIndex().readEncoded(0, bytes, none).dispatch !=
 		        ts::DispatchStatus::WorkspaceTooSmall ||
-		    small::catalogs.index().writeEncoded(0, std::span{bytes}.first(8), none).dispatch !=
+		    small::model.fieldIndex().writeEncoded(0, std::span{bytes}.first(8), none).dispatch !=
 		        ts::DispatchStatus::WorkspaceTooSmall ||
-		    small::actions.index().executeEncoded(0, std::span{bytes}.first(8), none).dispatch !=
-		        ts::DispatchStatus::WorkspaceTooSmall ||
+		    small::model.commandIndex()
+		            .executeEncoded(0, std::span{bytes}.first(8), none)
+		            .dispatch != ts::DispatchStatus::WorkspaceTooSmall ||
 		    small::initializers != 0 || small::writes != 0)
 			return 4;
 	}
 	std::array<std::byte, ts::scratchBytes<small::Value>> storage;
 	ts::Workspace workspace{storage};
-	const auto read = small::catalogs.index().readEncoded(0, bytes, workspace);
+	const auto read = small::model.fieldIndex().readEncoded(0, bytes, workspace);
 	if (read.dispatch != ts::DispatchStatus::Ok || read.written != 8 || bytes[0] != std::byte{42} ||
 	    bytes[4] != std::byte{17})
 		return 1;
-	if (small::catalogs.index()
+	if (small::model.fieldIndex()
 	            .writeEncoded(0, std::span{bytes}.first(8), workspace)
 	            .endpointStatus != telemetry::WriteResult::Applied ||
-	    small::actions.index()
+	    small::model.commandIndex()
 	            .executeEncoded(0, std::span{bytes}.first(8), workspace)
 	            .endpointStatus != telemetry::CommandResult::Executed ||
 	    small::initializers != 0 || small::writes != 2)
@@ -101,7 +104,7 @@ int main()
 	const auto expected = sizeof(small::Nine) <= ts::maxLocalObjectBytes
 	                          ? ts::DispatchStatus::Ok
 	                          : ts::DispatchStatus::WorkspaceTooSmall;
-	if (small::catalogs.index().readEncoded(1, bytes, none).dispatch != expected)
+	if (small::model.fieldIndex().readEncoded(1, bytes, none).dispatch != expected)
 		return 3;
 	// The same DMI request takes the local or Workspace path under the budget
 	// matrix. Neither path may execute its application initializers.
@@ -110,8 +113,8 @@ int main()
 	std::array<std::byte, 64> serviceStorage{};
 	ts::Workspace serviceWorkspace{serviceStorage};
 	std::array<std::byte, 8> response{};
-	const auto result = small::replyCatalogs.index().callEncoded(0u, std::span{bytes}.first(8),
-	                                                             response, serviceWorkspace);
+	const auto result = small::model.serviceIndex().callEncoded(0u, std::span{bytes}.first(8),
+	                                                            response, serviceWorkspace);
 	if (result.dispatch != ts::DispatchStatus::Ok || result.written != 8 ||
 	    response[0] != std::byte{42} || response[4] != std::byte{17} || small::services != 1 ||
 	    small::initializers != 0 || serviceWorkspace.used() != 0)

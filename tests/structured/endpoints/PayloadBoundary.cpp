@@ -109,13 +109,10 @@ std::uint32_t next(std::uint32_t& seed)
 void corpus()
 {
 	Device device;
-	ts::FieldTable fieldTable{ts::field<&Device::get, &Device::set>("value", device)};
-	ts::CommandTable commandTable{ts::command<&Device::execute>("execute", device)};
-	ts::ServiceTable serviceTable{ts::service<&Device::echo>("echo", device)};
-	ts::FieldCatalogTable fields{ts::group("device", fieldTable)};
-	ts::CommandCatalogTable commands{ts::group("device", commandTable)};
-	ts::ServiceCatalogTable services{ts::group("device", serviceTable)};
-	ts::Model model{fields, commands, services};
+	// A runtime tree over a local owner: one group of all three families.
+	ts::Model model{ts::group("device", ts::field<&Device::get, &Device::set>("value", device),
+	                          ts::command<&Device::execute>("execute", device),
+	                          ts::service<&Device::echo>("echo", device))};
 	const auto view = model.view();
 	alignas(std::max_align_t) std::array<std::byte, 256> storage{};
 	ts::Workspace workspace{storage};

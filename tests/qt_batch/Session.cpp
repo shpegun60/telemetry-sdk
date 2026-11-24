@@ -85,15 +85,11 @@ struct Device {
 	}
 } device;
 
-constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read, &Device::write>("Value", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("test", localFields)};
-constexpr telemetry::CommandTable commandTable{telemetry::command<&Device::command>("Add", device)};
-constexpr telemetry::CommandCatalogTable commands{telemetry::group("control", commandTable)};
-constexpr telemetry::ServiceTable serviceTable{
-    telemetry::service<&Device::service>("Scale", device)};
-constexpr telemetry::ServiceCatalogTable services{telemetry::group("control", serviceTable)};
-constexpr telemetry::Model model{fields, commands, services};
+// One group: every family's ID is 0, as the batch requests below send.
+constexpr telemetry::Model model{
+    telemetry::group("test", telemetry::field<&Device::read, &Device::write>("Value", device),
+                     telemetry::command<&Device::command>("Add", device),
+                     telemetry::service<&Device::service>("Scale", device))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto packed = telemetry::descriptor::packDescriptor<descriptor>();
 constexpr resource::BytesFile descriptorFile{packed};

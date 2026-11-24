@@ -135,7 +135,10 @@ def main():
         for opt in optimizations:
             obj = output / (opt+'-ArmCodegen.o')
             run(flags + ['-'+opt, '-c', HERE/'ArmCodegen.cpp', '-o', obj], 'codegen-'+opt)
-            asm = run([objdump, '-drC', obj], 'assembly-'+opt)
+            # The mixed reads' path route is compiled in a unit of its own.
+            path_obj = output / (opt+'-ArmCodegenPath.o')
+            run(flags + ['-'+opt, '-c', HERE/'ArmCodegenPath.cpp', '-o', path_obj], 'codegen-path-'+opt)
+            asm = run([objdump, '-drC', obj], 'assembly-'+opt) + run([objdump, '-drC', path_obj], 'assembly-path-'+opt)
             if re.search(r'telemetry::(?:Scalar|Getter|Setter)', asm):
                 raise RuntimeError('Legacy value erasure leaked into native codegen')
             layout = output/(opt+'-layout.bin')
@@ -145,13 +148,14 @@ def main():
                 for operation in ('read', 'write', 'command', 'boolean', 'u16', 'f32', 'f64',
                                   'enumeration', 'array', 'state', 'config'):
                     code = []
-                    for route in ('direct', 'local', 'global'):
+                    for route in ('direct', 'local', 'handle', 'path'):
                         symbol = operation+'_'+route
                         path = output / (opt+'-'+symbol+'.bin')
-                        run([objcopy, '--dump-section', f'.text.{symbol}={path}', obj], 'bytes-'+opt+'-'+symbol)
+                        source = path_obj if route == 'path' and operation not in ('read', 'write', 'command') else obj
+                        run([objcopy, '--dump-section', f'.text.{symbol}={path}', source], 'bytes-'+opt+'-'+symbol)
                         code.append(path.read_bytes())
-                    if not code[0] or code[0] != code[1] or code[0] != code[2]:
-                        raise RuntimeError(f'{opt}: {operation} direct/local/global code differs')
+                    if not code[0] or any(code[0] != other for other in code[1:]):
+                        raise RuntimeError(f'{opt}: {operation} direct/local/handle/path code differs')
                     results[opt][operation+'_identical_bytes'] = len(code[0])
             usage = (output/(opt+'-LargeEndpoints.su')).read_text()
             frames = re.findall(r':static [^\n]*(?:FieldTable|CommandTable)[^\n]*::(?:readOne|writeOne|invokeOne)\([^\n]*\t(\d+)\tstatic', usage)
@@ -161,7 +165,8 @@ def main():
             print(opt, results[opt], flush=True)
         (output/'arm-results.json').write_text(json.dumps(results, indent=2)+'\n')
         sections = run([objdump, '-h', output/'O2-MixedProbe.o'], 'table-storage')
-        for name in ('mixedFields', 'localCommands', 'localServices'):
+        # The group tree owns its tables; the local tables are not addressed.
+        for name in ('model',):
             if re.search(r'\.rodata\.[^\s]*'+name+r'E\b', sections) is None:
                 raise RuntimeError(name+' did not remain in read-only storage')
         if re.search(r'\.(?:init_array|preinit_array|ctors)\b', sections):

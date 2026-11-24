@@ -5,6 +5,7 @@
 #pragma once
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 
 namespace fixture {
@@ -214,19 +215,39 @@ inline constexpr ts::ServiceTable localServices{
 inline constexpr ts::FieldTable<> noFields{};
 inline constexpr ts::CommandTable<> noCommands{};
 inline constexpr ts::ServiceTable<> noServices{};
-inline constexpr ts::FieldCatalogTable<> noFieldCatalogs{};
-inline constexpr ts::CommandCatalogTable<> noCommandCatalogs{};
-inline constexpr ts::ServiceCatalogTable<> noServiceCatalogs{};
-inline constexpr ts::FieldCatalogTable fields{ts::group("first", localFields),
-                                              ts::group("empty", noFields),
-                                              ts::group("repeat", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("first", localCommands),
-                                                  ts::group("empty", noCommands),
-                                                  ts::group("repeat", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("first", localServices),
-                                                  ts::group("empty", noServices),
-                                                  ts::group("repeat", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::testing::FieldCatalogTable<> noFieldCatalogs{};
+inline constexpr ts::testing::CommandCatalogTable<> noCommandCatalogs{};
+inline constexpr ts::testing::ServiceCatalogTable<> noServiceCatalogs{};
+
+// The tree: first, an empty group and repeat, each with ten Fields, three
+// Commands and four Services (the same endpoints as the local tables; one
+// group's names are unique across its families). Typed traversal and As
+// access go through the tree's catalog tables, one row per group.
+inline constexpr auto traversalGroup(const char* name) noexcept
+{
+	return ts::group(
+	    name, ts::field<&Device::readBool, &Device::setBool>("Bool", device),
+	    ts::field<&Device::readU16, &Device::setU16>("U16", device),
+	    ts::field<&Device::readFloat, &Device::setFloat>("Float", device),
+	    ts::field<&Device::readS64, &Device::setS64>("S64", device),
+	    ts::field<&Device::readU64, &Device::setU64>("U64", device),
+	    ts::field<&Device::readMode, &Device::setMode>("Mode", device),
+	    ts::field<&Device::readArray>("Array", device),
+	    ts::field<&Device::readConfig, &Device::setConfig>("Config", device),
+	    ts::field<&Device::readBig, &Device::setBig>("Big", device),
+	    ts::field<&Device::readConfig, &Device::setConfig>("Slot", slot),
+	    ts::command<&Device::configure>("Configure", device),
+	    ts::command<&Device::reset>("Reset", device),
+	    ts::command<&Device::configure>("SlotConfigure", slot),
+	    ts::service<&Device::echo>("Echo", device), ts::service<&Device::ping>("Ping", device),
+	    ts::service<&Device::large>("Large", device), ts::service<&Device::echo>("SlotEcho", slot));
+}
+
+inline constexpr ts::Model model{traversalGroup("first"), ts::group("empty"),
+                                 traversalGroup("repeat")};
+inline constexpr auto& fields = model.fields();
+inline constexpr auto& commands = model.commands();
+inline constexpr auto& services = model.services();
 } // namespace fixture
 
 #endif // TELEMETRY_TESTS_STRUCTURED_TRAVERSAL_FIXTURE_HPP

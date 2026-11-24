@@ -64,7 +64,7 @@ inline constexpr ts::Model model{branch};
 inline constexpr auto modelView = model.view();
 // The ID a TRPC request carries, taken from the Service's path.
 inline constexpr auto AddId = ts::idOf<model, "counter/Add">();
-static_assert(AddId == ts::makeId<0, 0>()); // The positional form, being removed.
+static_assert(AddId == 0x00000000u); // group 0, entry 0
 std::array<std::byte, 64> scratch{};
 ts::Workspace workspace{scratch};
 std::array<std::byte, 64> requestStorage{};

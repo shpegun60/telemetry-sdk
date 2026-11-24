@@ -109,24 +109,16 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read, &Device::write>("Packet", device),
-    telemetry::field<&Device::empty>("Empty", device),
-    telemetry::field<&Device::zero>("Zero", device),
-    telemetry::field<&Device::hugeZero>("HugeZero", device),
-    telemetry::field<&Device::wide>("U64", device),
-    telemetry::field<&Device::signedWide>("S64", device),
-    telemetry::field<&Device::flag>("Flag", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("inspect", localFields)};
-inline constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::command>("Command", device)};
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("inspect", localCommands)};
-inline constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Device::service>("Service", device)};
-inline constexpr telemetry::ServiceCatalogTable services{
-    telemetry::group("inspect", localServices)};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("inspect", telemetry::field<&Device::read, &Device::write>("Packet", device),
+                     telemetry::field<&Device::empty>("Empty", device),
+                     telemetry::field<&Device::zero>("Zero", device),
+                     telemetry::field<&Device::hugeZero>("HugeZero", device),
+                     telemetry::field<&Device::wide>("U64", device),
+                     telemetry::field<&Device::signedWide>("S64", device),
+                     telemetry::field<&Device::flag>("Flag", device),
+                     telemetry::command<&Device::command>("Command", device),
+                     telemetry::service<&Device::service>("Service", device))};
 inline const auto modelView = model.view();
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = telemetry::descriptor::packDescriptor<descriptor>();

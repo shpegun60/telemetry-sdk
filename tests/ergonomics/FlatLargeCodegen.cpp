@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -49,8 +50,10 @@ const Big& borrowed(const Request&) noexcept
 
 inline constexpr ts::ServiceTable ownedTable{ts::service<&owned>("Owned")};
 inline constexpr ts::ServiceTable borrowedTable{ts::service<&borrowed>("Borrowed")};
-inline constexpr ts::ServiceCatalogTable ownedCatalog{ts::group("Buffers", ownedTable)};
-inline constexpr ts::ServiceCatalogTable borrowedCatalog{ts::group("Buffers", borrowedTable)};
+inline constexpr ts::testing::ServiceCatalogTable ownedCatalog{
+    ts::testing::group("Buffers", ownedTable)};
+inline constexpr ts::testing::ServiceCatalogTable borrowedCatalog{
+    ts::testing::group("Buffers", borrowedTable)};
 
 struct OwnedVisitor {
 	void* output;

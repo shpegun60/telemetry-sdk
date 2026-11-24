@@ -6,9 +6,9 @@
  *
  * run_arm_checks.py links descriptor_probe alone with --gc-sections for every
  * combination of three switches and reports .text, .rodata and .data:
- *   MODEL 0  the NUCLEO-H7S3L8 demo's flat Model (four named types)
+ *   MODEL 0  the NUCLEO-H7S3L8 demo's Model, a tree of two groups (four named types)
  *   MODEL 1  the group-tree fixture as a tree, Model{adc, metrology}
- *   MODEL 2  the same endpoints as today's flat catalogs
+ *   MODEL 2  the same endpoints as per-family catalogs (telemetry/testing/V30Model.hpp)
  *   FORM 0   the packed descriptor: consteval bytes in .rodata, copied out
  *   FORM 1   the streaming descriptor: bytes made by DescriptorView::read()
  *   TELEMETRY_TYPE_NAMES 1 or 0 on the command line, the project switch.
@@ -24,6 +24,7 @@
 #endif
 
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -51,12 +52,13 @@ inline constexpr ts::FieldTable meter{
                                                                        metrology::tlm::instance)};
 inline constexpr ts::CommandTable adcCommands{ts::command<&Adc::reset>("Reset", instance)};
 inline constexpr ts::ServiceTable adcServices{ts::service<&Adc::calibrate>("Calibrate", instance)};
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("adc", adcFields), ts::group("channel1", channel1), ts::group("channel2", channel2),
-    ts::group("metrology", meter)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("adc", adcCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("adc", adcServices)};
-inline constexpr ts::Model model{fields, commands, services};
+namespace v30 = ts::testing;
+inline constexpr v30::FieldCatalogTable fields{
+    v30::group("adc", adcFields), v30::group("channel1", channel1),
+    v30::group("channel2", channel2), v30::group("metrology", meter)};
+inline constexpr v30::CommandCatalogTable commands{v30::group("adc", adcCommands)};
+inline constexpr v30::ServiceCatalogTable services{v30::group("adc", adcServices)};
+inline constexpr v30::V30Model model{fields, commands, services};
 #endif
 
 inline constexpr ts::descriptor::Descriptor descriptor{model};

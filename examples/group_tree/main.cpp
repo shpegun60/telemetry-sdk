@@ -59,8 +59,8 @@ void handles()
 	check(meter.write(metrology::Config{20, metrology::Window::FlatTop}) ==
 	          ts::WriteResult::Applied,
 	      "a stored handle writes");
-	static_assert(device::gain1.id == ts::makeId(1, 0) &&
-	              device::meterConfig.id == ts::makeId(3, 0));
+	// An ID is the group's pre-order position (high 16 bits) and the entry's.
+	static_assert(device::gain1.id == 0x00010000u && device::meterConfig.id == 0x00030000u);
 }
 
 void paths()
@@ -75,8 +75,8 @@ void paths()
 	      "write<model, path>(value)");
 	check(ts::call<device::model, "adc/Reset">() == ts::CommandResult::Executed,
 	      "call<model, path>()");
-	static_assert(ts::idOf<device::model, "adc/Calibrate">() == ts::makeId(0, 0));
-	static_assert(device::model.idOf<"adc/channel2/Gain">() == ts::makeId(2, 0));
+	static_assert(ts::idOf<device::model, "adc/Calibrate">() == 0x00000000u);
+	static_assert(device::model.idOf<"adc/channel2/Gain">() == 0x00020000u);
 }
 
 // What a host sees: every endpoint's path and the name of its type.

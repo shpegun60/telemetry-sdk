@@ -217,35 +217,32 @@ T minimumValue() noexcept
 	return std::numeric_limits<T>::lowest();
 }
 
-inline constexpr telemetry::FieldTable integerFields{
-    field<&maximumValue<std::uint8_t>>("U8"),   field<&maximumValue<std::uint16_t>>("U16"),
-    field<&maximumValue<std::uint32_t>>("U32"), field<&maximumValue<std::uint64_t>>("U64"),
-    field<&minimumValue<std::int8_t>>("S8"),    field<&minimumValue<std::int16_t>>("S16"),
-    field<&minimumValue<std::int32_t>>("S32"),  field<&minimumValue<std::int64_t>>("S64"),
-};
-
 inline constexpr telemetry::CommandTable meterCommands{
     telemetry::command<&Meter::reset>("Reset counter", meter),
     telemetry::command<&Meter::configure>("Configure meter", meter),
 };
 static_assert(meterCommands.size() == static_cast<std::size_t>(MeterCommand::Count));
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("meter", meterCommands),
-};
-inline constexpr auto commandIndex = commands.index();
 
-inline constexpr telemetry::FieldTable sensorFields{
-    field<&Sensor::temperature>("Temperature", sensor),
-    field<&Sensor::enabled>("Enabled", sensor),
-};
-inline constexpr telemetry::FieldCatalogTable fields{
-    telemetry::group("meter", meterFields),
-    telemetry::group("sensor", sensorFields),
-    telemetry::group("integers", integerFields),
-};
-inline constexpr auto fieldIndex = fields.index();
-inline constexpr telemetry::ServiceCatalogTable<> services{};
-inline constexpr telemetry::Model model{fields, commands, services};
+// The device: meter (its Fields and two Commands), sensor and integers.
+inline constexpr telemetry::Model model{
+    telemetry::group("meter", field<&Meter::readVoltage>("Ua", meter),
+                     field<&Meter::readCurrent>("Ia", meter), field<&Meter::readPower>("P", meter),
+                     field<&Meter::readCounter>("WinCnt", meter),
+                     field<&Meter::readThreshold, &Meter::setThreshold>("VoltageLimit", meter),
+                     field<&Meter::readMode, &Meter::setMode>("Mode", meter),
+                     field<&Meter::readStructured>("Structured", meter),
+                     telemetry::command<&Meter::reset>("Reset counter", meter),
+                     telemetry::command<&Meter::configure>("Configure meter", meter)),
+    telemetry::group("sensor", field<&Sensor::temperature>("Temperature", sensor),
+                     field<&Sensor::enabled>("Enabled", sensor)),
+    telemetry::group(
+        "integers", field<&maximumValue<std::uint8_t>>("U8"),
+        field<&maximumValue<std::uint16_t>>("U16"), field<&maximumValue<std::uint32_t>>("U32"),
+        field<&maximumValue<std::uint64_t>>("U64"), field<&minimumValue<std::int8_t>>("S8"),
+        field<&minimumValue<std::int16_t>>("S16"), field<&minimumValue<std::int32_t>>("S32"),
+        field<&minimumValue<std::int64_t>>("S64"))};
+inline constexpr auto fieldIndex = model.fieldIndex();
+inline constexpr auto commandIndex = model.commandIndex();
 
 void advance() noexcept;
 

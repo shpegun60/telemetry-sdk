@@ -19,12 +19,8 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read>("Config", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("device", localFields)};
-inline constexpr telemetry::CommandCatalogTable commands{};
-inline constexpr telemetry::ServiceCatalogTable services{};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("device", telemetry::field<&Device::read>("Config", device))};
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace alternate

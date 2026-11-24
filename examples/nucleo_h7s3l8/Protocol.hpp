@@ -111,60 +111,57 @@ struct ScalarFixture {
 inline ScalarFixture scalarFixture;
 inline telemetry::OwnerSlot<ScalarFixture> unavailableFixture;
 #endif
-inline constexpr telemetry::FieldTable measureFields{telemetry::field<&voltage>("Voltage")};
-inline constexpr telemetry::FieldTable deviceFields{telemetry::field<&counter>("Counter"),
-                                                    telemetry::field<&readStatus>("Status"),
-                                                    telemetry::field<&probe>("Probe")};
+inline constexpr auto measure = telemetry::group("measure", telemetry::field<&voltage>("Voltage"));
+inline constexpr auto device =
+    telemetry::group("device", telemetry::field<&counter>("Counter"),
+                     telemetry::field<&readStatus>("Status"), telemetry::field<&probe>("Probe"));
 #if TELEMETRY_NUCLEO_READ_MANY
-inline constexpr telemetry::FieldTable batch32Fields{
-    telemetry::field<&ScalarFixture::u32<0>>("U32_0", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<1>>("U32_1", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<2>>("U32_2", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<3>>("U32_3", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<4>>("U32_4", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<5>>("U32_5", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<6>>("U32_6", scalarFixture),
-    telemetry::field<&ScalarFixture::u32<7>>("U32_7", scalarFixture)};
-inline constexpr telemetry::FieldTable batch64Fields{
-    telemetry::field<&ScalarFixture::u64<0>>("U64_0", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<1>>("U64_1", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<2>>("U64_2", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<3>>("U64_3", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<4>>("U64_4", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<5>>("U64_5", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<6>>("U64_6", scalarFixture),
-    telemetry::field<&ScalarFixture::u64<7>>("U64_7", scalarFixture)};
-inline constexpr telemetry::FieldTable flagFields{
-    telemetry::field<&ScalarFixture::flag<0>>("Bool_0", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<1>>("Bool_1", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<2>>("Bool_2", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<3>>("Bool_3", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<4>>("Bool_4", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<5>>("Bool_5", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<6>>("Bool_6", scalarFixture),
-    telemetry::field<&ScalarFixture::flag<7>>("Bool_7", scalarFixture)};
-inline constexpr telemetry::FieldTable modeFields{
-    telemetry::field<&ScalarFixture::mode<0>>("Mode_0", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<1>>("Mode_1", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<2>>("Mode_2", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<3>>("Mode_3", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<4>>("Mode_4", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<5>>("Mode_5", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<6>>("Mode_6", scalarFixture),
-    telemetry::field<&ScalarFixture::mode<7>>("Unavailable", unavailableFixture)};
+inline constexpr auto batch32 =
+    telemetry::group("batch32", telemetry::field<&ScalarFixture::u32<0>>("U32_0", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<1>>("U32_1", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<2>>("U32_2", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<3>>("U32_3", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<4>>("U32_4", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<5>>("U32_5", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<6>>("U32_6", scalarFixture),
+                     telemetry::field<&ScalarFixture::u32<7>>("U32_7", scalarFixture));
+inline constexpr auto batch64 =
+    telemetry::group("batch64", telemetry::field<&ScalarFixture::u64<0>>("U64_0", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<1>>("U64_1", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<2>>("U64_2", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<3>>("U64_3", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<4>>("U64_4", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<5>>("U64_5", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<6>>("U64_6", scalarFixture),
+                     telemetry::field<&ScalarFixture::u64<7>>("U64_7", scalarFixture));
+inline constexpr auto flags =
+    telemetry::group("flags", telemetry::field<&ScalarFixture::flag<0>>("Bool_0", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<1>>("Bool_1", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<2>>("Bool_2", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<3>>("Bool_3", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<4>>("Bool_4", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<5>>("Bool_5", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<6>>("Bool_6", scalarFixture),
+                     telemetry::field<&ScalarFixture::flag<7>>("Bool_7", scalarFixture));
+inline constexpr auto modes =
+    telemetry::group("modes", telemetry::field<&ScalarFixture::mode<0>>("Mode_0", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<1>>("Mode_1", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<2>>("Mode_2", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<3>>("Mode_3", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<4>>("Mode_4", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<5>>("Mode_5", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<6>>("Mode_6", scalarFixture),
+                     telemetry::field<&ScalarFixture::mode<7>>("Unavailable", unavailableFixture));
 // Existing four IDs are unchanged. Counter plus 31 new getters are exactly
 // 32 readable scalar Field IDs; Unavailable is a separate scalar-typed row.
-inline constexpr telemetry::FieldCatalogTable fields{
-    telemetry::group("measure", measureFields), telemetry::group("device", deviceFields),
-    telemetry::group("batch32", batch32Fields), telemetry::group("batch64", batch64Fields),
-    telemetry::group("flags", flagFields),      telemetry::group("modes", modeFields)};
+inline constexpr telemetry::Model model{measure, device, batch32, batch64, flags, modes};
 #else
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("measure", measureFields),
-                                                     telemetry::group("device", deviceFields)};
+inline constexpr telemetry::Model model{measure, device};
 #endif
-inline constexpr telemetry::CommandCatalogTable<> commands{};
-inline constexpr telemetry::ServiceCatalogTable<> services{};
-inline constexpr telemetry::Model model{fields, commands, services};
+// The IDs a host reads, from their paths: groups are numbered in tree order.
+static_assert(telemetry::idOf<model, "measure/Voltage">() == 0x00000000u);
+static_assert(telemetry::idOf<model, "device/Counter">() == 0x00010000u);
+static_assert(telemetry::idOf<model, "device/Probe">() == 0x00010002u);
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto packedDescriptor = telemetry::descriptor::packDescriptor<descriptor>();
 inline constexpr resource::telemetry::v3::DescriptorFile descriptorFile{packedDescriptor};

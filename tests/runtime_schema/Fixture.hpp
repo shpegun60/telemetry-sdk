@@ -8,6 +8,7 @@
 #pragma once
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
 #include <telemetry/encoded/Dispatcher.hpp>
 
@@ -137,16 +138,19 @@ inline constexpr telemetry::FieldTable localFields{
     telemetry::field<&Device::readEmpty>("Empty", device),
     telemetry::field<&Device::readZero>("Zero", device),
     telemetry::field<&Device::readHugeZero>("HugeZero", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("dynamic", localFields)};
+inline constexpr telemetry::testing::FieldCatalogTable fields{
+    telemetry::testing::group("dynamic", localFields)};
 inline constexpr telemetry::CommandTable localCommands{
     telemetry::command<&Device::apply>("Apply", device)};
 inline constexpr telemetry::ServiceTable localServices{
     telemetry::service<&Device::inspect>("Inspect", device)};
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("dynamic", localCommands)};
-inline constexpr telemetry::ServiceCatalogTable services{
-    telemetry::group("dynamic", localServices)};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::testing::CommandCatalogTable commands{
+    telemetry::testing::group("dynamic", localCommands)};
+inline constexpr telemetry::testing::ServiceCatalogTable services{
+    telemetry::testing::group("dynamic", localServices)};
+// The native v3.0 descriptor the mutation corpus rewrites at fixed offsets: a
+// catalog model of the testing header.
+inline constexpr telemetry::testing::V30Model model{fields, commands, services};
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();
 

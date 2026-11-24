@@ -37,6 +37,7 @@ CPP_PURPOSE = """/*
 COMMON = r"""
 #include <telemetry/Telemetry.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -92,9 +93,9 @@ inline constexpr ts::FieldTable rows{
             for index in range(count))
         text += r"""
 };
-inline constexpr ts::FieldCatalogTable fields{ts::group("group", rows)};
-inline constexpr ts::ServiceCatalogTable<> services{};
-inline constexpr ts::Model model{fields, ts::emptyCommands, services};
+inline constexpr ts::testing::FieldCatalogTable fields{ts::testing::group("group", rows)};
+inline constexpr ts::testing::ServiceCatalogTable<> services{};
+inline constexpr ts::testing::V30Model model{fields, ts::testing::emptyCommands, services};
 using Registry = decltype(model)::Registry;
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto packed = ::telemetry::descriptor::packDescriptor<descriptor>();

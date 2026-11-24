@@ -3,6 +3,7 @@
 // Invalid runtime identifiers must neither select another row nor modify output or application state.
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include "SharedSupport.hpp"
 #include <atomic>
 #include <limits>
@@ -40,12 +41,13 @@ CommandResult callValue() noexcept
 }
 
 constexpr FieldTable rows{field<&readValue, &writeValue>("value")};
-[[maybe_unused]] constexpr FieldCatalogTable fields{group("first", rows), group("sensor", rows)};
+[[maybe_unused]] constexpr testing::FieldCatalogTable fields{testing::group("first", rows),
+                                                             testing::group("sensor", rows)};
 constexpr CommandTable local{command<&callValue>("run")};
-[[maybe_unused]] constexpr CommandCatalogTable commands{group("first", local),
-                                                        group("sensor", local)};
+[[maybe_unused]] constexpr testing::CommandCatalogTable commands{testing::group("first", local),
+                                                                 testing::group("sensor", local)};
 #if TELEMETRY_ID_BOUNDARY_ABORT_CASE == 6
-[[maybe_unused]] const PackedId invalidBeforeMain = makeId(0, 70000);
+[[maybe_unused]] const PackedId invalidBeforeMain = detail::makeId(0, 70000);
 #endif
 int main()
 {
@@ -62,11 +64,11 @@ int main()
 	volatile int id = -1;
 	return indexOf(id);
 #elif TELEMETRY_ID_BOUNDARY_ABORT_CASE == 5
-	return static_cast<int>(makeId(0, 65537));
+	return static_cast<int>(detail::makeId(0, 65537));
 #else
-	static_assert(makeId(65535, 65535) == UINT32_MAX);
-	static_assert(!tryMakeId(0, 65536) && !tryMakeId(-1, 0));
-	static_assert(tryMakeId(Group::Sensor, Position::First) == makeId<1, 0>());
+	static_assert(detail::makeId(65535, 65535) == UINT32_MAX);
+	static_assert(!detail::tryMakeId(0, 65536) && !detail::tryMakeId(-1, 0));
+	static_assert(detail::tryMakeId(Group::Sensor, Position::First) == detail::makeId<1, 0>());
 	CHECK(rows.read<Position::First>() == 21.5f);
 	CHECK(rows.write<Position::First>(22.f) == WriteResult::Applied);
 	CHECK(local.call<Position::First>() == CommandResult::Executed);
@@ -103,7 +105,7 @@ int main()
 	std::atomic<PackedId> narrow{65536};
 	CHECK(fields.readAs<float>(narrow.load()) == 23.f);
 	CHECK(fields.writeAs(narrow.load(), 24.f) == WriteResult::Applied);
-	CHECK(tryMakeId(1, 65535) == 0x1ffffu && !tryMakeId(65536, 0));
+	CHECK(detail::tryMakeId(1, 65535) == 0x1ffffu && !detail::tryMakeId(65536, 0));
 	reportChecks();
 	return 0;
 #endif

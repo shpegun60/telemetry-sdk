@@ -5,11 +5,15 @@ endpoint contracts and standalone C++/TypeScript/JavaScript codecs. The native
 STM32 model, structures, reflection, Encoded API, Descriptor/Values v3.0 and
 RPC v1.0 retain their existing contracts. Firmware does not run this tool.
 
-A v3.1 descriptor (type names, a group tree, attributes) generates additional
-symbols and endpoint handles by path: C++ `device.read<"adc/Config">(callback)`
-and, with `--client-runtime`, TS/JS `await device.read('adc/Config')`. Clients
-address endpoints that way; the per-family symbols (`device_api::device::fields::Config`)
-are [being removed](user/APIOverview.md#виводиться-з-ужитку). A v3.0 descriptor gives byte-identical output. See
+Every descriptor, v3.1 or v3.0, generates one form: group namespaces and objects
+with endpoint constants (`device_api::adc::Config`) and endpoint handles by path:
+C++ `device.read<"adc/Config">(callback)` and, with `--client-runtime`, TS/JS
+`await device.read('adc/Config')`. A v3.1 descriptor adds type names, a group tree
+and attributes. A v3.0 descriptor's catalogs of one name form one root group of
+all three families; two endpoints of different families that share a name there
+take a kind suffix (`control::Reset_Field`, `control::Reset_Command`) and have no
+path form. The per-family symbols (`device_api::device::fields::Config`) still
+generate beside them but are [being removed](user/APIOverview.md#виводиться-з-ужитку). See
 [type names, group trees and endpoint handles](GeneratedNamesAndHandles.md) and
 the [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях).
 

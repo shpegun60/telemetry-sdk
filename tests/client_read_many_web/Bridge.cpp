@@ -89,54 +89,34 @@ struct Device {
 
 static Device device;
 static ts::OwnerSlot<Device> absent;
-static constexpr ts::FieldTable scalarFields{
-    ts::field<&Device::read<0>, &Device::write>("F00", device),
-    ts::field<&Device::read<1>>("F01", device),
-    ts::field<&Device::read<2>>("F02", device),
-    ts::field<&Device::read<3>>("F03", device),
-    ts::field<&Device::read<4>>("F04", device),
-    ts::field<&Device::read<5>>("F05", device),
-    ts::field<&Device::read<6>>("F06", device),
-    ts::field<&Device::read<7>>("F07", device),
-    ts::field<&Device::read<8>>("F08", device),
-    ts::field<&Device::read<9>>("F09", device),
-    ts::field<&Device::read<10>>("F10", device),
-    ts::field<&Device::read<11>>("F11", device),
-    ts::field<&Device::read<12>>("F12", device),
-    ts::field<&Device::read<13>>("F13", device),
-    ts::field<&Device::read<14>>("F14", device),
-    ts::field<&Device::read<15>>("F15", device),
-    ts::field<&Device::read<16>>("F16", device),
-    ts::field<&Device::read<17>>("F17", device),
-    ts::field<&Device::read<18>>("F18", device),
-    ts::field<&Device::read<19>>("F19", device),
-    ts::field<&Device::read<20>>("F20", device),
-    ts::field<&Device::read<21>>("F21", device),
-    ts::field<&Device::read<22>>("F22", device),
-    ts::field<&Device::read<23>>("F23", device),
-    ts::field<&Device::read<24>>("F24", device),
-    ts::field<&Device::read<25>>("F25", device),
-    ts::field<&Device::read<26>>("F26", device),
-    ts::field<&Device::read<27>>("F27", device),
-    ts::field<&Device::read<28>>("F28", device),
-    ts::field<&Device::read<29>>("F29", device),
-    ts::field<&Device::read<30>>("F30", device),
-    ts::field<&Device::read<31>>("F31", device)};
-static constexpr ts::FieldTable extraFields{ts::field<&Device::wide>("Wide", device),
-                                            ts::field<&Device::signedWide>("Signed", device),
-                                            ts::field<&Device::enabled>("Enabled", device),
-                                            ts::field<&Device::mode>("Mode", device),
-                                            ts::field<&Device::real>("Real", device),
-                                            ts::field<&Device::doubleReal>("Double", device),
-                                            ts::field<&Device::record>("Aggregate", device),
-                                            ts::field<&Device::read<0>>("Absent", absent)};
-static constexpr ts::FieldCatalogTable fields{ts::group("scalar", scalarFields),
-                                              ts::group("extra", extraFields)};
-static constexpr ts::CommandTable commands{ts::command<&Device::command>("Configure", device)};
-static constexpr ts::CommandCatalogTable commandCatalogs{ts::group("control", commands)};
-static constexpr ts::ServiceTable services{ts::service<&Device::echo>("Echo", device)};
-static constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("control", services)};
-static constexpr ts::Model model{fields, commandCatalogs, serviceCatalogs};
+static constexpr ts::Model model{
+    ts::group(
+        "scalar", ts::field<&Device::read<0>, &Device::write>("F00", device),
+        ts::field<&Device::read<1>>("F01", device), ts::field<&Device::read<2>>("F02", device),
+        ts::field<&Device::read<3>>("F03", device), ts::field<&Device::read<4>>("F04", device),
+        ts::field<&Device::read<5>>("F05", device), ts::field<&Device::read<6>>("F06", device),
+        ts::field<&Device::read<7>>("F07", device), ts::field<&Device::read<8>>("F08", device),
+        ts::field<&Device::read<9>>("F09", device), ts::field<&Device::read<10>>("F10", device),
+        ts::field<&Device::read<11>>("F11", device), ts::field<&Device::read<12>>("F12", device),
+        ts::field<&Device::read<13>>("F13", device), ts::field<&Device::read<14>>("F14", device),
+        ts::field<&Device::read<15>>("F15", device), ts::field<&Device::read<16>>("F16", device),
+        ts::field<&Device::read<17>>("F17", device), ts::field<&Device::read<18>>("F18", device),
+        ts::field<&Device::read<19>>("F19", device), ts::field<&Device::read<20>>("F20", device),
+        ts::field<&Device::read<21>>("F21", device), ts::field<&Device::read<22>>("F22", device),
+        ts::field<&Device::read<23>>("F23", device), ts::field<&Device::read<24>>("F24", device),
+        ts::field<&Device::read<25>>("F25", device), ts::field<&Device::read<26>>("F26", device),
+        ts::field<&Device::read<27>>("F27", device), ts::field<&Device::read<28>>("F28", device),
+        ts::field<&Device::read<29>>("F29", device), ts::field<&Device::read<30>>("F30", device),
+        ts::field<&Device::read<31>>("F31", device)),
+    ts::group("extra", ts::field<&Device::wide>("Wide", device),
+              ts::field<&Device::signedWide>("Signed", device),
+              ts::field<&Device::enabled>("Enabled", device),
+              ts::field<&Device::mode>("Mode", device), ts::field<&Device::real>("Real", device),
+              ts::field<&Device::doubleReal>("Double", device),
+              ts::field<&Device::record>("Aggregate", device),
+              ts::field<&Device::read<0>>("Absent", absent)),
+    ts::group("control", ts::command<&Device::command>("Configure", device),
+              ts::service<&Device::echo>("Echo", device))};
 static constexpr ts::descriptor::Descriptor descriptor{model};
 static constexpr rm::Capability capability{17, descriptor.fingerprint()};
 

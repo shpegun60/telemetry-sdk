@@ -68,11 +68,9 @@ int main()
 	assert(transport.exchange(*second, request, output).written == 0);
 
 	// A real positional schema change, not just a fabricated wrong hash.
-	static constexpr ts::FieldTable shiftedRows{
-	    ts::field<&Device::read>("ReadOnly", device),
-	    ts::field<&Device::read, &Device::write>("Config", device)};
-	static constexpr ts::FieldCatalogTable shiftedFields{ts::group("device", shiftedRows)};
-	static constexpr ts::Model shiftedModel{shiftedFields, commands, services};
+	static constexpr ts::Model shiftedModel{ts::group(
+	    "device", readOnlyField, configField, configureCommand, resetCommand, optionalCommand,
+	    bigCommand, echoService, pingService, optionalService, largeService)};
 	static constexpr auto shiftedView = shiftedModel.view();
 	static constexpr ::telemetry::descriptor::Descriptor shiftedDescriptor{shiftedModel};
 	static_assert(shiftedDescriptor.fingerprint() != descriptor.fingerprint());

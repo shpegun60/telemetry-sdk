@@ -79,11 +79,8 @@ struct Device {
 	}
 } device;
 
-constexpr telemetry::FieldTable localFields{telemetry::field<&Device::read>("Value", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("test", localFields)};
-constexpr telemetry::CommandCatalogTable commands{};
-constexpr telemetry::ServiceCatalogTable services{};
-constexpr telemetry::Model model{fields, commands, services};
+constexpr telemetry::Model model{
+    telemetry::group("test", telemetry::field<&Device::read>("Value", device))};
 
 // Lists 200 bytes, then ends after 100: a broken descriptor file.
 struct ShortFile {

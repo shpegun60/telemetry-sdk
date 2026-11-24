@@ -6,12 +6,12 @@
       "generated": {
         "cpp/device_api/Types.hpp": "eeefb4cd13436f108ba99288621f079911b3e1affa715e5a16caf70c8c31a855",
         "cpp/device_api/Schema.hpp": "b49713406be8dafdbffaec30173583969da2b2466607dc3ade203edba6a486a2",
-        "cpp/device_api/Endpoints.hpp": "a3a983985ba89e6b94bef3ec03e52790caa1ee76084efa1276f58dcea957a4f5",
+        "cpp/device_api/Endpoints.hpp": "8a0adb33ab12655f18464c9f0aca5f4bccf6049da92b2b61bb6828cafce92c17",
         "cpp/device_api/Codec.hpp": "d84abe9362c66e83ee94d66342fd15e796ffbd4d2598d5af486c7b84bb25ab61",
         "cpp/device_api/TelemetryBindings.hpp": "7d679a0807b5cf65ecfcf5f9cd8aba714a5f782fd07f7e9d7d87831ca04eb30a",
         "cpp/device_api/RpcBindings.hpp": "2c6ce712413404a5b5bda770ca6494edd3032401930456534b23b833ebb184af",
         "cpp/device_api/EncodedBindings.hpp": "f000370d1c69bc9d6a3251b8e97532350dd77dc179c95f8c05fe0de8dab7c9d3",
-        "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
+        "cpp/device_api/ClientBindings.hpp": "00c7f1f87e7107b2cc641bf173b923f1bd521c2e75bab5f8756a452565d319fe",
         "qml/DeviceApi.hpp": "3eaf83d75996a9c68edb718218b18971a1b8777dfa5f06a91d1a196f58f9bd03",
         "qml/DeviceApi.cpp": "305e49c722a6a91662f0ee91757b777e92a323a282a197fbca3f6ecd4c38b7a8",
         "qml/QmlValues.hpp": "4d605c88e2add7070208f98a8052dc361f5394603f9c97e8a5aeb0bdc81a85d2",
@@ -19,7 +19,7 @@
         "qml/QmlRpcAdapter.hpp": "a48905b862702858dc43e613c2136919ef6040b9bc6909982cbd3199f099ba1c",
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "manifest.json": "fe304bd14a19d301f92787fc78406cd7b2b2135bf1d6f270adfb5ff99aac740c"
+        "manifest.json": "653f002e27cb40837868fa0c0c7716ebf1e652439c5e497d13d10fb93c9aaf3e"
       }
     },
     "empty-full": {
@@ -27,13 +27,13 @@
       "generated": {
         "cpp/device_api/Types.hpp": "eeefb4cd13436f108ba99288621f079911b3e1affa715e5a16caf70c8c31a855",
         "cpp/device_api/Schema.hpp": "b49713406be8dafdbffaec30173583969da2b2466607dc3ade203edba6a486a2",
-        "cpp/device_api/Endpoints.hpp": "a3a983985ba89e6b94bef3ec03e52790caa1ee76084efa1276f58dcea957a4f5",
+        "cpp/device_api/Endpoints.hpp": "8a0adb33ab12655f18464c9f0aca5f4bccf6049da92b2b61bb6828cafce92c17",
         "cpp/device_api/Codec.hpp": "d84abe9362c66e83ee94d66342fd15e796ffbd4d2598d5af486c7b84bb25ab61",
         "cpp/device_api/TelemetryBindings.hpp": "7d679a0807b5cf65ecfcf5f9cd8aba714a5f782fd07f7e9d7d87831ca04eb30a",
         "cpp/device_api/RpcBindings.hpp": "2c6ce712413404a5b5bda770ca6494edd3032401930456534b23b833ebb184af",
         "cpp/device_api/EncodedBindings.hpp": "f000370d1c69bc9d6a3251b8e97532350dd77dc179c95f8c05fe0de8dab7c9d3",
-        "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
-        "js/device.js": "bec012625fc0e3fa3380322ecb7c518142111b6019e0af52012e62b4ad6d0537",
+        "cpp/device_api/ClientBindings.hpp": "00c7f1f87e7107b2cc641bf173b923f1bd521c2e75bab5f8756a452565d319fe",
+        "js/device.js": "11842578af37a7217d0e6d557ef7984799a6b8bac02e51fb0a1102534d4988c9",
         "js/device.d.ts": "1d11f97b84a773bcce89b6ecc31ddc4654d924c932d4256603397c5f63d46dae",
         "qml/DeviceApi.hpp": "3eaf83d75996a9c68edb718218b18971a1b8777dfa5f06a91d1a196f58f9bd03",
         "qml/DeviceApi.cpp": "305e49c722a6a91662f0ee91757b777e92a323a282a197fbca3f6ecd4c38b7a8",
@@ -42,8 +42,8 @@
         "qml/QmlRpcAdapter.hpp": "a48905b862702858dc43e613c2136919ef6040b9bc6909982cbd3199f099ba1c",
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
-        "manifest.json": "cd0b8e173dc5a3039e9bedc70802dceba9c9e99e7a1a4759e7147fb0a07abd3a"
+        "ts/device.ts": "4845fb65c849fa741799d1fc3849aa901a35a2a65f9eaeb925a247fb9f83c773",
+        "manifest.json": "bece218f83fe498814245311085b5e4a63a8962bf563b73e796ac67a3b99a8e8"
       }
     },
     "empty-full-options": {
@@ -51,13 +51,13 @@
       "generated": {
         "cpp/device_api/Types.hpp": "eeefb4cd13436f108ba99288621f079911b3e1affa715e5a16caf70c8c31a855",
         "cpp/device_api/Schema.hpp": "b49713406be8dafdbffaec30173583969da2b2466607dc3ade203edba6a486a2",
-        "cpp/device_api/Endpoints.hpp": "a3a983985ba89e6b94bef3ec03e52790caa1ee76084efa1276f58dcea957a4f5",
+        "cpp/device_api/Endpoints.hpp": "8a0adb33ab12655f18464c9f0aca5f4bccf6049da92b2b61bb6828cafce92c17",
         "cpp/device_api/Codec.hpp": "d84abe9362c66e83ee94d66342fd15e796ffbd4d2598d5af486c7b84bb25ab61",
         "cpp/device_api/TelemetryBindings.hpp": "7d679a0807b5cf65ecfcf5f9cd8aba714a5f782fd07f7e9d7d87831ca04eb30a",
         "cpp/device_api/RpcBindings.hpp": "2c6ce712413404a5b5bda770ca6494edd3032401930456534b23b833ebb184af",
         "cpp/device_api/EncodedBindings.hpp": "f000370d1c69bc9d6a3251b8e97532350dd77dc179c95f8c05fe0de8dab7c9d3",
-        "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
-        "js/device.js": "bec012625fc0e3fa3380322ecb7c518142111b6019e0af52012e62b4ad6d0537",
+        "cpp/device_api/ClientBindings.hpp": "00c7f1f87e7107b2cc641bf173b923f1bd521c2e75bab5f8756a452565d319fe",
+        "js/device.js": "11842578af37a7217d0e6d557ef7984799a6b8bac02e51fb0a1102534d4988c9",
         "js/device.d.ts": "1d11f97b84a773bcce89b6ecc31ddc4654d924c932d4256603397c5f63d46dae",
         "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
         "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
@@ -68,14 +68,17 @@
         "qml/QmlRpcAdapter.hpp": "a48905b862702858dc43e613c2136919ef6040b9bc6909982cbd3199f099ba1c",
         "qml/DeviceClientAdapter.hpp": "a48a71d3ec5087d430e76bb8e0aae3d3dd12468d708332a01f2ee7627186efde",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
+        "ts/device.ts": "4845fb65c849fa741799d1fc3849aa901a35a2a65f9eaeb925a247fb9f83c773",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "19e6c032fc636ff8bc92a3f8fdc81d681d6644a8f1c823c718228bf153df93f7",
         "cpp/device_api/Metadata.hpp": "1a00b8eda0c6ad73dbf73666bd876e904a900dd01c21f4dbca89ac308d5063e9",
         "js/device.metadata.js": "809d308190ac777b58ece3eed99b7caafe733ef41dfa6874d992606ea8119c77",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "0f0fcbd9fb56fda3b29558a69da65c76add6ef0309274e13d680022380b16216",
-        "manifest.json": "3e2124e08bf8f153207daf53cf1d21f1029dcfc0dbc4c7fffff4350fa23cbee1"
+        "manifest.json": "4aca1d792e883a3aeae89e9ac6be50e0a9df3a7b06f078978c2822dc107c5763",
+        "js/handles.d.ts": "8e6c667bb16ff0f692490bb4509461d39b61e197ced4a487f95e6a5ff37a776a",
+        "js/handles.js": "9c4b5db4f761504ca57393f8af928b3c48a66dc9cbb1d401b8a471dbc6f3dee0",
+        "ts/handles.ts": "810165508327e9d6df108d57da4ea1666155d930a3c6b1677fb265cf26a487a6"
       }
     },
     "empty-core": {
@@ -83,16 +86,16 @@
       "generated": {
         "cpp/device_api/Types.hpp": "eeefb4cd13436f108ba99288621f079911b3e1affa715e5a16caf70c8c31a855",
         "cpp/device_api/Schema.hpp": "b49713406be8dafdbffaec30173583969da2b2466607dc3ade203edba6a486a2",
-        "cpp/device_api/Endpoints.hpp": "a3a983985ba89e6b94bef3ec03e52790caa1ee76084efa1276f58dcea957a4f5",
+        "cpp/device_api/Endpoints.hpp": "8a0adb33ab12655f18464c9f0aca5f4bccf6049da92b2b61bb6828cafce92c17",
         "cpp/device_api/Codec.hpp": "d84abe9362c66e83ee94d66342fd15e796ffbd4d2598d5af486c7b84bb25ab61",
         "cpp/device_api/TelemetryBindings.hpp": "7d679a0807b5cf65ecfcf5f9cd8aba714a5f782fd07f7e9d7d87831ca04eb30a",
         "cpp/device_api/RpcBindings.hpp": "2c6ce712413404a5b5bda770ca6494edd3032401930456534b23b833ebb184af",
         "cpp/device_api/EncodedBindings.hpp": "f000370d1c69bc9d6a3251b8e97532350dd77dc179c95f8c05fe0de8dab7c9d3",
-        "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
-        "js/device.js": "bec012625fc0e3fa3380322ecb7c518142111b6019e0af52012e62b4ad6d0537",
+        "cpp/device_api/ClientBindings.hpp": "00c7f1f87e7107b2cc641bf173b923f1bd521c2e75bab5f8756a452565d319fe",
+        "js/device.js": "11842578af37a7217d0e6d557ef7984799a6b8bac02e51fb0a1102534d4988c9",
         "js/device.d.ts": "1d11f97b84a773bcce89b6ecc31ddc4654d924c932d4256603397c5f63d46dae",
-        "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
-        "manifest.json": "8634ec5d5f8da8214f2e6efc707b47ee89a00eb8dbbdfa57e80c49546625c9e2"
+        "ts/device.ts": "4845fb65c849fa741799d1fc3849aa901a35a2a65f9eaeb925a247fb9f83c773",
+        "manifest.json": "2ef5e68a79381bfd390cdfd9c84d4722c2a6d26f9da18f1e1edc844268517a97"
       }
     },
     "empty-core-options": {
@@ -100,24 +103,27 @@
       "generated": {
         "cpp/device_api/Types.hpp": "eeefb4cd13436f108ba99288621f079911b3e1affa715e5a16caf70c8c31a855",
         "cpp/device_api/Schema.hpp": "b49713406be8dafdbffaec30173583969da2b2466607dc3ade203edba6a486a2",
-        "cpp/device_api/Endpoints.hpp": "a3a983985ba89e6b94bef3ec03e52790caa1ee76084efa1276f58dcea957a4f5",
+        "cpp/device_api/Endpoints.hpp": "8a0adb33ab12655f18464c9f0aca5f4bccf6049da92b2b61bb6828cafce92c17",
         "cpp/device_api/Codec.hpp": "d84abe9362c66e83ee94d66342fd15e796ffbd4d2598d5af486c7b84bb25ab61",
         "cpp/device_api/TelemetryBindings.hpp": "7d679a0807b5cf65ecfcf5f9cd8aba714a5f782fd07f7e9d7d87831ca04eb30a",
         "cpp/device_api/RpcBindings.hpp": "2c6ce712413404a5b5bda770ca6494edd3032401930456534b23b833ebb184af",
         "cpp/device_api/EncodedBindings.hpp": "f000370d1c69bc9d6a3251b8e97532350dd77dc179c95f8c05fe0de8dab7c9d3",
-        "cpp/device_api/ClientBindings.hpp": "5c2d871ec00c9d9561645c1a1fa8c733f863ef9c93f3c81b238a96b919472d01",
-        "js/device.js": "bec012625fc0e3fa3380322ecb7c518142111b6019e0af52012e62b4ad6d0537",
+        "cpp/device_api/ClientBindings.hpp": "00c7f1f87e7107b2cc641bf173b923f1bd521c2e75bab5f8756a452565d319fe",
+        "js/device.js": "11842578af37a7217d0e6d557ef7984799a6b8bac02e51fb0a1102534d4988c9",
         "js/device.d.ts": "1d11f97b84a773bcce89b6ecc31ddc4654d924c932d4256603397c5f63d46dae",
         "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
         "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
-        "ts/device.ts": "028b07d8ade6a689d1e5ec92c22e347c56a0be8435a8bcd2af49a958255a4933",
+        "ts/device.ts": "4845fb65c849fa741799d1fc3849aa901a35a2a65f9eaeb925a247fb9f83c773",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "19e6c032fc636ff8bc92a3f8fdc81d681d6644a8f1c823c718228bf153df93f7",
         "cpp/device_api/Metadata.hpp": "1a00b8eda0c6ad73dbf73666bd876e904a900dd01c21f4dbca89ac308d5063e9",
         "js/device.metadata.js": "809d308190ac777b58ece3eed99b7caafe733ef41dfa6874d992606ea8119c77",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "0f0fcbd9fb56fda3b29558a69da65c76add6ef0309274e13d680022380b16216",
-        "manifest.json": "152992b970502fb1a877b4d6bb41dca0579601e879071b080000b4ada7cd3bc6"
+        "manifest.json": "635cb663168013405ab472d40d7f28bad288cae3ab59ccd08043b34cab5e6220",
+        "js/handles.d.ts": "8e6c667bb16ff0f692490bb4509461d39b61e197ced4a487f95e6a5ff37a776a",
+        "js/handles.js": "9c4b5db4f761504ca57393f8af928b3c48a66dc9cbb1d401b8a471dbc6f3dee0",
+        "ts/handles.ts": "810165508327e9d6df108d57da4ea1666155d930a3c6b1677fb265cf26a487a6"
       }
     },
     "mixed-qml": {
@@ -125,12 +131,12 @@
       "generated": {
         "cpp/device_api/Types.hpp": "1a91b197590c08b02f241a4b780b6dcf4e64a5258a661e0d144a56134806fd22",
         "cpp/device_api/Schema.hpp": "9093b515dba04235436940fcdbd385f434bf6d21d79f3de18090e677b1cdd178",
-        "cpp/device_api/Endpoints.hpp": "83f5fee8be9a928f49636cadd281a326f77f9c551721b255f05d9125f4561e61",
+        "cpp/device_api/Endpoints.hpp": "98010d03c126207ae99406a98465babb5d8d1c5a9ef6a51ed0c8f9e6dfa65404",
         "cpp/device_api/Codec.hpp": "41f0eceba16a4779df675dff5ec65bab05c03057520e55e2cd03d20dd17e5098",
         "cpp/device_api/TelemetryBindings.hpp": "1548bf0f24177767b98eb1b07261781068a7063c273043b7e64388a358c1d10e",
         "cpp/device_api/RpcBindings.hpp": "f0d0edb581f767f4ea0d11d570554d9eb6fe0e1e1eb5405d78a7d6c7dfb42c2a",
         "cpp/device_api/EncodedBindings.hpp": "e31b8f437d4c050c2abe0b9819de5b1865a0b2683018185bdd7ea07fd7ff10e3",
-        "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
+        "cpp/device_api/ClientBindings.hpp": "0b3bb846d4cad436d80d8a858b73801d44d5f2a58b870db2f22fc16527c199c3",
         "qml/DeviceApi.hpp": "85a696c2d19327e4b9c183d15c7522838f9e353f6f761ded0e1b45e7697bcfdd",
         "qml/DeviceApi.cpp": "5d1f171cd0a88e7b3ea4842cd4985a26526b91928b11780800d0d8543be4a799",
         "qml/QmlValues.hpp": "9ff02ce9e2ba2fd8e09ac8eb15ff1eda3180176aa6efcdd878729e5e2dfb4a49",
@@ -138,7 +144,7 @@
         "qml/QmlRpcAdapter.hpp": "fb099c8c193ada3efc3d179225014803ec71c80288a508e0ed3f183a656d638e",
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "manifest.json": "ea3058a39217d66aa60354823baff555aa80066175daf75fde6bb5ee81aeb67f"
+        "manifest.json": "d2a2afa92c8b38f39c9375fd53aa42314c54af9c322567ae389ff4bf4ffa2611"
       }
     },
     "mixed-full": {
@@ -146,14 +152,14 @@
       "generated": {
         "cpp/device_api/Types.hpp": "1a91b197590c08b02f241a4b780b6dcf4e64a5258a661e0d144a56134806fd22",
         "cpp/device_api/Schema.hpp": "9093b515dba04235436940fcdbd385f434bf6d21d79f3de18090e677b1cdd178",
-        "cpp/device_api/Endpoints.hpp": "83f5fee8be9a928f49636cadd281a326f77f9c551721b255f05d9125f4561e61",
+        "cpp/device_api/Endpoints.hpp": "98010d03c126207ae99406a98465babb5d8d1c5a9ef6a51ed0c8f9e6dfa65404",
         "cpp/device_api/Codec.hpp": "41f0eceba16a4779df675dff5ec65bab05c03057520e55e2cd03d20dd17e5098",
         "cpp/device_api/TelemetryBindings.hpp": "1548bf0f24177767b98eb1b07261781068a7063c273043b7e64388a358c1d10e",
         "cpp/device_api/RpcBindings.hpp": "f0d0edb581f767f4ea0d11d570554d9eb6fe0e1e1eb5405d78a7d6c7dfb42c2a",
         "cpp/device_api/EncodedBindings.hpp": "e31b8f437d4c050c2abe0b9819de5b1865a0b2683018185bdd7ea07fd7ff10e3",
-        "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
-        "js/device.js": "5087b5339d377fef8c35decfc0d341f3fc2add0ce4e8140e42a8f3804d454285",
-        "js/device.d.ts": "22ef9e06daf8ddf28f7ee4b8763f71cf93356506df6e1d3cbdb60ce3fdc47792",
+        "cpp/device_api/ClientBindings.hpp": "0b3bb846d4cad436d80d8a858b73801d44d5f2a58b870db2f22fc16527c199c3",
+        "js/device.js": "9228f39242927a9f73927558ba9f9e377d0e2b5f5d29d32cefb705d38b79bcfc",
+        "js/device.d.ts": "c23431a3a8f570f022daff7f8bdc2c2c88a4bb6e2c1029ba85b4f2cf0bc68425",
         "qml/DeviceApi.hpp": "85a696c2d19327e4b9c183d15c7522838f9e353f6f761ded0e1b45e7697bcfdd",
         "qml/DeviceApi.cpp": "5d1f171cd0a88e7b3ea4842cd4985a26526b91928b11780800d0d8543be4a799",
         "qml/QmlValues.hpp": "9ff02ce9e2ba2fd8e09ac8eb15ff1eda3180176aa6efcdd878729e5e2dfb4a49",
@@ -161,8 +167,8 @@
         "qml/QmlRpcAdapter.hpp": "fb099c8c193ada3efc3d179225014803ec71c80288a508e0ed3f183a656d638e",
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
-        "manifest.json": "1042b492a791480209b4b52e0af1a08d8fcadb51ed6669a073a84ff587952577"
+        "ts/device.ts": "600c0a530974a334ef6cf6bde0e0ceb9ee7ba4eae919d579a10d5dbd5c6c8bc3",
+        "manifest.json": "1d25e9a270c50307e78307d73914816c96579e71a1b71fa375f5a44638e78656"
       }
     },
     "mixed-full-options": {
@@ -170,14 +176,14 @@
       "generated": {
         "cpp/device_api/Types.hpp": "1a91b197590c08b02f241a4b780b6dcf4e64a5258a661e0d144a56134806fd22",
         "cpp/device_api/Schema.hpp": "9093b515dba04235436940fcdbd385f434bf6d21d79f3de18090e677b1cdd178",
-        "cpp/device_api/Endpoints.hpp": "83f5fee8be9a928f49636cadd281a326f77f9c551721b255f05d9125f4561e61",
+        "cpp/device_api/Endpoints.hpp": "98010d03c126207ae99406a98465babb5d8d1c5a9ef6a51ed0c8f9e6dfa65404",
         "cpp/device_api/Codec.hpp": "41f0eceba16a4779df675dff5ec65bab05c03057520e55e2cd03d20dd17e5098",
         "cpp/device_api/TelemetryBindings.hpp": "1548bf0f24177767b98eb1b07261781068a7063c273043b7e64388a358c1d10e",
         "cpp/device_api/RpcBindings.hpp": "f0d0edb581f767f4ea0d11d570554d9eb6fe0e1e1eb5405d78a7d6c7dfb42c2a",
         "cpp/device_api/EncodedBindings.hpp": "e31b8f437d4c050c2abe0b9819de5b1865a0b2683018185bdd7ea07fd7ff10e3",
-        "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
-        "js/device.js": "5087b5339d377fef8c35decfc0d341f3fc2add0ce4e8140e42a8f3804d454285",
-        "js/device.d.ts": "22ef9e06daf8ddf28f7ee4b8763f71cf93356506df6e1d3cbdb60ce3fdc47792",
+        "cpp/device_api/ClientBindings.hpp": "0b3bb846d4cad436d80d8a858b73801d44d5f2a58b870db2f22fc16527c199c3",
+        "js/device.js": "9228f39242927a9f73927558ba9f9e377d0e2b5f5d29d32cefb705d38b79bcfc",
+        "js/device.d.ts": "c23431a3a8f570f022daff7f8bdc2c2c88a4bb6e2c1029ba85b4f2cf0bc68425",
         "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
         "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "qml/DeviceApi.hpp": "85a696c2d19327e4b9c183d15c7522838f9e353f6f761ded0e1b45e7697bcfdd",
@@ -187,14 +193,17 @@
         "qml/QmlRpcAdapter.hpp": "fb099c8c193ada3efc3d179225014803ec71c80288a508e0ed3f183a656d638e",
         "qml/DeviceClientAdapter.hpp": "6d0528f21d6a022ec8cb286c17cbe64ab95dbfabcc238397276f78a9a9a96407",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
+        "ts/device.ts": "600c0a530974a334ef6cf6bde0e0ceb9ee7ba4eae919d579a10d5dbd5c6c8bc3",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "473b9593997147a142f8b6fc58cd7eb759a65794b7bf1e8a8c70645742dfa5e7",
         "cpp/device_api/Metadata.hpp": "4699ef46df0883897d6e3a0bfea44f982e9048cd83e5b34ba71e89619d609696",
         "js/device.metadata.js": "57389832f54c7b2c84b2a3dee65bd0fd15f67e8e0b3aa5629ef37ee774dd2531",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "055b03b9957a8d4bbec8da0d7ecfa57e4204b29aaae05d4ea1a28fa8e5afa6f8",
-        "manifest.json": "03a943bdcdf72ed8b1fce796c6b78007cc894963a361b55e74ba95b493589e61"
+        "manifest.json": "374f49ea3d7b61c31b7b29d45793728640b56827f5aadd88156a12d33e17fd46",
+        "js/handles.d.ts": "7ffe84edb17ba40a85097e7136263776521f3a04e8326789690a5b34e6cb349a",
+        "js/handles.js": "f3d2a925a566a27235231654d339f34d31eeb051974df43a602ce9a99d8beac6",
+        "ts/handles.ts": "6893eb68b313028d09c61f2a72d95a1d449d1187debf5b1e99779cf8d71ade92"
       }
     },
     "mixed-core": {
@@ -202,16 +211,16 @@
       "generated": {
         "cpp/device_api/Types.hpp": "1a91b197590c08b02f241a4b780b6dcf4e64a5258a661e0d144a56134806fd22",
         "cpp/device_api/Schema.hpp": "9093b515dba04235436940fcdbd385f434bf6d21d79f3de18090e677b1cdd178",
-        "cpp/device_api/Endpoints.hpp": "83f5fee8be9a928f49636cadd281a326f77f9c551721b255f05d9125f4561e61",
+        "cpp/device_api/Endpoints.hpp": "98010d03c126207ae99406a98465babb5d8d1c5a9ef6a51ed0c8f9e6dfa65404",
         "cpp/device_api/Codec.hpp": "41f0eceba16a4779df675dff5ec65bab05c03057520e55e2cd03d20dd17e5098",
         "cpp/device_api/TelemetryBindings.hpp": "1548bf0f24177767b98eb1b07261781068a7063c273043b7e64388a358c1d10e",
         "cpp/device_api/RpcBindings.hpp": "f0d0edb581f767f4ea0d11d570554d9eb6fe0e1e1eb5405d78a7d6c7dfb42c2a",
         "cpp/device_api/EncodedBindings.hpp": "e31b8f437d4c050c2abe0b9819de5b1865a0b2683018185bdd7ea07fd7ff10e3",
-        "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
-        "js/device.js": "5087b5339d377fef8c35decfc0d341f3fc2add0ce4e8140e42a8f3804d454285",
-        "js/device.d.ts": "22ef9e06daf8ddf28f7ee4b8763f71cf93356506df6e1d3cbdb60ce3fdc47792",
-        "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
-        "manifest.json": "e5f586593b6312bb4f3efefa2433a6d461cd8c189374d1c2fcc68edd7a4579a3"
+        "cpp/device_api/ClientBindings.hpp": "0b3bb846d4cad436d80d8a858b73801d44d5f2a58b870db2f22fc16527c199c3",
+        "js/device.js": "9228f39242927a9f73927558ba9f9e377d0e2b5f5d29d32cefb705d38b79bcfc",
+        "js/device.d.ts": "c23431a3a8f570f022daff7f8bdc2c2c88a4bb6e2c1029ba85b4f2cf0bc68425",
+        "ts/device.ts": "600c0a530974a334ef6cf6bde0e0ceb9ee7ba4eae919d579a10d5dbd5c6c8bc3",
+        "manifest.json": "4026a7b1c240a98b7e954629494bb12293f76a427b8f8f19717f98edf5cade1b"
       }
     },
     "mixed-core-options": {
@@ -219,24 +228,27 @@
       "generated": {
         "cpp/device_api/Types.hpp": "1a91b197590c08b02f241a4b780b6dcf4e64a5258a661e0d144a56134806fd22",
         "cpp/device_api/Schema.hpp": "9093b515dba04235436940fcdbd385f434bf6d21d79f3de18090e677b1cdd178",
-        "cpp/device_api/Endpoints.hpp": "83f5fee8be9a928f49636cadd281a326f77f9c551721b255f05d9125f4561e61",
+        "cpp/device_api/Endpoints.hpp": "98010d03c126207ae99406a98465babb5d8d1c5a9ef6a51ed0c8f9e6dfa65404",
         "cpp/device_api/Codec.hpp": "41f0eceba16a4779df675dff5ec65bab05c03057520e55e2cd03d20dd17e5098",
         "cpp/device_api/TelemetryBindings.hpp": "1548bf0f24177767b98eb1b07261781068a7063c273043b7e64388a358c1d10e",
         "cpp/device_api/RpcBindings.hpp": "f0d0edb581f767f4ea0d11d570554d9eb6fe0e1e1eb5405d78a7d6c7dfb42c2a",
         "cpp/device_api/EncodedBindings.hpp": "e31b8f437d4c050c2abe0b9819de5b1865a0b2683018185bdd7ea07fd7ff10e3",
-        "cpp/device_api/ClientBindings.hpp": "ae7835d7ce6fbb3cc9b09cdbd69362c5adf5019630e746b23f56d14062d7e0d3",
-        "js/device.js": "5087b5339d377fef8c35decfc0d341f3fc2add0ce4e8140e42a8f3804d454285",
-        "js/device.d.ts": "22ef9e06daf8ddf28f7ee4b8763f71cf93356506df6e1d3cbdb60ce3fdc47792",
+        "cpp/device_api/ClientBindings.hpp": "0b3bb846d4cad436d80d8a858b73801d44d5f2a58b870db2f22fc16527c199c3",
+        "js/device.js": "9228f39242927a9f73927558ba9f9e377d0e2b5f5d29d32cefb705d38b79bcfc",
+        "js/device.d.ts": "c23431a3a8f570f022daff7f8bdc2c2c88a4bb6e2c1029ba85b4f2cf0bc68425",
         "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
         "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
-        "ts/device.ts": "f269384aebdb056b6e710a601e841f426fc064e03bf89dfe562310e38e825c55",
+        "ts/device.ts": "600c0a530974a334ef6cf6bde0e0ceb9ee7ba4eae919d579a10d5dbd5c6c8bc3",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "473b9593997147a142f8b6fc58cd7eb759a65794b7bf1e8a8c70645742dfa5e7",
         "cpp/device_api/Metadata.hpp": "4699ef46df0883897d6e3a0bfea44f982e9048cd83e5b34ba71e89619d609696",
         "js/device.metadata.js": "57389832f54c7b2c84b2a3dee65bd0fd15f67e8e0b3aa5629ef37ee774dd2531",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "055b03b9957a8d4bbec8da0d7ecfa57e4204b29aaae05d4ea1a28fa8e5afa6f8",
-        "manifest.json": "1fc541943152f1d6ac1b2da82e8b85074d85b7614bda115bdc599ad90639d817"
+        "manifest.json": "08d38a2d807e5930f1d981739256952ab3cb9d2cda332b35c1118ffbdb5e2a63",
+        "js/handles.d.ts": "7ffe84edb17ba40a85097e7136263776521f3a04e8326789690a5b34e6cb349a",
+        "js/handles.js": "f3d2a925a566a27235231654d339f34d31eeb051974df43a602ce9a99d8beac6",
+        "ts/handles.ts": "6893eb68b313028d09c61f2a72d95a1d449d1187debf5b1e99779cf8d71ade92"
       }
     },
     "edge-qml": {
@@ -244,12 +256,12 @@
       "generated": {
         "cpp/device_api/Types.hpp": "a34e835fe8d427bfc1aa767796de09fd16c9c965b350c1a08e965abc8ed84960",
         "cpp/device_api/Schema.hpp": "e927e7bde71d191ba42d94bc9d54b7e44d11c7cf0e010e7ab26b13c1c8ca16c8",
-        "cpp/device_api/Endpoints.hpp": "419eee005ca20c751f806b4bf9d0d7c5d8a79bae2e0528074cdc5627a6e3f89d",
+        "cpp/device_api/Endpoints.hpp": "a164f0f1d1bd3fe65146b72e4789d4c2e8b67a81534b58e796953d61a05ddfdc",
         "cpp/device_api/Codec.hpp": "2d767fc3200b1405501a3d020b6838697d20bd441f22d1417ede4214b63e7230",
         "cpp/device_api/TelemetryBindings.hpp": "dec9cd5bfb8d82452c83c02a10f66924e1e1c56292ab952e45d10274b87346fc",
         "cpp/device_api/RpcBindings.hpp": "d80ba074dff9234d5b112791028b26693ec933ad6fd82e96c7347da8ef9e4dab",
         "cpp/device_api/EncodedBindings.hpp": "1c1db29bca1d77421658521f1f0f46b3f3523e3ac254b9614f0b492fbb69cc16",
-        "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
+        "cpp/device_api/ClientBindings.hpp": "e1144d9eae6199877c6fd3d28aef40aa6ab208fe6a8c4c01f49ab1721c9aa6a3",
         "qml/DeviceApi.hpp": "ce268fe270375875c7b0ee5cf9cb085790724442a9f5c1de71e78a764ed42d8a",
         "qml/DeviceApi.cpp": "2ce89d77bb8bd418bdde13d3423f84d7b889818f9e194ad2de4d35ac48ae4360",
         "qml/QmlValues.hpp": "65b43e14b5908d7bf5b15b94e240105b2b11c31d28988eb1078ea3932502d2ec",
@@ -257,7 +269,7 @@
         "qml/QmlRpcAdapter.hpp": "a4510be031b6777d951daa45527f74c815d82e1d488bdfdcf7582942be716c04",
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "manifest.json": "530eba4dc152cf18d5b2f12e424a36da9223219829e3522a1cc6e798c87508eb"
+        "manifest.json": "0a668e01167f3130b97d2bf9ceb7666bb566bd652b10a470805cb238efee6c84"
       }
     },
     "edge-full": {
@@ -265,14 +277,14 @@
       "generated": {
         "cpp/device_api/Types.hpp": "a34e835fe8d427bfc1aa767796de09fd16c9c965b350c1a08e965abc8ed84960",
         "cpp/device_api/Schema.hpp": "e927e7bde71d191ba42d94bc9d54b7e44d11c7cf0e010e7ab26b13c1c8ca16c8",
-        "cpp/device_api/Endpoints.hpp": "419eee005ca20c751f806b4bf9d0d7c5d8a79bae2e0528074cdc5627a6e3f89d",
+        "cpp/device_api/Endpoints.hpp": "a164f0f1d1bd3fe65146b72e4789d4c2e8b67a81534b58e796953d61a05ddfdc",
         "cpp/device_api/Codec.hpp": "2d767fc3200b1405501a3d020b6838697d20bd441f22d1417ede4214b63e7230",
         "cpp/device_api/TelemetryBindings.hpp": "dec9cd5bfb8d82452c83c02a10f66924e1e1c56292ab952e45d10274b87346fc",
         "cpp/device_api/RpcBindings.hpp": "d80ba074dff9234d5b112791028b26693ec933ad6fd82e96c7347da8ef9e4dab",
         "cpp/device_api/EncodedBindings.hpp": "1c1db29bca1d77421658521f1f0f46b3f3523e3ac254b9614f0b492fbb69cc16",
-        "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
-        "js/device.js": "566524f08f072ceef70ec95e4f978627f3cb6027ca3b49a588644ce1c73a88c9",
-        "js/device.d.ts": "62500765e11b1b08fd3f658d4a715aa9bb6a02d6f297775f3cf1129ddbc4fb15",
+        "cpp/device_api/ClientBindings.hpp": "e1144d9eae6199877c6fd3d28aef40aa6ab208fe6a8c4c01f49ab1721c9aa6a3",
+        "js/device.js": "8f40e828f791e954ac99b3ff2aa1551f5814c6f05c727cbde9f31770516ad9c0",
+        "js/device.d.ts": "0366524de26d260928b3056ca80453a708eed9bc1cad9276041df6b568cd46f0",
         "qml/DeviceApi.hpp": "ce268fe270375875c7b0ee5cf9cb085790724442a9f5c1de71e78a764ed42d8a",
         "qml/DeviceApi.cpp": "2ce89d77bb8bd418bdde13d3423f84d7b889818f9e194ad2de4d35ac48ae4360",
         "qml/QmlValues.hpp": "65b43e14b5908d7bf5b15b94e240105b2b11c31d28988eb1078ea3932502d2ec",
@@ -280,8 +292,8 @@
         "qml/QmlRpcAdapter.hpp": "a4510be031b6777d951daa45527f74c815d82e1d488bdfdcf7582942be716c04",
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
-        "manifest.json": "1eb15f18b792b72efedc5202ee5d15b7febd7869e4cb2e5d11f65c3d7cd85856"
+        "ts/device.ts": "f889a3171244f65cf4f5adf6a815af0e7d6b42244d61e38f8d4694979d65c890",
+        "manifest.json": "2e1960f47af85e0fdd7638c31f55c14ada7ae095d04be172b5dc540dfa61ae6c"
       }
     },
     "edge-full-options": {
@@ -289,14 +301,14 @@
       "generated": {
         "cpp/device_api/Types.hpp": "a34e835fe8d427bfc1aa767796de09fd16c9c965b350c1a08e965abc8ed84960",
         "cpp/device_api/Schema.hpp": "e927e7bde71d191ba42d94bc9d54b7e44d11c7cf0e010e7ab26b13c1c8ca16c8",
-        "cpp/device_api/Endpoints.hpp": "419eee005ca20c751f806b4bf9d0d7c5d8a79bae2e0528074cdc5627a6e3f89d",
+        "cpp/device_api/Endpoints.hpp": "a164f0f1d1bd3fe65146b72e4789d4c2e8b67a81534b58e796953d61a05ddfdc",
         "cpp/device_api/Codec.hpp": "2d767fc3200b1405501a3d020b6838697d20bd441f22d1417ede4214b63e7230",
         "cpp/device_api/TelemetryBindings.hpp": "dec9cd5bfb8d82452c83c02a10f66924e1e1c56292ab952e45d10274b87346fc",
         "cpp/device_api/RpcBindings.hpp": "d80ba074dff9234d5b112791028b26693ec933ad6fd82e96c7347da8ef9e4dab",
         "cpp/device_api/EncodedBindings.hpp": "1c1db29bca1d77421658521f1f0f46b3f3523e3ac254b9614f0b492fbb69cc16",
-        "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
-        "js/device.js": "566524f08f072ceef70ec95e4f978627f3cb6027ca3b49a588644ce1c73a88c9",
-        "js/device.d.ts": "62500765e11b1b08fd3f658d4a715aa9bb6a02d6f297775f3cf1129ddbc4fb15",
+        "cpp/device_api/ClientBindings.hpp": "e1144d9eae6199877c6fd3d28aef40aa6ab208fe6a8c4c01f49ab1721c9aa6a3",
+        "js/device.js": "8f40e828f791e954ac99b3ff2aa1551f5814c6f05c727cbde9f31770516ad9c0",
+        "js/device.d.ts": "0366524de26d260928b3056ca80453a708eed9bc1cad9276041df6b568cd46f0",
         "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
         "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
         "qml/DeviceApi.hpp": "ce268fe270375875c7b0ee5cf9cb085790724442a9f5c1de71e78a764ed42d8a",
@@ -306,14 +318,17 @@
         "qml/QmlRpcAdapter.hpp": "a4510be031b6777d951daa45527f74c815d82e1d488bdfdcf7582942be716c04",
         "qml/DeviceClientAdapter.hpp": "549844cee7937bb4f808ef62720f864df73f95a2f57a5f48c7e52febbe2af662",
         "qml/CMakeLists.txt": "0507209dc81e94f138b06d640c5ba425b683a0d3c506489c2d27a1c03de5b285",
-        "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
+        "ts/device.ts": "f889a3171244f65cf4f5adf6a815af0e7d6b42244d61e38f8d4694979d65c890",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "ba145e4873976df659e34ace0dae4e02a6f3c8646a11a53bada18a731484edfb",
         "cpp/device_api/Metadata.hpp": "8bcc61546dbd68acfeef2d6c38cb8a5744b847fc812a8659847c452eea904156",
         "js/device.metadata.js": "8b4bb626f787249d5336ff8dae7d809f63430eb67c0a6aeb2ec820f07ec0a65f",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "5fca4b887c6590b2750464b9f88fcd9669a40dfa6b22d25263330ebd7ca642eb",
-        "manifest.json": "0196f5c8b191d263812bc46c7bf3747b3675ede41e948c0f23f44153de043925"
+        "manifest.json": "57642252437a4b65541a7a56019927db62ce5f2f4f44777f618e8a68dc06b3fc",
+        "js/handles.d.ts": "927de31d345d9f58d7538b4349d1b3b9e136139ab31ff48709f47be21671fd6e",
+        "js/handles.js": "53bc8ce1ce5672c6c778ddaae3eefd15661d59e45daae8bad1f3c5a0117c3c5e",
+        "ts/handles.ts": "4c8144b60bcc0337f878fab5eab537f8becf3572078e7b101f75df188524e7c6"
       }
     },
     "edge-core": {
@@ -321,16 +336,16 @@
       "generated": {
         "cpp/device_api/Types.hpp": "a34e835fe8d427bfc1aa767796de09fd16c9c965b350c1a08e965abc8ed84960",
         "cpp/device_api/Schema.hpp": "e927e7bde71d191ba42d94bc9d54b7e44d11c7cf0e010e7ab26b13c1c8ca16c8",
-        "cpp/device_api/Endpoints.hpp": "419eee005ca20c751f806b4bf9d0d7c5d8a79bae2e0528074cdc5627a6e3f89d",
+        "cpp/device_api/Endpoints.hpp": "a164f0f1d1bd3fe65146b72e4789d4c2e8b67a81534b58e796953d61a05ddfdc",
         "cpp/device_api/Codec.hpp": "2d767fc3200b1405501a3d020b6838697d20bd441f22d1417ede4214b63e7230",
         "cpp/device_api/TelemetryBindings.hpp": "dec9cd5bfb8d82452c83c02a10f66924e1e1c56292ab952e45d10274b87346fc",
         "cpp/device_api/RpcBindings.hpp": "d80ba074dff9234d5b112791028b26693ec933ad6fd82e96c7347da8ef9e4dab",
         "cpp/device_api/EncodedBindings.hpp": "1c1db29bca1d77421658521f1f0f46b3f3523e3ac254b9614f0b492fbb69cc16",
-        "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
-        "js/device.js": "566524f08f072ceef70ec95e4f978627f3cb6027ca3b49a588644ce1c73a88c9",
-        "js/device.d.ts": "62500765e11b1b08fd3f658d4a715aa9bb6a02d6f297775f3cf1129ddbc4fb15",
-        "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
-        "manifest.json": "057785413e405663a1591bf06511d2ac3b61ff2f18a420a801213cdd0e216e9e"
+        "cpp/device_api/ClientBindings.hpp": "e1144d9eae6199877c6fd3d28aef40aa6ab208fe6a8c4c01f49ab1721c9aa6a3",
+        "js/device.js": "8f40e828f791e954ac99b3ff2aa1551f5814c6f05c727cbde9f31770516ad9c0",
+        "js/device.d.ts": "0366524de26d260928b3056ca80453a708eed9bc1cad9276041df6b568cd46f0",
+        "ts/device.ts": "f889a3171244f65cf4f5adf6a815af0e7d6b42244d61e38f8d4694979d65c890",
+        "manifest.json": "06295f1ba41d91f61f88ad4005576af8b6f92c421bc449cbfe5f47a378860609"
       }
     },
     "edge-core-options": {
@@ -338,24 +353,27 @@
       "generated": {
         "cpp/device_api/Types.hpp": "a34e835fe8d427bfc1aa767796de09fd16c9c965b350c1a08e965abc8ed84960",
         "cpp/device_api/Schema.hpp": "e927e7bde71d191ba42d94bc9d54b7e44d11c7cf0e010e7ab26b13c1c8ca16c8",
-        "cpp/device_api/Endpoints.hpp": "419eee005ca20c751f806b4bf9d0d7c5d8a79bae2e0528074cdc5627a6e3f89d",
+        "cpp/device_api/Endpoints.hpp": "a164f0f1d1bd3fe65146b72e4789d4c2e8b67a81534b58e796953d61a05ddfdc",
         "cpp/device_api/Codec.hpp": "2d767fc3200b1405501a3d020b6838697d20bd441f22d1417ede4214b63e7230",
         "cpp/device_api/TelemetryBindings.hpp": "dec9cd5bfb8d82452c83c02a10f66924e1e1c56292ab952e45d10274b87346fc",
         "cpp/device_api/RpcBindings.hpp": "d80ba074dff9234d5b112791028b26693ec933ad6fd82e96c7347da8ef9e4dab",
         "cpp/device_api/EncodedBindings.hpp": "1c1db29bca1d77421658521f1f0f46b3f3523e3ac254b9614f0b492fbb69cc16",
-        "cpp/device_api/ClientBindings.hpp": "fad308c36c6c0bce85bbfd804ac78de6792dd40b03dbca86ad05a3a9b6a3ff12",
-        "js/device.js": "566524f08f072ceef70ec95e4f978627f3cb6027ca3b49a588644ce1c73a88c9",
-        "js/device.d.ts": "62500765e11b1b08fd3f658d4a715aa9bb6a02d6f297775f3cf1129ddbc4fb15",
+        "cpp/device_api/ClientBindings.hpp": "e1144d9eae6199877c6fd3d28aef40aa6ab208fe6a8c4c01f49ab1721c9aa6a3",
+        "js/device.js": "8f40e828f791e954ac99b3ff2aa1551f5814c6f05c727cbde9f31770516ad9c0",
+        "js/device.d.ts": "0366524de26d260928b3056ca80453a708eed9bc1cad9276041df6b568cd46f0",
         "js/client.js": "cb501e09f0959fb25c91827559e061f57cbe7c6925638a423deeb3cbf3049269",
         "js/client.d.ts": "04c7d22e4704685647129662eb1ed73097d59d6421a4efa58b551da52a58cf61",
-        "ts/device.ts": "a593f90b968a665c9d2aaf16cfb33aa103fc8362f6256bff04c5ee56ad962e9d",
+        "ts/device.ts": "f889a3171244f65cf4f5adf6a815af0e7d6b42244d61e38f8d4694979d65c890",
         "ts/client.ts": "00c55ea8446ac2cc46401859aa3075186da30d4181f2407fe05f360676514777",
         "metadata/schema.json": "ba145e4873976df659e34ace0dae4e02a6f3c8646a11a53bada18a731484edfb",
         "cpp/device_api/Metadata.hpp": "8bcc61546dbd68acfeef2d6c38cb8a5744b847fc812a8659847c452eea904156",
         "js/device.metadata.js": "8b4bb626f787249d5336ff8dae7d809f63430eb67c0a6aeb2ec820f07ec0a65f",
         "js/device.metadata.d.ts": "c6bba108c58392a644bc30d8e6cb8c65e1ee5f23b60fb8bbf86ef9361b81bab0",
         "ts/device.metadata.ts": "5fca4b887c6590b2750464b9f88fcd9669a40dfa6b22d25263330ebd7ca642eb",
-        "manifest.json": "af285202f92febc11002e8181bcdf23ad3b8c11a3545c3d26251dabf9da8ddef"
+        "manifest.json": "1001496bf587e5a0f41f47335904d55e44c61eb47bd3b92348d6e9de05af67f1",
+        "js/handles.d.ts": "927de31d345d9f58d7538b4349d1b3b9e136139ab31ff48709f47be21671fd6e",
+        "js/handles.js": "53bc8ce1ce5672c6c778ddaae3eefd15661d59e45daae8bad1f3c5a0117c3c5e",
+        "ts/handles.ts": "4c8144b60bcc0337f878fab5eab537f8becf3572078e7b101f75df188524e7c6"
       }
     }
   },

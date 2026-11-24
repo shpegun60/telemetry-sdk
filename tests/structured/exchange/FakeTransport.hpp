@@ -7,6 +7,7 @@
 #include "Fixture.hpp"
 #include <resource/protocol/Protocol.hpp>
 #include <optional>
+#include <utility>
 
 namespace example {
 using namespace fixture;
@@ -30,8 +31,9 @@ class Transport {
 		rs::Binding binding;
 		std::array<std::byte, model.maxScratch()> storage{};
 		ts::Workspace workspace{storage};
-		resource::telemetry::v3::ValuesFile<std::remove_cv_t<decltype(fields)>> values{descriptor,
-		                                                                               workspace};
+		// The Values file of the descriptor's model, whatever its form.
+		decltype(resource::telemetry::v3::ValuesFile{
+		    descriptor, std::declval<ts::Workspace&>()}) values{descriptor, workspace};
 	};
 
 	std::array<Peer, 2> peers_{};

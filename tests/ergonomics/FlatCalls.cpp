@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <array>
 #include <cassert>
 #include <cstdio>
@@ -283,12 +284,12 @@ const ts::CommandTable<> emptyCommands{};
 const ts::ServiceTable<> emptyServices{};
 const ts::CommandTable extraCommands{ts::command<&commandNoRequest>("Extra")};
 const ts::ServiceTable extraServices{ts::service<&plainNoRequest>("Extra")};
-const ts::CommandCatalogTable commandCatalog{ts::group("Empty", emptyCommands),
-                                             ts::group("Control", commands),
-                                             ts::group("Extra", extraCommands)};
-const ts::ServiceCatalogTable serviceCatalog{ts::group("Empty", emptyServices),
-                                             ts::group("Control", services),
-                                             ts::group("Extra", extraServices)};
+const ts::testing::CommandCatalogTable commandCatalog{ts::testing::group("Empty", emptyCommands),
+                                                      ts::testing::group("Control", commands),
+                                                      ts::testing::group("Extra", extraCommands)};
+const ts::testing::ServiceCatalogTable serviceCatalog{ts::testing::group("Empty", emptyServices),
+                                                      ts::testing::group("Control", services),
+                                                      ts::testing::group("Extra", extraServices)};
 
 constexpr std::uint32_t packed(std::uint32_t entry) noexcept
 {
@@ -465,8 +466,8 @@ void checkRouting()
 	auto otherGroup = serviceCatalog.callAs<Reply>(0x20000);
 	checkReply(otherGroup, ts::ServiceCallStatus::Ok);
 
-	const ts::CommandCatalogTable<> noCommandGroups{};
-	const ts::ServiceCatalogTable<> noServiceGroups{};
+	const ts::testing::CommandCatalogTable<> noCommandGroups{};
+	const ts::testing::ServiceCatalogTable<> noServiceGroups{};
 	CHECK(emptyCommands.call(0) == ts::CommandCallStatus::NotFound);
 	CHECK(emptyCommands.call(0, Request{}) == ts::CommandCallStatus::NotFound);
 	CHECK(noCommandGroups.call(0) == ts::CommandCallStatus::NotFound);

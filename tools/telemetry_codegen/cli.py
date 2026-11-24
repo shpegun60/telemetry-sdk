@@ -70,11 +70,10 @@ def symbol_mapping(schema):
             record.update(name=symbol.name, cpp_symbol=symbol.cpp, js_symbol=symbol.js)
         types.append(record)
     endpoints = [asdict(endpoint) for endpoint in schema.endpoints]
-    if schema.minor >= 1:
-        for index, (record, endpoint) in enumerate(zip(endpoints, schema.endpoints)):
-            record["path"] = schema.endpoint_path(endpoint)
-            if schema.groups is not None:
-                record["tree_symbol"] = schema.tree_symbols[index]
+    # Every endpoint's path and its symbol in its group (the group form).
+    for index, (record, endpoint) in enumerate(zip(endpoints, schema.endpoints)):
+        record["path"] = schema.endpoint_path(endpoint)
+        record["tree_symbol"] = schema.api_symbols[index]
     result = {"endpoints": endpoints, "types": types}
     if schema.groups is not None:
         result["groups"] = [{"index": group.index, "name": group.name, "path": group.path,

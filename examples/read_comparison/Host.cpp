@@ -62,7 +62,7 @@ struct Metadata {
 	std::array<rt::RuntimeType, 32> types{};
 	std::array<rt::RuntimeMember, 4> members{};
 	std::array<rt::RuntimeEnumEntry, 1> enums{};
-	std::array<rt::RuntimeCatalog, 2> catalogs{};
+	std::array<rt::RuntimeCatalog, 3> catalogs{}; // one group, three families
 	std::array<rt::RuntimeEndpoint, 32> endpoints{};
 	rt::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs, endpoints};
 	rt::RuntimeSchema schema;

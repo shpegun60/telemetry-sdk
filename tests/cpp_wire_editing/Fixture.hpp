@@ -43,12 +43,9 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable fields{telemetry::field<&Device::read>("Config", device),
-                                              telemetry::field<&Device::empty>("Empty", device)};
-inline constexpr telemetry::FieldCatalogTable catalogs{telemetry::group("control", fields)};
-inline constexpr telemetry::CommandCatalogTable commands{};
-inline constexpr telemetry::ServiceCatalogTable services{};
-inline constexpr telemetry::Model model{catalogs, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("control", telemetry::field<&Device::read>("Config", device),
+                     telemetry::field<&Device::empty>("Empty", device))};
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace wire_fixture

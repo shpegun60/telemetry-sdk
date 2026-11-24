@@ -85,21 +85,15 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read, &Device::write>("Config", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("device", localFields)};
-inline constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::command>("Reset", device)};
-inline constexpr telemetry::CommandCatalogTable commands{telemetry::group("device", localCommands)};
-inline constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Device::transform>("Transform", device),
-    telemetry::service<&Device::current>("Current", device),
-    telemetry::service<&Device::statusOnly>("StatusOnly", device),
-    telemetry::service<&Device::empty>("Empty", device),
-    telemetry::service<&Device::big>("Big", device),
-    telemetry::service<&Device::boolean>("Boolean", device)};
-inline constexpr telemetry::ServiceCatalogTable services{telemetry::group("device", localServices)};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("device", telemetry::field<&Device::read, &Device::write>("Config", device),
+                     telemetry::command<&Device::command>("Reset", device),
+                     telemetry::service<&Device::transform>("Transform", device),
+                     telemetry::service<&Device::current>("Current", device),
+                     telemetry::service<&Device::statusOnly>("StatusOnly", device),
+                     telemetry::service<&Device::empty>("Empty", device),
+                     telemetry::service<&Device::big>("Big", device),
+                     telemetry::service<&Device::boolean>("Boolean", device))};
 inline const auto modelView = model.view();
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();

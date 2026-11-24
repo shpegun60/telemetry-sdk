@@ -98,7 +98,8 @@ class WebGenerationTests(unittest.TestCase):
             if path != "manifest.json":
                 self.assertEqual(optional[path], content)
         self.assertEqual(set(optional) - set(plain),
-                         {"js/client.js", "js/client.d.ts", "ts/client.ts"})
+                         {"js/client.js", "js/client.d.ts", "ts/client.ts", "js/handles.js",
+                          "js/handles.d.ts", "ts/handles.ts"})
         self.assertNotIn("import ", optional["js/device.js"].decode())
         self.assertNotIn("import ", optional["js/client.js"].decode())
         with self.assertRaisesRegex(ValueError, "requires a js or ts"):

@@ -24,11 +24,8 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable local{telemetry::field<&Device::read>("Packet", device)};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("inspect", local)};
-inline constexpr telemetry::CommandCatalogTable commands{};
-inline constexpr telemetry::ServiceCatalogTable services{};
-inline constexpr telemetry::Model model{fields, commands, services};
+inline constexpr telemetry::Model model{
+    telemetry::group("inspect", telemetry::field<&Device::read>("Packet", device))};
 inline const auto modelView = model.view();
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = telemetry::descriptor::packDescriptor<descriptor>();

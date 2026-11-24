@@ -150,7 +150,7 @@ try {
 	await reset();
 	const zero = await client.batch(
 	    capability, Batch.items(Batch.command(C.Reset), Batch.command(C.EmptyArgument, {}),
-	                            Batch.service(S.Ping), Batch.service(S.Empty),
+	                            Batch.service(S.Ping), Batch.service(S.EmptyService),
 	                            Batch.service(S.Consume, data(23)),
 	                            Batch.service(S.EmptyRequest, {}), Batch.read(F.Empty)));
 	equal(zero.valueStatus, V.Ok);

@@ -54,11 +54,8 @@ long long scalar() noexcept
 	return input.i64;
 }
 
-inline constexpr telemetry::FieldTable values{telemetry::field<&read>("Integers"),
-                                              telemetry::field<&scalar>("Scalar")};
-inline constexpr telemetry::FieldCatalogTable fields{telemetry::group("native", values)};
-inline constexpr telemetry::ServiceCatalogTable<> services{};
-inline constexpr telemetry::Model model{fields, telemetry::emptyCommands, services};
+inline constexpr telemetry::Model model{telemetry::group(
+    "native", telemetry::field<&read>("Integers"), telemetry::field<&scalar>("Scalar"))};
 using Registry = typename std::remove_cvref_t<decltype(model)>::Registry;
 inline constexpr telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto bytes = telemetry::descriptor::packDescriptor<descriptor>();

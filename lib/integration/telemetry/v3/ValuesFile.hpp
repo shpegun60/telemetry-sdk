@@ -4,7 +4,8 @@
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  *
- * Publish current Fields using the identity of their validated descriptor.
+ * Publish current Fields using the identity of their validated descriptor,
+ * of a group-tree Model or a catalog Model alike.
  * The header can be split, but each value token is emitted whole; endpoint
  * owners and the shared Workspace remain application-owned and serialized.
  */
@@ -18,6 +19,7 @@
 #include <array>
 #include <concepts>
 #include <cstdlib>
+#include <type_traits>
 
 namespace resource::telemetry::v3 {
 namespace ts = ::telemetry;
@@ -27,6 +29,20 @@ namespace detail {
 {
 	std::abort();
 }
+
+// The Field catalog table a Descriptor reads: a catalog Model's own, or the
+// table a group-tree Model builds over its groups (one row per group).
+template<class Fields>
+struct ValuesFieldCatalogs {
+	using type = Fields;
+};
+
+template<class... Branches>
+struct ValuesFieldCatalogs<ts::detail::GroupTreeFields<Branches...>> {
+	using type = typename ts::Model<ts::detail::GroupTreeFields<Branches...>,
+	                                ts::detail::GroupTreeCommands<Branches...>,
+	                                ts::detail::GroupTreeServices<Branches...>>::FieldCatalogs;
+};
 } // namespace detail
 
 template<class Fields>
@@ -39,7 +55,8 @@ template<class Fields>
 // - requiredWorkspace(): Report read scratch.
 // - read(): Emit whole tokens.
 class ValuesFile {
-	static constexpr std::size_t count = Fields::RootTypes::size;
+	static constexpr std::size_t count =
+	    detail::ValuesFieldCatalogs<std::remove_cv_t<Fields>>::type::RootTypes::size;
 	static_assert(count <= UINT32_MAX, "Values field count exceeds u32");
 
 public:

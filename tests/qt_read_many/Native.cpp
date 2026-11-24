@@ -43,11 +43,8 @@ struct Device {
 	}
 } device;
 
-constexpr telemetry::FieldTable localFields{telemetry::field<&Device::get>("Value", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("test", localFields)};
-constexpr telemetry::CommandCatalogTable commands{};
-constexpr telemetry::ServiceCatalogTable services{};
-constexpr telemetry::Model model{fields, commands, services};
+constexpr telemetry::Model model{
+    telemetry::group("test", telemetry::field<&Device::get>("Value", device))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto packed = telemetry::descriptor::packDescriptor<descriptor>();
 static_assert(!std::is_copy_constructible_v<tcp::ReadManyProfile>);

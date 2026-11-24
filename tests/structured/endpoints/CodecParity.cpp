@@ -50,10 +50,11 @@ telemetry::CommandResult call(const Frame& value) noexcept
 	return telemetry::CommandResult::Executed;
 }
 
-inline constexpr ts::FieldTable fields{ts::field<&get, &set>("frame")};
-inline constexpr ts::CommandTable commands{ts::command<&call>("frame")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("p", fields)};
-inline constexpr ts::CommandCatalogTable actions{ts::group("p", commands)};
+// A Field and a Command of one group share ID 0 in their families.
+inline constexpr ts::Model model{
+    ts::group("p", ts::field<&get, &set>("frame"), ts::command<&call>("call"))};
+inline constexpr auto catalogs = model.fieldIndex();
+inline constexpr auto actions = model.commandIndex();
 } // namespace parity
 
 int main()
@@ -75,10 +76,10 @@ int main()
 		               static_cast<Mode>(static_cast<std::uint8_t>(i))};
 		if (ts::encode(original, bytes) != ts::CodecStatus::Ok)
 			return 1;
-		if (catalogs.index().writeEncoded(0, bytes, workspace).dispatch != ts::DispatchStatus::Ok ||
-		    actions.index().executeEncoded(0, bytes, workspace).dispatch != ts::DispatchStatus::Ok)
+		if (catalogs.writeEncoded(0, bytes, workspace).dispatch != ts::DispatchStatus::Ok ||
+		    actions.executeEncoded(0, bytes, workspace).dispatch != ts::DispatchStatus::Ok)
 			return 2;
-		const auto result = catalogs.index().readEncoded(0, encoded, workspace);
+		const auto result = catalogs.readEncoded(0, encoded, workspace);
 		if (result.dispatch != ts::DispatchStatus::Ok || result.written != count ||
 		    !std::equal(bytes.begin(), bytes.end(), encoded.begin()) || workspace.used() != 0)
 			return 3;
@@ -86,9 +87,9 @@ int main()
 			const auto saved = bytes[boolOffset];
 			bytes[boolOffset] = std::byte{255};
 			const auto beforeWrites = writes, beforeCalls = calls;
-			if (catalogs.index().writeEncoded(0, bytes, workspace).dispatch !=
+			if (catalogs.writeEncoded(0, bytes, workspace).dispatch !=
 			        ts::DispatchStatus::InvalidPayload ||
-			    actions.index().executeEncoded(0, bytes, workspace).dispatch !=
+			    actions.executeEncoded(0, bytes, workspace).dispatch !=
 			        ts::DispatchStatus::InvalidPayload ||
 			    writes != beforeWrites || calls != beforeCalls || workspace.used() != 0)
 				return 4;

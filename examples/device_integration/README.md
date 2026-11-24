@@ -9,24 +9,23 @@
 | --- | --- |
 | [Device.hpp](Device.hpp), [Device.cpp](Device.cpp) | Два конфігураційні блоки, перевірка значень, зміна стану, лічильники викликів |
 | [Api.hpp](Api.hpp) | Runtime API застосунку: native виклики, IDs, byte spans, приймач потоку |
-| [Api.cpp](Api.cpp) | Єдиний owner, mixed FieldTable, CommandTable, ServiceTable, каталоги, Model, Workspace, resource providers і routing |
+| [Api.cpp](Api.cpp) | Єдиний owner, група `device` у `Model{...}`, handles, Workspace, resource providers і routing |
 | [main.cpp](main.cpp) | Host клієнт і перевірки native/encoded/resource/stream шляхів |
 | [CMakeLists.txt](CMakeLists.txt) | Окремий executable прикладу з потрібними compiled sources бібліотеки |
 
-Модель цього прикладу ще в плоскій формі (local tables, каталоги, `makeId`),
-що [виводиться з ужитку](../../doc/user/APIOverview.md#виводиться-з-ужитку): її
-facade використовує runtime `readAs` і `writeAs` каталогів, які поки що не мають
-форми шляху. Новий пристрій описують групою, як у
-[QuickStart.cpp](../user_guide/QuickStart.cpp), і гілками, як у
-[group_tree](../group_tree/README.md):
+Модель — одна група `device` дерева груп: Fields, Commands і Services разом.
+Native операції фасаду йдуть через handles, а опубліковані IDs з `Api.hpp`
+перевіряються проти шляхів, як у [QuickStart.cpp](../user_guide/QuickStart.cpp)
+і [group_tree](../group_tree/README.md):
 
 ```cpp
-constexpr auto branch = ts::group("device",
+constexpr ts::Model model{ts::group("device",
     ts::field<&Device::readPeriod, &Device::writePeriod>("Period", device),
     ts::command<&Device::reset>("Reset", device),
-    ts::service<&Device::sample>("Sample", device));
-constexpr ts::Model model{branch};
-static_assert(ts::idOf<model, "device/Period">() == 0); // ID для власного протоколу
+    ts::service<&Device::sample>("Sample", device))};
+constexpr auto period = ts::endpoint<model, "device/Period">;
+static_assert(period.id == 0); // ID для власного протоколу
+period.write(25u);
 ```
 
 ## Зібрати й запустити
@@ -68,7 +67,7 @@ CMake збирає саме приклад застосунку. Qt, sockets і 
 
 ## Що додавати у свій застосунок
 
-`Device` зберігає `SamplingConfig` і `DisplayConfig`. Один локальний FieldTable
+`Device` зберігає `SamplingConfig` і `DisplayConfig`. Група `device`
 публікує scalar `Period`, enum `Mode`, масив `Gains` та aggregate `Display`.
 Всі чотири getters/setters — methods бізнес-класу. `Configure` передає два
 блоки одним aggregate; `Device::configure()` перевіряє обидва до зміни стану.
@@ -76,12 +75,11 @@ CMake збирає саме приклад застосунку. Qt, sockets і 
 має один aggregate request і повертає owning `Snapshot` або `InvalidArgument`.
 
 Власні аргументи додавайте до aggregate request, а не до wire header. Нове поле
-додавайте до table і до відповідного enum позицій/публічних IDs. Позиції — частина
+додавайте до групи і до відповідного публічного ID. Позиції — частина
 адресації: перестановка entries змінює їхні IDs, тому клієнта треба оновити разом
-із застосунком. `FieldPosition::Period` у `.cpp` є локальною позицією.
-`packed<FieldPosition::Period>` утворюється через `makeId<group, position>()` і
-є глобальним ID каталогу. `static_assert` перевіряє, що публічні runtime IDs
-фасаду збігаються з деклараціями. У цьому прикладі є одна група з позицією `0`.
+із застосунком. ID кожного endpoint дає його шлях: `period.id` або
+`ts::idOf<model, "device/Reset">()`; `static_assert` перевіряє, що публічні
+runtime IDs фасаду збігаються з ними. У цьому прикладі одна група з позицією `0`.
 Field/Command/Service мають окремі простори IDs, які вибирає operation.
 
 Споживач включає лише `Api.hpp` і викликає звичайні runtime функції:
@@ -96,7 +94,8 @@ if (app::api::readPeriod(period)) {
 }
 ```
 
-У `.cpp` native фасад користується `readAs`/`writeAs`; encoded фасад передає
+У `.cpp` native фасад користується handles (`period.read()`, `mode.write(value)`);
+encoded фасад передає
 байтові payloads у `readFieldEncoded`, `writeFieldEncoded`,
 `executeCommandEncoded`, `callServiceEncoded`. Перевірка wire payload і рішення
 бізнес-класу мають різні результати. Наприклад, bool byte `2` дає
@@ -104,7 +103,7 @@ if (app::api::readPeriod(period)) {
 integer, після чого `Device::writeMode()` повертає `WriteStatus::InvalidValue`
 при `Dispatch::Ok`. Reflection dictionary не підміняє domain validation.
 
-`Device`, providers, paths, таблиці й Model мають static lifetime у `Api.cpp`.
+`Device`, providers, paths, handles і Model мають static lifetime у `Api.cpp`.
 Додатковий `init()` тут не потрібний. Фасад призначений для **одного** бізнес-owner;
 кілька `StreamReceiver` можуть обслуговувати різні з'єднання з тим самим owner
 за умови серіалізації викликів.

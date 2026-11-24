@@ -1,5 +1,6 @@
 /* Incremental object sections for 32/128 positional native visitor rows. MIT. */
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 namespace ts = telemetry;
 static std::uint32_t value;
 
@@ -15,7 +16,7 @@ constexpr auto make(std::index_sequence<I...>)
 }
 
 static constexpr auto table = make(std::make_index_sequence<ROWS>{});
-static constexpr ts::FieldCatalogTable catalogs{ts::group("group", table)};
+static constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("group", table)};
 
 extern "C" const char* selected_name(std::uint32_t id)
 {

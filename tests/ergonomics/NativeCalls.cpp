@@ -6,6 +6,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/result/NativeCallResult.hpp>
 #include <array>
 #include <cassert>
@@ -88,8 +89,8 @@ const ts::CommandTable commands{ts::command<&configure>("Configure"), ts::comman
 const ts::ServiceTable services{ts::service<&query>("Query"), ts::service<&borrow>("Borrow"),
                                 ts::service<&notify>("Notify"), ts::service<&large>("Large"),
                                 ts::service("Slot", serviceSlot)};
-const ts::CommandCatalogTable commandCatalog{ts::group("Control", commands)};
-const ts::ServiceCatalogTable serviceCatalog{ts::group("Control", services)};
+const ts::testing::CommandCatalogTable commandCatalog{ts::testing::group("Control", commands)};
+const ts::testing::ServiceCatalogTable serviceCatalog{ts::testing::group("Control", services)};
 
 // A factory result with deleted copy/move makes guaranteed direct construction
 // observable independently of optimizer choices for a trivially copyable DTO.
@@ -185,8 +186,8 @@ int main()
 	      ts::NativeCallStatus::NotFound);
 	const ts::CommandTable<> emptyCommands{};
 	const ts::ServiceTable<> emptyServices{};
-	const ts::CommandCatalogTable<> emptyCommandCatalog{};
-	const ts::ServiceCatalogTable<> emptyServiceCatalog{};
+	const ts::testing::CommandCatalogTable<> emptyCommandCatalog{};
+	const ts::testing::ServiceCatalogTable<> emptyServiceCatalog{};
 	CHECK(emptyCommands.callAs(0).status() == ts::NativeCallStatus::NotFound);
 	CHECK(emptyServices.callAs<Owned>(0).status() == ts::NativeCallStatus::NotFound);
 	CHECK(emptyCommandCatalog.callAs(0).status() == ts::NativeCallStatus::NotFound);

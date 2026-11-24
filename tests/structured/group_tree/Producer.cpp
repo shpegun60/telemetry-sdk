@@ -19,6 +19,7 @@
 
 #include <telemetry/abi/StructuredAbi.hpp>
 #include <telemetry/descriptor/Descriptor.hpp>
+#include <telemetry/testing/V30Model.hpp>
 
 #include <array>
 #include <cstdio>
@@ -41,15 +42,15 @@ static_assert(Tree::groupParents ==
 static_assert(std::string_view{model.groupName(1)} == "channel1");
 
 // One PackedId space: the group part is the shared pre-order position.
-static_assert(ts::idOf<model, "adc/Config">() == ts::makeId(0, 0));
-static_assert(ts::idOf<model, "adc/Status">() == ts::makeId(0, 1));
-static_assert(ts::idOf<model, "adc/channel1/Gain">() == ts::makeId(1, 0));
-static_assert(ts::idOf<model, "adc/channel2/Gain">() == ts::makeId(2, 0));
-static_assert(ts::idOf<model, "metrology/Config">() == ts::makeId(3, 0));
-static_assert(ts::idOf<model, "adc/Reset">() == ts::makeId(0, 0));
-static_assert(ts::idOf<model, "adc/Calibrate">() == ts::makeId(0, 0));
-static_assert(model.idOf<"adc/channel2/Gain">() == ts::makeId(2, 0));
-static_assert(model.idOf<"metrology/Config">() == ts::makeId(3, 0));
+static_assert(ts::idOf<model, "adc/Config">() == ts::detail::makeId(0, 0));
+static_assert(ts::idOf<model, "adc/Status">() == ts::detail::makeId(0, 1));
+static_assert(ts::idOf<model, "adc/channel1/Gain">() == ts::detail::makeId(1, 0));
+static_assert(ts::idOf<model, "adc/channel2/Gain">() == ts::detail::makeId(2, 0));
+static_assert(ts::idOf<model, "metrology/Config">() == ts::detail::makeId(3, 0));
+static_assert(ts::idOf<model, "adc/Reset">() == ts::detail::makeId(0, 0));
+static_assert(ts::idOf<model, "adc/Calibrate">() == ts::detail::makeId(0, 0));
+static_assert(model.idOf<"adc/channel2/Gain">() == ts::detail::makeId(2, 0));
+static_assert(model.idOf<"metrology/Config">() == ts::detail::makeId(3, 0));
 
 // Two Configs, two names: the innermost scope keeps them apart.
 static_assert(Tree::Registry::typeNames()[Tree::typeId<adc::Config>()] == "adc::Config");
@@ -59,7 +60,7 @@ static_assert(Tree::typeId<adc::Config>() != Tree::typeId<metrology::Config>());
 
 // The same tables as a flat Model are v3.0: no tree, and the group names are
 // per-family catalogs again.
-inline constexpr ts::Model flat{model.fields(), model.commands(), model.services()};
+inline constexpr ts::testing::V30Model flat{model.fields(), model.commands(), model.services()};
 inline constexpr auto flatDescriptor = ::telemetry::descriptor::withoutTypeNames(flat);
 static_assert(flatDescriptor.valid());
 static_assert(::telemetry::descriptor::withoutTypeNames(model).valid());
@@ -89,10 +90,12 @@ inline constexpr auto meterConfig = ts::endpoint<model, "metrology/Config">;
 inline constexpr auto reset = ts::endpoint<model, "adc/Reset">;
 inline constexpr auto calibrate = ts::endpoint<model, "adc/Calibrate">;
 using Kind = ts::reflection::EndpointKind;
-static_assert(gain1.id == ts::idOf<model, "adc/channel1/Gain">() && gain2.id == ts::makeId(2, 0));
-static_assert(config.id == ts::makeId(0, 0) && rate.id == config.id && raw1.id == ts::makeId(0, 1));
-static_assert(meterConfig.id == ts::makeId(3, 0) && reset.id == ts::makeId(0, 0) &&
-              calibrate.id == ts::makeId(0, 0));
+static_assert(gain1.id == ts::idOf<model, "adc/channel1/Gain">() &&
+              gain2.id == ts::detail::makeId(2, 0));
+static_assert(config.id == ts::detail::makeId(0, 0) && rate.id == config.id &&
+              raw1.id == ts::detail::makeId(0, 1));
+static_assert(meterConfig.id == ts::detail::makeId(3, 0) && reset.id == ts::detail::makeId(0, 0) &&
+              calibrate.id == ts::detail::makeId(0, 0));
 static_assert(gain1.kind == Kind::Field && reset.kind == Kind::Command &&
               calibrate.kind == Kind::Service);
 static_assert(!gain1.member && !config.member && rate.member && raw1.member && !reset.member);
@@ -154,14 +157,15 @@ int main(int argc, char** argv)
 	      "every family has one row per group");
 	check(view.commands.catalogs()[1].count == 0 && view.services.catalogs()[3].count == 0,
 	      "empty rows where a group has none of a family");
-	check(view.fieldTypeId(ts::makeId(3, 0)) == tf::Tree::typeId<metrology::Config>(),
+	check(view.fieldTypeId(ts::detail::makeId(3, 0)) == tf::Tree::typeId<metrology::Config>(),
 	      "metrology/Config dispatches to metrology::Config");
-	check(!view.fieldTypeId(ts::makeId(4, 0)) && !view.fieldTypeId(ts::makeId(1, 1)),
+	check(!view.fieldTypeId(ts::detail::makeId(4, 0)) &&
+	          !view.fieldTypeId(ts::detail::makeId(1, 1)),
 	      "out-of-range group or entry is refused");
 	std::array<std::byte, 64> scratch{};
 	ts::Workspace workspace{scratch};
 	std::array<std::byte, 16> out{};
-	const auto encoded = view.fields.readEncoded(ts::makeId(2, 0), out, workspace);
+	const auto encoded = view.fields.readEncoded(ts::detail::makeId(2, 0), out, workspace);
 	float gain = 0;
 	std::memcpy(&gain, out.data(), sizeof gain);
 	check(encoded.dispatch == ts::DispatchStatus::Ok && encoded.written == 4 && gain == 2.5f,

@@ -75,15 +75,12 @@ struct Owner {
 };
 
 static Owner owner;
-static constexpr ts::FieldTable fieldTable{ts::field<&Owner::read, &Owner::write>("Value", owner),
-                                           ts::field<&Owner::wide>("Wide", owner),
-                                           ts::field<&Owner::flag>("Flag", owner)};
-static constexpr ts::FieldCatalogTable fields{ts::group("values", fieldTable)};
-static constexpr ts::CommandTable commandTable{ts::command<&Owner::command>("Command", owner)};
-static constexpr ts::CommandCatalogTable commands{ts::group("requests", commandTable)};
-static constexpr ts::ServiceTable serviceTable{ts::service<&Owner::service>("Service", owner)};
-static constexpr ts::ServiceCatalogTable services{ts::group("requests", serviceTable)};
-static constexpr ts::Model native{fields, commands, services};
+// One group: every family's IDs start at 0, as the requests below send.
+static constexpr ts::Model native{
+    ts::group("values", ts::field<&Owner::read, &Owner::write>("Value", owner),
+              ts::field<&Owner::wide>("Wide", owner), ts::field<&Owner::flag>("Flag", owner),
+              ts::command<&Owner::command>("Command", owner),
+              ts::service<&Owner::service>("Service", owner))};
 static constexpr ts::descriptor::Descriptor descriptor{native};
 static constexpr auto bytes = ts::descriptor::packDescriptor<descriptor>();
 static constexpr std::array<std::uint32_t, 2> ids{1, 2};
@@ -92,7 +89,7 @@ struct Metadata {
 	std::array<rt::RuntimeType, 16> types{};
 	std::array<rt::RuntimeMember, 8> members{};
 	std::array<rt::RuntimeEnumEntry, 1> enums{};
-	std::array<rt::RuntimeCatalog, 4> catalogs{};
+	std::array<rt::RuntimeCatalog, 6> catalogs{};
 	std::array<rt::RuntimeEndpoint, 8> endpoints{};
 	rt::RuntimeSchemaWorkspace workspace{types, members, enums, catalogs, endpoints};
 	rt::RuntimeSchema schema;

@@ -36,8 +36,9 @@ directory must be outside the checkout. Nothing touches a device.
    without type names. It checks the outline (depths, parents), one PackedId
    space shared by the families (`idOf<>` and `model.idOf<>()`), O(1) encoded
    dispatch through the unchanged `ModelView` with an empty row where a group
-   has none of a family, the registry's two `Config` names, a flat Model over
-   the same tables, ABI revision 6, and typed access by path: `read<>` of a
+   has none of a family, the registry's two `Config` names, the per-family
+   catalog form of the same tables (`telemetry/testing/V30Model.hpp`, v3.0
+   bytes), ABI revision 6, and typed access by path: `read<>` of a
    Field, a member and an array element, `write<>` of a whole Field in each
    branch, `call<>` of a Command and a Service. Named handles
    (`endpoint<model, "adc/channel1/Gain">`) for a Field, a member, an element,
@@ -45,7 +46,12 @@ directory must be outside the checkout. Nothing touches a device.
    kind, value type and definition, an empty trivially copyable type that is
    the same for the same path, the same result types as the free functions,
    and reads, writes and calls (one through a stored copy) that agree with the
-   path forms.
+   path forms. `Values.cpp` serves the tree's live Values file
+   (`resource::telemetry::v3::ValuesFile`, which counts a tree's Fields through
+   the tables the tree builds): one token per Field in descriptor order, read
+   whole and in every piece length up to 13, then back through the host's
+   `ValuesReader` against the tree descriptor's `RuntimeSchema`, value for value
+   with `read<model, path>()`, before and after a write by path.
 3. **Refusals.** `Negative.cpp`, one case at a time: a group or endpoint name
    with a path character, a Field and a Command of one name, a subgroup and a
    Field of one name, two root branches of one name, nine levels against the
@@ -67,7 +73,7 @@ directory must be outside the checkout. Nothing touches a device.
    `tree.hex`, and `DispatchSize.cpp` links `dispatch_root` alone over the same
    endpoints as a tree and as today's flat catalogs. `HandleSize.cpp` writes
    each operation three ways (a handle, the free path function, typed access by
-   a `makeId` ID) and is compiled with `-fno-ipa-icf`: every handle function
+   a `detail::makeId` ID) and is compiled with `-fno-ipa-icf`: every handle function
    must have exactly the instructions and relocations of the other two, at O2
    and Os, with a control that the comparison tells read from write. Its
    linked image must hold no path text.
@@ -109,10 +115,10 @@ ARM encoded dispatch, `dispatch_root` linked alone with `--gc-sections`
 | `.rodata` Os | 1678 B | 1886 B | +208 B |
 
 A named handle (arm-none-eabi-g++ 14.3.1, 20 November 2026) compiles to the
-same instructions as the free function and as `makeId` access in every
-operation; function bytes:
+same instructions as the free function and as access by a `detail::makeId` ID
+in every operation; function bytes:
 
-| Operation | O2 handle / path / makeId | Os handle / path / makeId |
+| Operation | O2 handle / path / ID | Os handle / path / ID |
 | --- | ---: | ---: |
 | read a Field | 12 / 12 / 12 | 12 / 12 / 12 |
 | read a member | 12 / 12 / 12 | 12 / 12 / 12 |

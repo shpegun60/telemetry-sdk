@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "Fixture.hpp"
+#include <telemetry/testing/V30Model.hpp>
 
 #include <cstdio>
 #include <cstring>
@@ -11,7 +12,8 @@
 namespace {
 unsigned checks = 0;
 
-// Real producer names deliberately collide only after joining them with '.'.
+// Real producer names deliberately collide only after joining them with '.'; a
+// catalog model of the testing header, as only the v3.0 form allows such names.
 // Keep categories separate, and include UTF-8 in both a group and an endpoint.
 using runtime_fixture::Device;
 using runtime_fixture::device;
@@ -33,17 +35,20 @@ inline constexpr telemetry::ServiceTable lookupServices{
 inline constexpr telemetry::ServiceTable lookupLongServices{
     telemetry::service<&Device::inspect>("c", device),
     telemetry::service<&Device::inspect>("unique", device)};
-inline constexpr telemetry::FieldCatalogTable lookupFieldCatalogs{
-    telemetry::group("a", lookupFields), telemetry::group("a.b", lookupLongFields),
-    telemetry::group("\xCE\xB1", lookupLongFields)};
-inline constexpr telemetry::CommandCatalogTable lookupCommandCatalogs{
-    telemetry::group("a", lookupCommands), telemetry::group("a.b", lookupLongCommands),
-    telemetry::group("\xCE\xB1", lookupLongCommands)};
-inline constexpr telemetry::ServiceCatalogTable lookupServiceCatalogs{
-    telemetry::group("a", lookupServices), telemetry::group("a.b", lookupLongServices),
-    telemetry::group("\xCE\xB1", lookupLongServices)};
-inline constexpr telemetry::Model lookupModel{lookupFieldCatalogs, lookupCommandCatalogs,
-                                              lookupServiceCatalogs};
+inline constexpr telemetry::testing::FieldCatalogTable lookupFieldCatalogs{
+    telemetry::testing::group("a", lookupFields),
+    telemetry::testing::group("a.b", lookupLongFields),
+    telemetry::testing::group("\xCE\xB1", lookupLongFields)};
+inline constexpr telemetry::testing::CommandCatalogTable lookupCommandCatalogs{
+    telemetry::testing::group("a", lookupCommands),
+    telemetry::testing::group("a.b", lookupLongCommands),
+    telemetry::testing::group("\xCE\xB1", lookupLongCommands)};
+inline constexpr telemetry::testing::ServiceCatalogTable lookupServiceCatalogs{
+    telemetry::testing::group("a", lookupServices),
+    telemetry::testing::group("a.b", lookupLongServices),
+    telemetry::testing::group("\xCE\xB1", lookupLongServices)};
+inline constexpr telemetry::testing::V30Model lookupModel{
+    lookupFieldCatalogs, lookupCommandCatalogs, lookupServiceCatalogs};
 inline constexpr telemetry::descriptor::Descriptor lookupDescriptor{lookupModel};
 inline constexpr auto lookupBytes = telemetry::descriptor::packDescriptor<lookupDescriptor>();
 

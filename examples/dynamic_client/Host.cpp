@@ -40,11 +40,8 @@ struct Device {
 };
 
 Device device;
-constexpr telemetry::FieldTable localFields{
-    telemetry::field<&Device::read, &Device::write>("Config", device)};
-constexpr telemetry::FieldCatalogTable fields{telemetry::group("device", localFields)};
-constexpr telemetry::ServiceCatalogTable<> services{};
-constexpr telemetry::Model model{fields, telemetry::emptyCommands, services};
+constexpr telemetry::Model model{
+    telemetry::group("device", telemetry::field<&Device::read, &Device::write>("Config", device))};
 constexpr telemetry::descriptor::Descriptor descriptor{model};
 constexpr auto descriptorBytes = telemetry::descriptor::packDescriptor<descriptor>();
 } // namespace peer

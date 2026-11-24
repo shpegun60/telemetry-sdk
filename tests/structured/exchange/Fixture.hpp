@@ -120,22 +120,23 @@ struct Device {
 
 inline Device device;
 inline telemetry::OwnerSlot<Device> slot;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::read, &Device::write>("Config", device),
-    ts::field<&Device::read>("ReadOnly", device),
-    ts::field<&Device::read, &Device::write>("Optional", slot),
-    ts::field<&Device::readBig, &Device::writeBig>("Big", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::configure>("Configure", device),
-    ts::command<&Device::reset>("Reset", device), ts::command<&Device::configure>("Optional", slot),
-    ts::command<&Device::commandBig>("Big", device)};
-inline constexpr ts::ServiceTable localServices{
-    ts::service<&Device::echo>("Echo", device), ts::service<&Device::ping>("Ping", device),
-    ts::service<&Device::echo>("Optional", slot), ts::service<&Device::large>("Large", device)};
-inline constexpr ts::FieldCatalogTable fields{ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr auto configField = ts::field<&Device::read, &Device::write>("Config", device);
+inline constexpr auto readOnlyField = ts::field<&Device::read>("ReadOnly", device);
+inline constexpr auto optionalField = ts::field<&Device::read, &Device::write>("Optional", slot);
+inline constexpr auto bigField = ts::field<&Device::readBig, &Device::writeBig>("Big", device);
+inline constexpr auto configureCommand = ts::command<&Device::configure>("Configure", device);
+inline constexpr auto resetCommand = ts::command<&Device::reset>("Reset", device);
+inline constexpr auto optionalCommand = ts::command<&Device::configure>("OptionalConfigure", slot);
+inline constexpr auto bigCommand = ts::command<&Device::commandBig>("BigCommand", device);
+inline constexpr auto echoService = ts::service<&Device::echo>("Echo", device);
+inline constexpr auto pingService = ts::service<&Device::ping>("Ping", device);
+inline constexpr auto optionalService = ts::service<&Device::echo>("OptionalEcho", slot);
+inline constexpr auto largeService = ts::service<&Device::large>("Large", device);
+// One group, device, of four Fields, four Commands and four Services; a
+// group's names are unique across its families.
+inline constexpr ts::Model model{ts::group(
+    "device", configField, readOnlyField, optionalField, bigField, configureCommand, resetCommand,
+    optionalCommand, bigCommand, echoService, pingService, optionalService, largeService)};
 inline constexpr auto view = model.view();
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline constexpr auto packed = ::telemetry::descriptor::packDescriptor<descriptor>();

@@ -42,10 +42,15 @@ inline constexpr ts::ServiceTable services{ts::service<&Owner<Blob<4096>>::get>(
 inline constexpr ts::ServiceTable wrappedServices{
     ts::service<&WrappedOwner<4096>::call>("Kib4", wrapped4),
     ts::service<&WrappedOwner<65536>::call>("Kib64", wrapped64)};
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group("fields", fields)};
-inline constexpr ts::ServiceCatalogTable serviceCatalogs{ts::group("services", services)};
-inline constexpr ts::ServiceCatalogTable wrappedCatalogs{ts::group("services", wrappedServices)};
-inline constexpr ts::Model model{fieldCatalogs, ts::emptyCommands, serviceCatalogs};
+// The same endpoints in group trees; the "global" roots reach them by path.
+inline constexpr ts::Model model{
+    ts::group("fields", ts::field<&Owner<Blob<4096>>::get>("Kib4", kib4),
+              ts::field<&Owner<Blob<65536>>::get>("Kib64", kib64)),
+    ts::group("services", ts::service<&Owner<Blob<4096>>::get>("Kib4", kib4),
+              ts::service<&Owner<Blob<65536>>::get>("Kib64", kib64))};
+inline constexpr ts::Model wrappedModel{
+    ts::group("services", ts::service<&WrappedOwner<4096>::call>("Kib4", wrapped4),
+              ts::service<&WrappedOwner<65536>::call>("Kib64", wrapped64))};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 inline std::array<std::byte, 256> scratch{};
 inline ts::Workspace workspace{scratch};
@@ -55,7 +60,7 @@ inline volatile unsigned operation = 0;
 } // namespace arm_fixture
 
 #define ROOT extern "C" __attribute__((noinline))
-#define FIELD_ROOTS(label, N, object, position)                                                    \
+#define FIELD_ROOTS(label, N, object, position, path)                                              \
 	ROOT ts::BorrowedValue<Blob<N>> field_direct_##label() noexcept                                \
 	{                                                                                              \
 		return ts::BorrowedValue<Blob<N>>::from(arm_fixture::object.get());                        \
@@ -66,10 +71,10 @@ inline volatile unsigned operation = 0;
 	}                                                                                              \
 	ROOT ts::BorrowedValue<Blob<N>> field_global_##label() noexcept                                \
 	{                                                                                              \
-		return arm_fixture::fieldCatalogs.read<ts::makeId<0, position>()>();                       \
+		return ts::read<arm_fixture::model, path>();                                               \
 	}
 #if !defined(BORROWED_CODEGEN_CONTROL) && !defined(BORROWED_RELOCATION_CONTROL)
-FIELD_ROOTS(kib4, 4096, kib4, 0)
+FIELD_ROOTS(kib4, 4096, kib4, 0, "fields/Kib4")
 #else
 ROOT ts::BorrowedValue<Blob<4096>> field_direct_kib4() noexcept
 {
@@ -88,11 +93,11 @@ ROOT ts::BorrowedValue<Blob<4096>> field_local_kib4() noexcept
 #endif
 ROOT ts::BorrowedValue<Blob<4096>> field_global_kib4() noexcept
 {
-	return arm_fixture::fieldCatalogs.read<ts::makeId<0, 0>()>();
+	return ts::read<arm_fixture::model, "fields/Kib4">();
 }
 #endif
-FIELD_ROOTS(kib64, 65536, kib64, 1)
-#define SERVICE_ROOTS(label, N, object, position)                                                  \
+FIELD_ROOTS(kib64, 65536, kib64, 1, "fields/Kib64")
+#define SERVICE_ROOTS(label, N, object, position, path)                                            \
 	ROOT ts::BorrowedServiceResult<Blob<N>> service_direct_##label() noexcept                      \
 	{                                                                                              \
 		return ts::BorrowedServiceResult<Blob<N>>::success(arm_fixture::object.get());             \
@@ -103,11 +108,11 @@ FIELD_ROOTS(kib64, 65536, kib64, 1)
 	}                                                                                              \
 	ROOT ts::BorrowedServiceResult<Blob<N>> service_global_##label() noexcept                      \
 	{                                                                                              \
-		return arm_fixture::serviceCatalogs.call<ts::makeId<0, position>()>();                     \
+		return ts::call<arm_fixture::model, path>();                                               \
 	}
-SERVICE_ROOTS(kib4, 4096, kib4, 0)
-SERVICE_ROOTS(kib64, 65536, kib64, 1)
-#define STATUS_ROOTS(label, N, object, position)                                                   \
+SERVICE_ROOTS(kib4, 4096, kib4, 0, "services/Kib4")
+SERVICE_ROOTS(kib64, 65536, kib64, 1, "services/Kib64")
+#define STATUS_ROOTS(label, N, object, position, path)                                             \
 	ROOT ts::BorrowedServiceResult<Blob<N>> status_direct_##label() noexcept                       \
 	{                                                                                              \
 		return arm_fixture::object.call();                                                         \
@@ -118,10 +123,10 @@ SERVICE_ROOTS(kib64, 65536, kib64, 1)
 	}                                                                                              \
 	ROOT ts::BorrowedServiceResult<Blob<N>> status_global_##label() noexcept                       \
 	{                                                                                              \
-		return arm_fixture::wrappedCatalogs.call<ts::makeId<0, position>()>();                     \
+		return ts::call<arm_fixture::wrappedModel, path>();                                        \
 	}
-STATUS_ROOTS(kib4, 4096, wrapped4, 0)
-STATUS_ROOTS(kib64, 65536, wrapped64, 1)
+STATUS_ROOTS(kib4, 4096, wrapped4, 0, "services/Kib4")
+STATUS_ROOTS(kib64, 65536, wrapped64, 1, "services/Kib64")
 
 ROOT ts::EncodedReadResult field_encoded(unsigned id, std::span<std::byte> output,
                                          ts::Workspace& workspace) noexcept

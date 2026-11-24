@@ -10,6 +10,7 @@
  */
 
 #include <telemetry/Telemetry.hpp>
+#include <telemetry/testing/V30Model.hpp>
 #include <telemetry/abi/StructuredAbi.hpp>
 
 #include <array>
@@ -30,9 +31,9 @@ Sample read() noexcept
 }
 
 inline constexpr ts::FieldTable fields{ts::field<&read>("Sample")};
-inline constexpr ts::FieldCatalogTable catalogs{ts::group("link", fields)};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model model{catalogs, ts::emptyCommands, noServices};
+inline constexpr ts::testing::FieldCatalogTable catalogs{ts::testing::group("link", fields)};
+inline constexpr ts::testing::ServiceCatalogTable<> noServices{};
+inline constexpr ts::testing::V30Model model{catalogs, ts::testing::emptyCommands, noServices};
 } // namespace
 
 int main()

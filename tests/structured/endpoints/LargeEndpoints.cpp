@@ -73,12 +73,8 @@ telemetry::CommandResult command(const Value& value) noexcept
 	           : telemetry::CommandResult::InvalidValue;
 }
 
-inline constexpr ts::FieldTable fields{ts::field<&get, &set>("large")};
-inline constexpr ts::CommandTable commands{ts::command<&command>("large")};
-inline constexpr ts::FieldCatalogTable fieldCatalogs{ts::group("large", fields)};
-inline constexpr ts::CommandCatalogTable commandCatalogs{ts::group("large", commands)};
-inline constexpr ts::ServiceCatalogTable services{};
-inline constexpr ts::Model model{fieldCatalogs, commandCatalogs, services};
+inline constexpr ts::Model model{
+    ts::group("large", ts::field<&get, &set>("value"), ts::command<&command>("apply"))};
 static_assert(model.maxScratch() == 4096);
 static_assert(model.maxFieldWireSize() == 4096);
 } // namespace large
