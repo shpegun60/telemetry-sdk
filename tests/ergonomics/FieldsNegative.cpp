@@ -91,7 +91,7 @@ void reject()
 #elif CASE == 21
 	(void)table.readAsResult<Big, (std::uint64_t{1} << 32)>();
 #elif CASE == 22
-	(void)catalogs.readAsResult<Big, (std::uint64_t{1} << 32)>();
+	(void)ts::testing::CatalogAccess::readAsResult<Big, (std::uint64_t{1} << 32)>(catalogs);
 #elif CASE == 23
 	(void)std::move(catalogs).readAsResult<Big, 0>();
 #elif CASE == 24

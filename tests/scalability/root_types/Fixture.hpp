@@ -6,6 +6,10 @@
  *
  * One source supports the baseline and optimized composition paths. The test
  * switch enables new-alias assertions without changing endpoints or wire data.
+ * The per-family catalog form is public in the baseline library and, since the
+ * flat Model left the public API, reached through the testing-only producer;
+ * __has_include picks the one the selected source root has, with the same
+ * endpoints and bytes.
  */
 #ifndef TELEMETRY_TESTS_SCALABILITY_ROOT_TYPES_FIXTURE_HPP
 #define TELEMETRY_TESTS_SCALABILITY_ROOT_TYPES_FIXTURE_HPP
@@ -20,6 +24,14 @@
 #else
 #include <resource/telemetry/v3/ValuesFile.hpp>
 #endif
+#if __has_include(<telemetry/testing/V30Model.hpp>)
+#include <telemetry/testing/V30Model.hpp>
+#define ROOT_TYPES_CATALOGS ::telemetry::testing
+#define ROOT_TYPES_MODEL ::telemetry::testing::V30Model
+#else
+#define ROOT_TYPES_CATALOGS ::telemetry
+#define ROOT_TYPES_MODEL ::telemetry::Model
+#endif
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -31,6 +43,7 @@
 
 namespace root_types_fixture {
 namespace ts = ::telemetry;
+namespace catalogs = ROOT_TYPES_CATALOGS;
 namespace rs = ::resource::telemetry::v3;
 #if TELEMETRY_TEST_MODULAR_LAYOUT
 namespace descriptor_api = ::telemetry::descriptor;
@@ -216,8 +229,9 @@ inline constexpr ts::FieldTable fieldB{ts::field<&Device::modeB>("ModeB", device
                                        ts::field<&Device::secondB>("SecondB", device),
                                        ts::field<&Device::leaf>("Leaf", device)};
 inline constexpr ts::FieldTable<> emptyField{};
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("first", fieldA), ts::group("empty", emptyField), ts::group("last", fieldB)};
+inline constexpr catalogs::FieldCatalogTable fields{catalogs::group("first", fieldA),
+                                                    catalogs::group("empty", emptyField),
+                                                    catalogs::group("last", fieldB)};
 
 inline constexpr ts::CommandTable commandA{ts::command<&Device::reset>("Reset", device),
                                            ts::command<&Device::accept>("AcceptA", device),
@@ -226,8 +240,9 @@ inline constexpr ts::CommandTable commandB{ts::command<&Device::acceptSame>("Acc
                                            ts::command<&Device::reset>("ResetAgain", device),
                                            ts::command<&Device::acceptLeaf>("AcceptLeaf", device)};
 inline constexpr ts::CommandTable<> emptyCommand{};
-inline constexpr ts::CommandCatalogTable commands{
-    ts::group("first", commandA), ts::group("empty", emptyCommand), ts::group("last", commandB)};
+inline constexpr catalogs::CommandCatalogTable commands{catalogs::group("first", commandA),
+                                                        catalogs::group("empty", emptyCommand),
+                                                        catalogs::group("last", commandB)};
 
 inline constexpr ts::ServiceTable serviceA{ts::service<&Device::echo>("Echo", device),
                                            ts::service<&Device::lookup>("Lookup", device),
@@ -238,9 +253,10 @@ inline constexpr ts::ServiceTable serviceB{
     ts::service<&Device::convert>("Convert", device),
     ts::service<&Device::borrowReply>("BorrowReply", device)};
 inline constexpr ts::ServiceTable<> emptyService{};
-inline constexpr ts::ServiceCatalogTable services{
-    ts::group("first", serviceA), ts::group("empty", emptyService), ts::group("last", serviceB)};
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr catalogs::ServiceCatalogTable services{catalogs::group("first", serviceA),
+                                                        catalogs::group("empty", emptyService),
+                                                        catalogs::group("last", serviceB)};
+inline constexpr ROOT_TYPES_MODEL model{fields, commands, services};
 inline constexpr descriptor_api::Descriptor descriptor{model};
 inline constexpr auto descriptorBytes = descriptor_api::packDescriptor<descriptor>();
 inline std::array<std::byte, 128> scratch{};
@@ -286,7 +302,7 @@ struct LegacyFields {
 };
 
 inline constexpr LegacyFields legacyFields{};
-inline constexpr ts::Model legacyModel{legacyFields, commands, services};
+inline constexpr ROOT_TYPES_MODEL legacyModel{legacyFields, commands, services};
 static_assert(legacyModel.types().count == model.types().count);
 static_assert(legacyModel.typeId<Query>() == model.typeId<Query>());
 
@@ -313,7 +329,7 @@ static_assert(std::is_same_v<typename decltype(services)::RegistryRootTypes,
 static_assert(decltype(emptyField)::RegistryRootTypes::size == 0);
 static_assert(decltype(emptyCommand)::RegistryRootTypes::size == 0);
 static_assert(decltype(emptyService)::RegistryRootTypes::size == 0);
-static_assert(ts::EmptyEndpointCatalog::RegistryRootTypes::size == 0);
+static_assert(catalogs::EmptyEndpointCatalog::RegistryRootTypes::size == 0);
 
 // A helper that merely moves N-root recursion elsewhere fails this control.
 template<std::size_t>

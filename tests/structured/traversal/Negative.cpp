@@ -41,13 +41,13 @@ int main()
 #elif CASE == 39
 	(void)localServices.get<4>();
 #elif CASE == 40
-	(void)fields.get<telemetry::detail::makeId<3, 0>()>();
+	(void)telemetry::detail::CatalogAccess::get<telemetry::detail::makeId<3, 0>()>(fields);
 #elif CASE == 41
-	(void)commands.get<telemetry::detail::makeId<3, 0>()>();
+	(void)telemetry::detail::CatalogAccess::get<telemetry::detail::makeId<3, 0>()>(commands);
 #elif CASE == 42
-	(void)services.get<telemetry::detail::makeId<3, 0>()>();
+	(void)telemetry::detail::CatalogAccess::get<telemetry::detail::makeId<3, 0>()>(services);
 #elif CASE == 43
-	(void)fields.get<Position::U16>();
+	(void)telemetry::detail::CatalogAccess::get<Position::U16>(fields);
 #elif CASE == 44
 	(void)fields.visit(Position::U16, [](const auto&) {
 	});
@@ -88,11 +88,11 @@ int main()
 #elif CASE == 61
 	(void)std::move(fields).writeAs<1>(1);
 #elif CASE == 62
-	(void)fields.get<UINT64_C(0x100000001)>();
+	(void)telemetry::detail::CatalogAccess::get<UINT64_C(0x100000001)>(fields);
 #elif CASE == 63
-	(void)commands.get<telemetry::detail::makeId<0, 3>()>();
+	(void)telemetry::detail::CatalogAccess::get<telemetry::detail::makeId<0, 3>()>(commands);
 #elif CASE == 64
-	(void)services.get<telemetry::detail::makeId<0, 4>()>();
+	(void)telemetry::detail::CatalogAccess::get<telemetry::detail::makeId<0, 4>()>(services);
 #else
 #error Unknown negative case
 #endif

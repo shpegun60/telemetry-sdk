@@ -77,7 +77,7 @@ std::uint32_t local(std::uint32_t) noexcept
 
 std::uint32_t global(std::uint32_t) noexcept
 {
-	return fields.read<7>()->code;
+	return ::telemetry::detail::CatalogAccess::read<7>(fields)->code;
 }
 
 std::uint32_t slotRead(std::uint32_t) noexcept

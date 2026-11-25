@@ -41,11 +41,11 @@ auto bad = local.call<1>(Request{});
 #elif CASE == 2
 auto bad = local.call<BigPosition::Invalid>(Request{});
 #elif CASE == 3
-auto bad = global.call<ts::detail::makeId<1, 0>()>(Request{});
+auto bad = v30::CatalogAccess::call<ts::detail::makeId<1, 0>()>(global, Request{});
 #elif CASE == 4
-auto bad = global.call<ts::detail::makeId<0, 1>()>(Request{});
+auto bad = v30::CatalogAccess::call<ts::detail::makeId<0, 1>()>(global, Request{});
 #elif CASE == 5
-auto bad = global.call<LocalPosition::First>(Request{});
+auto bad = v30::CatalogAccess::call<LocalPosition::First>(global, Request{});
 #elif CASE == 6
 ts::ServiceTable bad{local};
 #elif CASE == 7

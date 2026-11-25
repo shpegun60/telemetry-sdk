@@ -35,12 +35,12 @@ static_assert(
 template<class A, class B>
 inline constexpr bool sameDefinition =
     std::is_same_v<std::remove_cvref_t<A>, std::remove_cvref_t<B>>;
-static_assert(
-    sameDefinition<decltype(fields.get<makeId<2, 7>()>()), decltype(localFields.get<7>())>);
-static_assert(
-    sameDefinition<decltype(commands.get<makeId<2, 0>()>()), decltype(localCommands.get<0>())>);
-static_assert(
-    sameDefinition<decltype(services.get<makeId<2, 0>()>()), decltype(localServices.get<0>())>);
+static_assert(sameDefinition<decltype(ts::detail::CatalogAccess::get<makeId<2, 7>()>(fields)),
+                             decltype(localFields.get<7>())>);
+static_assert(sameDefinition<decltype(ts::detail::CatalogAccess::get<makeId<2, 0>()>(commands)),
+                             decltype(localCommands.get<0>())>);
+static_assert(sameDefinition<decltype(ts::detail::CatalogAccess::get<makeId<2, 0>()>(services)),
+                             decltype(localServices.get<0>())>);
 static_assert(ts::idOf<model, "repeat/Config">() == makeId<2, 7>() &&
               ts::idOf<model, "repeat/Echo">() == makeId<2, 0>());
 static_assert(noFields.empty() && noCommands.empty() && noServices.empty());
@@ -125,7 +125,8 @@ void conversions()
 	assert((localFields.readAs<float, 1>() == 65535.0f));
 	assert(fields.readAs<float>(u16) == 65535.0f);
 	assert(fields.writeAs(u16, 12.75) == W::Applied && device.integer == 12);
-	assert((fields.writeAs<u16>(-0.5) == W::Applied && device.integer == 0));
+	assert((ts::detail::CatalogAccess::writeAs<u16>(fields, -0.5) == W::Applied &&
+	        device.integer == 0));
 	const auto writes = device.writes;
 	for (const auto value : {-1.0, 65536.0, std::numeric_limits<double>::infinity(),
 	                         std::numeric_limits<double>::quiet_NaN()})

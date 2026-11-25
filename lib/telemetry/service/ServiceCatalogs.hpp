@@ -135,6 +135,8 @@ public:
 	std::uint32_t count_;
 };
 
+namespace detail {
+
 // Owns runtime catalog rows while borrowing original stable Service tables.
 // Group declaration order defines global positions. Typed access and visitation
 // retain exact definitions; erased indexes borrow the generated row array,
@@ -148,7 +150,6 @@ public:
 // - begin(): Borrow first group.
 // - end(): Borrow end position.
 // - operator[](): Borrow unchecked group.
-// - get(): Borrow typed definition.
 // - forEach(): Visit typed definitions.
 // - forEachWhile(): Visit until false.
 // - forEachEntry(): Visit erased entries.
@@ -231,21 +232,6 @@ public:
 	}
 
 	const ServiceCatalog& operator[](std::size_t) const&& = delete;
-
-	// Global typed access uses a packed ID, not a local position enum.
-	template<auto Id>
-	[[nodiscard]] constexpr decltype(auto) get() const& noexcept
-	{
-		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
-		constexpr auto group = packed >> 16;
-		constexpr auto entry = packed & 0xffffu;
-		static_assert(group < staticSize, "Service group is outside this catalog");
-		if constexpr (group < staticSize)
-			return std::get<group>(groups_).table->template get<entry>();
-	}
-
-	template<auto Id>
-	void get() const&& = delete;
 
 	// Traverse borrowed native declarations without creating requests/results.
 	// visit() reports selection only, and callback return values are discarded.
@@ -386,6 +372,33 @@ public:
 	             (detail::nativeServiceResult<Result> || detail::flatServiceResponse<Result>))
 	void callAs(Id, Args&&...) const&& = delete;
 
+	// Static endpoint TypeId metadata against the complete Model registry.
+	template<class Registry>
+	struct TypeStorage {
+		inline static constexpr std::array<ServiceTypeCatalog, staticSize> catalogs{
+		    {ServiceTypeCatalog{Groups::TableType::template TypeStorage<Registry>::entries.data(),
+		                        static_cast<std::uint32_t>(Groups::TableType::staticSize)}...}};
+	};
+
+private:
+	friend struct CatalogAccess;
+
+	// Compile-time typed access by packed ID, not a local position enum: the
+	// engine of paths and handles, reached through CatalogAccess.
+	template<auto Id>
+	[[nodiscard]] constexpr decltype(auto) get() const& noexcept
+	{
+		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
+		constexpr auto group = packed >> 16;
+		constexpr auto entry = packed & 0xffffu;
+		static_assert(group < staticSize, "Service group is outside this catalog");
+		if constexpr (group < staticSize)
+			return std::get<group>(groups_).table->template get<entry>();
+	}
+
+	template<auto Id>
+	void get() const&& = delete;
+
 	template<auto Id, class... Args>
 	[[nodiscard]] decltype(auto) call(Args&&... args) const noexcept
 	{
@@ -399,15 +412,6 @@ public:
 		}
 	}
 
-	// Static endpoint TypeId metadata against the complete Model registry.
-	template<class Registry>
-	struct TypeStorage {
-		inline static constexpr std::array<ServiceTypeCatalog, staticSize> catalogs{
-		    {ServiceTypeCatalog{Groups::TableType::template TypeStorage<Registry>::entries.data(),
-		                        static_cast<std::uint32_t>(Groups::TableType::staticSize)}...}};
-	};
-
-private:
 	template<std::size_t... I>
 	[[nodiscard]] constexpr std::array<ServiceCatalog, staticSize>
 	makeCatalogs(std::index_sequence<I...>) noexcept
@@ -423,6 +427,8 @@ private:
 
 template<class... Groups>
 ServiceCatalogTable(Groups...) -> ServiceCatalogTable<Groups...>;
+
+} // namespace detail
 
 } // namespace telemetry
 

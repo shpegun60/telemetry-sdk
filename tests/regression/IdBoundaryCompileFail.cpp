@@ -259,11 +259,11 @@ int main()
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 84
 	(void)commands.index().executeEncoded(narrow, {}, workspace);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 85
-	(void)fields.read<Position::First>();
+	(void)testing::CatalogAccess::read<Position::First>(fields);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 86
-	(void)fields.readAs<float, Position::First>();
+	(void)testing::CatalogAccess::readAs<float, Position::First>(fields);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 87
-	(void)fields.write<Position::First>(2.f);
+	(void)testing::CatalogAccess::write<Position::First>(fields, 2.f);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 88
 	(void)fixed.read<Position::First>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 89
@@ -271,13 +271,13 @@ int main()
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 90
 	(void)fixed.write<Position::First>(2.f);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 91
-	(void)commands.call<Position::First>();
+	(void)testing::CatalogAccess::call<Position::First>(commands);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 92
-	(void)fields.read<LegacyFirst>();
+	(void)testing::CatalogAccess::read<LegacyFirst>(fields);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 93
-	(void)fields.readAs<float, LegacyFirst>();
+	(void)testing::CatalogAccess::readAs<float, LegacyFirst>(fields);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 94
-	(void)fields.write<LegacyFirst>(2.f);
+	(void)testing::CatalogAccess::write<LegacyFirst>(fields, 2.f);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 95
 	(void)fixed.read<LegacyFirst>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 96
@@ -285,17 +285,17 @@ int main()
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 97
 	(void)fixed.write<LegacyFirst>(2.f);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 98
-	(void)commands.call<LegacyFirst>();
+	(void)testing::CatalogAccess::call<LegacyFirst>(commands);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 99
-	(void)fields.read<0x100000000ULL>();
+	(void)testing::CatalogAccess::read<0x100000000ULL>(fields);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 100
 	(void)fixed.read<-1>();
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 101
-	(void)commands.call<0x100000000ULL>();
+	(void)testing::CatalogAccess::call<0x100000000ULL>(commands);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 102
-	(void)fields.readAs<float, -1>();
+	(void)testing::CatalogAccess::readAs<float, -1>(fields);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 103
-	(void)fields.write<0x100000000ULL>(2.f);
+	(void)testing::CatalogAccess::write<0x100000000ULL>(fields, 2.f);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE == 104
 	(void)fixed.write<0x100000000ULL>(2.f);
 #elif TELEMETRY_ID_BOUNDARY_FAIL_CASE != 0

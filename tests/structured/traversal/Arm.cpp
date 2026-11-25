@@ -14,7 +14,7 @@ extern "C" std::uint16_t read_get()
 
 extern "C" std::uint16_t read_global_get()
 {
-	return *fields.get<1>().read();
+	return *ts::detail::CatalogAccess::get<1>(fields).read();
 }
 
 extern "C" std::uint16_t read_as()
@@ -24,7 +24,7 @@ extern "C" std::uint16_t read_as()
 
 extern "C" std::uint16_t read_global_as()
 {
-	return *fields.readAs<std::uint16_t, 1>();
+	return *ts::detail::CatalogAccess::readAs<std::uint16_t, 1>(fields);
 }
 
 extern "C" W write_direct(std::uint16_t value)
@@ -44,7 +44,7 @@ extern "C" W write_as(std::uint16_t value)
 
 extern "C" W write_global_as(std::uint16_t value)
 {
-	return fields.writeAs<1>(value);
+	return ts::detail::CatalogAccess::writeAs<1>(fields, value);
 }
 
 extern "C" C command_direct(const Config& value)
@@ -59,7 +59,7 @@ extern "C" C command_get(const Config& value)
 
 extern "C" C command_global_get(const Config& value)
 {
-	return commands.get<0>().call(value);
+	return ts::detail::CatalogAccess::get<0>(commands).call(value);
 }
 
 extern "C" ts::ServiceResult<Config> service_direct(const Config& value)
@@ -76,7 +76,7 @@ extern "C" ts::ServiceResult<Config> service_get(const Config& value)
 
 extern "C" ts::ServiceResult<Config> service_global_get(const Config& value)
 {
-	return services.get<0>().call(value);
+	return ts::detail::CatalogAccess::get<0>(services).call(value);
 }
 
 unsigned sink;

@@ -383,19 +383,19 @@ template<class... Explicit, class... Items>
 
 // A Model built from root branches (descriptor v3.1 GroupTree mode). It owns
 // one Field, Command and Service table per group and the three catalog tables
-// over them, and exposes the same registry, indexes and ModelView as a flat
-// Model. A group's flat pre-order position is the group part of its IDs.
+// over them, and exposes one registry, the runtime indexes and a ModelView. A
+// group's flat pre-order position is the group part of its IDs; paths and
+// handles (TreePath.hpp) name its endpoints.
 // Public methods:
 // - Model(): Flatten and own the branches.
 // - types(): Borrow type registry.
 // - typeId(): Resolve exact type.
 // - serviceIndex(), fieldIndex(), commandIndex(): Borrow indexes.
 // - view(): Borrow runtime view.
-// - fields(), commands(), services(): Borrow typed catalog tables.
-// - flat(): Borrow the equivalent flat Model.
+// - fields(), commands(), services(): Runtime-ID access and traversal.
 // - groupName(): Borrow one group's name.
 // - idOf(): Resolve a path at compile time (consteval, constexpr model).
-// - max*(): Bound scratch and payloads, as for a flat Model.
+// - max*(): Bound scratch and payloads.
 template<class... Branches>
 class Model<detail::GroupTreeFields<Branches...>, detail::GroupTreeCommands<Branches...>,
             detail::GroupTreeServices<Branches...>>
@@ -411,8 +411,8 @@ public:
 	using FieldCatalogs = typename Catalogs::Fields;
 	using CommandCatalogs = typename Catalogs::Commands;
 	using ServiceCatalogs = typename Catalogs::Services;
-	using Flat = Model<FieldCatalogs, CommandCatalogs, ServiceCatalogs>;
-	using Registry = typename Flat::Registry;
+	using Registry =
+	    typename detail::CatalogModel<FieldCatalogs, CommandCatalogs, ServiceCatalogs>::Registry;
 
 	static constexpr bool groupTree = true;
 	static constexpr std::uint32_t groupCount = static_cast<std::uint32_t>(Layout::groupCount);
@@ -478,11 +478,6 @@ public:
 		return services_;
 	}
 
-	[[nodiscard]] constexpr const Flat& flat() const noexcept
-	{
-		return flat_;
-	}
-
 	// The name of the group at flat pre-order position group (< groupCount).
 	[[nodiscard]] constexpr const char* groupName(std::uint32_t group) const noexcept
 	{
@@ -492,14 +487,14 @@ public:
 	// The PackedId of the endpoint at group/.../endpoint, resolved at compile
 	// time on a constexpr model: model.idOf<"adc/channel1/Gain">(). A path that
 	// names no endpoint fails the build (noEndpointAtPath). Typed access by path
-	// is telemetry::read/write/call<model, path>() in TreePath.hpp.
+	// is telemetry::read/write/call<model, path>() or a handle, in TreePath.hpp.
 	template<EndpointPath P>
 	[[nodiscard]] consteval PackedId idOf() const noexcept
 	{
 		const auto at = detail::locatePath(*this, P.view());
 		if (at.error != detail::PathError::None || at.memberStart != P.view().size())
 			detail::noEndpointAtPath();
-		return makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+		return detail::makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
 	}
 
 	[[nodiscard]] constexpr std::uint32_t maxFieldScratch() const noexcept
@@ -554,11 +549,11 @@ private:
 
 	template<std::size_t... I>
 	constexpr Model(std::index_sequence<I...>, const std::tuple<const Branches&...>& roots) noexcept
-	    : Nodes(roots), fields_(TableGroup<typename NodeAt<I>::Tables::Fields>{
+	    : Nodes(roots), fields_(detail::TableGroup<typename NodeAt<I>::Tables::Fields>{
 	                        tables<I>().name, std::addressof(tables<I>().fields)}...),
-	      commands_(TableGroup<typename NodeAt<I>::Tables::Commands>{
+	      commands_(detail::TableGroup<typename NodeAt<I>::Tables::Commands>{
 	          tables<I>().name, std::addressof(tables<I>().commands)}...),
-	      services_(TableGroup<typename NodeAt<I>::Tables::Services>{
+	      services_(detail::TableGroup<typename NodeAt<I>::Tables::Services>{
 	          tables<I>().name, std::addressof(tables<I>().services)}...),
 	      flat_(fields_, commands_, services_)
 	{
@@ -578,14 +573,15 @@ private:
 					detail::duplicateGroupTreeName();
 	}
 
+	using Flat = detail::CatalogModel<FieldCatalogs, CommandCatalogs, ServiceCatalogs>;
+
 	FieldCatalogs fields_;
 	CommandCatalogs commands_;
 	ServiceCatalogs services_;
 	Flat flat_;
 };
 
-// Model{branchA, branchB, ...}: the group-tree form. Today's three-catalog
-// form keeps its own guide in Model.hpp.
+// Model{branchA, branchB, ...}: the one form of a Model.
 template<class... Branches>
     requires(sizeof...(Branches) > 0 && (detail::groupBranch<Branches> && ...))
 Model(const Branches&...)

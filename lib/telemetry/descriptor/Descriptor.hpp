@@ -60,13 +60,27 @@ inline constexpr bool profileEmitsTypeNames = [] {
 		return true;
 }();
 
-// The three catalog tables a Descriptor reads: a flat Model's own, or the
-// tables a group-tree Model builds over its groups.
+// The model a Descriptor<F, C, S> describes: a group-tree Model, or the
+// catalog engine under it (the testing-only v3.0 producer derives from that).
+template<class F, class C, class S>
+struct ModelOf {
+	using type = ts::detail::CatalogModel<F, C, S>;
+};
+
+template<class... B>
+struct ModelOf<ts::detail::GroupTreeFields<B...>, ts::detail::GroupTreeCommands<B...>,
+               ts::detail::GroupTreeServices<B...>> {
+	using type = ts::Model<ts::detail::GroupTreeFields<B...>, ts::detail::GroupTreeCommands<B...>,
+	                       ts::detail::GroupTreeServices<B...>>;
+};
+
+// The three catalog tables a Descriptor reads: the catalog engine's own, or
+// the tables a group-tree Model builds over its groups.
 template<class M>
 struct CatalogTypes;
 
 template<class F, class C, class S>
-struct CatalogTypes<ts::Model<F, C, S>> {
+struct CatalogTypes<ts::detail::CatalogModel<F, C, S>> {
 	using Fields = F;
 	using Commands = C;
 	using Services = S;
@@ -116,16 +130,16 @@ template<class Catalogs>
 struct Shape;
 
 template<>
-struct Shape<ts::EmptyEndpointCatalog> : CatalogShape<> {};
+struct Shape<ts::detail::EmptyEndpointCatalog> : CatalogShape<> {};
 
 template<class... G>
-struct Shape<ts::FieldCatalogTable<G...>> : CatalogShape<G...> {};
+struct Shape<ts::detail::FieldCatalogTable<G...>> : CatalogShape<G...> {};
 
 template<class... G>
-struct Shape<ts::CommandCatalogTable<G...>> : CatalogShape<G...> {};
+struct Shape<ts::detail::CommandCatalogTable<G...>> : CatalogShape<G...> {};
 
 template<class... G>
-struct Shape<ts::ServiceCatalogTable<G...>> : CatalogShape<G...> {};
+struct Shape<ts::detail::ServiceCatalogTable<G...>> : CatalogShape<G...> {};
 
 // Writable is a declaration capability, not a test of a slot/function address.
 // No extra member is added to hot FieldEntry or ModelView for serialization.
@@ -141,7 +155,7 @@ template<class Catalogs>
 struct Writable;
 
 template<class... Groups>
-struct Writable<ts::FieldCatalogTable<Groups...>> {
+struct Writable<ts::detail::FieldCatalogTable<Groups...>> {
 	inline static constexpr std::array<std::span<const bool>, sizeof...(Groups)> groups{
 	    std::span<const bool>{FieldCapabilities<typename Groups::TableType>::values}...};
 
@@ -152,7 +166,7 @@ struct Writable<ts::FieldCatalogTable<Groups...>> {
 };
 
 template<>
-struct Writable<ts::EmptyEndpointCatalog> {
+struct Writable<ts::detail::EmptyEndpointCatalog> {
 	static constexpr bool at(std::uint32_t, std::uint32_t) noexcept
 	{
 		return false;
@@ -332,7 +346,7 @@ template<class Fields, class Commands, class Services, class Profile = ts::Limit
 // - view(): Borrow streaming descriptor.
 // - read(): Emit descriptor slice.
 class Descriptor {
-	using Model = ts::Model<Fields, Commands, Services>;
+	using Model = typename detail::ModelOf<Fields, Commands, Services>::type;
 	using Registry = typename Model::Registry;
 	using Kind = detail::SegmentKind;
 	using Segment = detail::Segment;
@@ -868,12 +882,22 @@ private:
 template<class F, class C, class S>
 Descriptor(const ts::Model<F, C, S>&) -> Descriptor<F, C, S>;
 
+template<class F, class C, class S>
+Descriptor(const ts::detail::CatalogModel<F, C, S>&) -> Descriptor<F, C, S>;
+
 // The same model without type names: v3.0 bytes and fingerprint, for a program
 // that must emit both forms (a legacy fixture beside named profiles). A build
 // that never emits names sets TELEMETRY_TYPE_NAMES to 0 instead.
 template<class F, class C, class S>
 [[nodiscard]] constexpr Descriptor<F, C, S, WithoutTypeNames<>>
 withoutTypeNames(const ts::Model<F, C, S>& model) noexcept
+{
+	return Descriptor<F, C, S, WithoutTypeNames<>>{model};
+}
+
+template<class F, class C, class S>
+[[nodiscard]] constexpr Descriptor<F, C, S, WithoutTypeNames<>>
+withoutTypeNames(const ts::detail::CatalogModel<F, C, S>& model) noexcept
 {
 	return Descriptor<F, C, S, WithoutTypeNames<>>{model};
 }

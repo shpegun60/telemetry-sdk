@@ -1,17 +1,18 @@
 /*
  * @file HandleSize.cpp
- * @brief ARM code of a named handle against the free path function and detail::makeId access.
+ * @brief ARM code of a named handle against the free path function and the engine's ID access.
  * @author Ruslan Kovtun (shpegun60), codexAi
  * SPDX-License-Identifier: MIT
  *
  * Every operation is written three ways: through a named handle
  * (endpoint<model, path>), through the free function (read<model, path>()) and
- * through a PackedId written with detail::makeId (model.fields().read<id>()). run.py
+ * through the engine's typed access by a detail::makeId ID
+ * (detail::CatalogAccess::read<id>(model.fields()), no longer public). run.py
  * compiles this file with -fno-ipa-icf, so identical functions stay separate,
  * and compares each function's instructions and relocations: a handle must
  * compile to exactly the free function's code, and a whole endpoint's handle
- * to exactly the detail::makeId code. It also links handle_root and checks that the
- * loaded image holds no path text. These are offline object comparisons.
+ * to exactly the ID access's code. It also links handle_root and checks that
+ * the loaded image holds no path text. These are offline object comparisons.
  */
 
 #include "AdcBranch.hpp"
@@ -52,7 +53,7 @@ PROBE float read_path() noexcept
 
 PROBE float read_id() noexcept
 {
-	return hs::model.fields().read<hs::gainId>().value_or(0.0f);
+	return ts::detail::CatalogAccess::read<hs::gainId>(hs::model.fields()).value_or(0.0f);
 }
 
 // Read one member of a struct Field: the whole getter runs.
@@ -68,7 +69,7 @@ PROBE std::uint32_t member_path() noexcept
 
 PROBE std::uint32_t member_id() noexcept
 {
-	const auto config = hs::model.fields().read<hs::configId>();
+	const auto config = ts::detail::CatalogAccess::read<hs::configId>(hs::model.fields());
 	return config ? config->rateHz : 0;
 }
 
@@ -85,7 +86,8 @@ PROBE std::uint32_t write_path(float value) noexcept
 
 PROBE std::uint32_t write_id(float value) noexcept
 {
-	return static_cast<std::uint32_t>(hs::model.fields().write<hs::gainId>(value));
+	return static_cast<std::uint32_t>(
+	    ts::detail::CatalogAccess::write<hs::gainId>(hs::model.fields(), value));
 }
 
 // Call a Command.
@@ -101,7 +103,8 @@ PROBE std::uint32_t command_path() noexcept
 
 PROBE std::uint32_t command_id() noexcept
 {
-	return static_cast<std::uint32_t>(hs::model.commands().call<hs::resetId>());
+	return static_cast<std::uint32_t>(
+	    ts::detail::CatalogAccess::call<hs::resetId>(hs::model.commands()));
 }
 
 // Call a Service with its argument.
@@ -119,7 +122,8 @@ PROBE float service_path(float volts) noexcept
 
 PROBE float service_id(float volts) noexcept
 {
-	const auto offset = hs::model.services().call<hs::calibrateId>(adc::Reference{volts});
+	const auto offset = ts::detail::CatalogAccess::call<hs::calibrateId>(hs::model.services(),
+	                                                                     adc::Reference{volts});
 	return offset.hasValue() ? offset.value().counts : -1.0f;
 }
 

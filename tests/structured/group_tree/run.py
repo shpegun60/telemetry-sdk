@@ -7,9 +7,10 @@ host compiler and every --cross compiler and compares the written descriptor
 with tree.hex; with TELEMETRY_TYPE_NAMES=0 with the same tree without type
 names. Values.cpp serves the tree's live Values file and reads it back through
 the host's ValuesReader. Compiles every case of Negative.cpp (refusals with their diagnostic,
-controls that must build). With --arm-cxx: the ARM descriptor bytes, the
+controls that must build) and of Removed.cpp (the removed public forms, from Telemetry.hpp
+alone, and the one way as its control). With --arm-cxx: the ARM descriptor bytes, the
 size of encoded dispatch, group tree against flat catalogs, and the code of a
-named handle against the free path function and detail::makeId access, with a linked
+named handle against the free path function and access by a detail::makeId ID, with a linked
 image that holds no path text. Nothing touches a device.
 """
 import argparse
@@ -56,6 +57,32 @@ COMPILE_FAILURES = {
     35: r'endpoint<model, path> takes a group-tree Model',
 }
 COMPILE_CONTROLS = (101, 102, 103, 104, 105, 106)
+
+
+# GCC quotes with typographic quotes in a UTF-8 locale and with ASCII ones otherwise.
+QUOTE = "['‘’]"
+
+
+def _missing(name):
+    """GCC's or Clang's diagnostic for a name the public namespace no longer has."""
+    q = QUOTE
+    return (rf"{q}{name}{q} in namespace {q}[^'‘’]*{q} does not name a|{q}{name}{q} is not a member of|"
+            rf"no (?:type|template|member) named {q}{name}{q}")
+
+
+# Removed.cpp: each removed public form fails from Telemetry.hpp alone, with
+# the GCC or the Clang diagnostic; case 100 builds the one way.
+REMOVED_FAILURES = {
+    1: r'class template argument deduction failed|no viable constructor or deduction guide',
+    2: _missing('FieldCatalogTable'), 3: _missing('CommandCatalogTable'),
+    4: _missing('ServiceCatalogTable'), 5: r"no matching function for call to .?group",
+    6: _missing('emptyCommands'), 7: _missing('emptyFields'), 8: _missing('EmptyEndpointCatalog'),
+    9: _missing('TableGroup'), 10: _missing('makeId'), 11: _missing('makeId'),
+    12: _missing('tryMakeId'),
+    **{case: r'is private within this context|is a private member of' for case in range(13, 19)},
+    19: rf"has no member named {QUOTE}flat{QUOTE}|no member named {QUOTE}flat{QUOTE}", 20: _missing('testing'),
+}
+REMOVED_CONTROLS = (100,)
 # What each diagnostic names besides its message: the path or the bad name.
 NAMED_IN_TRACE = {1: 'adc/x', 2: 'Gain.x', 11: 'adc/channel3/Gain', 17: 'adc/Status.raw[2]',
                   19: 'adc/channel1/Gain', 20: 'adc/nope', 23: 'adc/channel3/Gain',
@@ -179,6 +206,12 @@ def main():
         for case in COMPILE_CONTROLS:
             run(compiler.argv([*strict, *include, '-O2', f'-DCASE={case}', '-fsyntax-only',
                                HERE / 'Negative.cpp']), f'{compiler.label}-control-{case}')
+        for case, diagnostic in REMOVED_FAILURES.items():
+            run(compiler.argv([*strict, *include, '-O2', f'-DCASE={case}', '-fsyntax-only',
+                               HERE / 'Removed.cpp']), f'{compiler.label}-removed-{case}', diagnostic)
+        for case in REMOVED_CONTROLS:
+            run(compiler.argv([*strict, *include, '-O2', f'-DCASE={case}', '-fsyntax-only',
+                               HERE / 'Removed.cpp']), f'{compiler.label}-one-way-{case}')
     summary['named_in_trace'] = traces
     for key, shown in sorted(traces.items()):
         print(f'diagnostic {key} shows the path or name: {"yes" if shown else "no"}', flush=True)

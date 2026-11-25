@@ -19,7 +19,7 @@ extern "C" void consumer_typed() noexcept
 {
 	using namespace fixture;
 	// The tree's first group holds the local table's definitions again.
-	check(std::is_same_v<std::remove_cvref_t<decltype(fields.get<0>())>,
+	check(std::is_same_v<std::remove_cvref_t<decltype(ts::detail::CatalogAccess::get<0>(fields))>,
 	                     std::remove_cvref_t<decltype(localFields.get<0>())>>);
 	check(fields.readAs<std::uint64_t>(4u) == UINT64_MAX);
 	check(fields.readAs<std::int64_t>(3u) == INT64_MIN);
@@ -49,9 +49,9 @@ extern "C" void consumer_typed() noexcept
 	check(fields.empty() == false && noFields.empty() && noFieldCatalogs.empty());
 
 	Config request{77, false};
-	check(commands.call<0>(request) == C::Executed);
+	check(ts::detail::CatalogAccess::call<0>(commands, request) == C::Executed);
 	check(device.config.code == 77 && !device.config.enabled);
-	const auto response = services.call<0>(request);
+	const auto response = ts::detail::CatalogAccess::call<0>(services, request);
 	check(response.status() == ts::ServiceStatus::Ok && response.value().code == 77 &&
 	      !response.value().enabled);
 	check(localFields.read<7>()->code == 77);

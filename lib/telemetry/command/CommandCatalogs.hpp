@@ -111,6 +111,8 @@ template<class... D>
 struct IsCommandTable<CommandTable<D...>> : std::true_type {};
 } // namespace model_detail
 
+namespace detail {
+
 // Owns runtime catalog rows and borrows the original nonmoving Command tables.
 // Group declaration order defines global IDs. Typed access and traversal retain
 // each exact binding; runtime indexes borrow this table's row array, so this
@@ -124,7 +126,6 @@ struct IsCommandTable<CommandTable<D...>> : std::true_type {};
 // - begin(): Borrow first group.
 // - end(): Borrow end position.
 // - operator[](): Borrow unchecked group.
-// - get(): Borrow typed definition.
 // - forEach(): Visit typed definitions.
 // - forEachWhile(): Visit until false.
 // - forEachEntry(): Visit erased entries.
@@ -206,21 +207,6 @@ public:
 	}
 
 	const CommandCatalog& operator[](std::size_t) const&& = delete;
-
-	// Global typed access uses a packed ID, not a local position enum.
-	template<auto Id>
-	[[nodiscard]] constexpr decltype(auto) get() const& noexcept
-	{
-		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
-		constexpr auto group = packed >> 16;
-		constexpr auto entry = packed & 0xffffu;
-		static_assert(group < staticSize, "Command group is outside this catalog");
-		if constexpr (group < staticSize)
-			return std::get<group>(groups_).table->template get<entry>();
-	}
-
-	template<auto Id>
-	void get() const&& = delete;
 
 	// Visit original definitions in group/entry declaration order. Runtime
 	// visit() reports selection, and neither form interprets callback results.
@@ -335,6 +321,33 @@ public:
 	    requires(sizeof...(Explicit) == 0)
 	void call(Id, Args&&...) const&& = delete;
 
+	// Static endpoint TypeId metadata against the complete Model registry.
+	template<class Registry>
+	struct TypeStorage {
+		inline static constexpr std::array<ValueTypeCatalog, staticSize> catalogs{
+		    {ValueTypeCatalog{Groups::TableType::template TypeStorage<Registry>::entries.data(),
+		                      static_cast<std::uint32_t>(Groups::TableType::staticSize)}...}};
+	};
+
+private:
+	friend struct CatalogAccess;
+
+	// Compile-time typed access by packed ID, not a local position enum: the
+	// engine of paths and handles, reached through CatalogAccess.
+	template<auto Id>
+	[[nodiscard]] constexpr decltype(auto) get() const& noexcept
+	{
+		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
+		constexpr auto group = packed >> 16;
+		constexpr auto entry = packed & 0xffffu;
+		static_assert(group < staticSize, "Command group is outside this catalog");
+		if constexpr (group < staticSize)
+			return std::get<group>(groups_).table->template get<entry>();
+	}
+
+	template<auto Id>
+	void get() const&& = delete;
+
 	template<auto Id, class... Args>
 	[[nodiscard]] telemetry::CommandResult call(Args&&... args) const noexcept
 	{
@@ -347,15 +360,6 @@ public:
 			    std::forward<Args>(args)...);
 	}
 
-	// Static endpoint TypeId metadata against the complete Model registry.
-	template<class Registry>
-	struct TypeStorage {
-		inline static constexpr std::array<ValueTypeCatalog, staticSize> catalogs{
-		    {ValueTypeCatalog{Groups::TableType::template TypeStorage<Registry>::entries.data(),
-		                      static_cast<std::uint32_t>(Groups::TableType::staticSize)}...}};
-	};
-
-private:
 	template<std::size_t... I>
 	constexpr auto makeCatalogs(std::index_sequence<I...>) noexcept
 	{
@@ -370,6 +374,8 @@ private:
 
 template<class... Groups>
 CommandCatalogTable(Groups...) -> CommandCatalogTable<Groups...>;
+
+} // namespace detail
 
 } // namespace telemetry
 

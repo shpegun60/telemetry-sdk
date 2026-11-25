@@ -124,6 +124,8 @@ template<class... D>
 struct IsFieldTable<FieldTable<D...>> : std::true_type {};
 } // namespace model_detail
 
+namespace detail {
+
 // Owns catalog rows while borrowing stable local tables through its groups.
 // Declaration order supplies packed group positions. The catalog cannot move
 // or copy because runtime indexes borrow its row array; typed access continues
@@ -137,14 +139,11 @@ struct IsFieldTable<FieldTable<D...>> : std::true_type {};
 // - begin(): Borrow first group.
 // - end(): Borrow end position.
 // - operator[](): Borrow unchecked group.
-// - get(): Borrow typed definition.
 // - forEach(): Visit typed definitions.
 // - forEachWhile(): Visit until false.
 // - forEachEntry(): Visit erased entries.
 // - forEachEntryWhile(): Visit erased entries until false.
 // - visit(): Select checked ID.
-// - read(): Read native value.
-// - write(): Apply native value.
 // - readAs(): Read owning conversion.
 // - readBorrowed(): Borrow exact native value.
 // - readAsResult(): Read owning conversion with native failure status.
@@ -224,21 +223,6 @@ public:
 
 	const FieldCatalog& operator[](std::size_t) const&& = delete;
 
-	// Global typed access uses a packed ID, not a local position enum.
-	template<auto Id>
-	[[nodiscard]] constexpr decltype(auto) get() const& noexcept
-	{
-		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
-		constexpr auto group = packed >> 16;
-		constexpr auto entry = packed & 0xffffu;
-		static_assert(group < staticSize, "Field group is outside this catalog");
-		if constexpr (group < staticSize)
-			return std::get<group>(groups_).table->template get<entry>();
-	}
-
-	template<auto Id>
-	void get() const&& = delete;
-
 	// Traverse declaration order with the original borrowed definitions.
 	// visit() below reports selection only; callback results are discarded.
 	template<class Visitor>
@@ -295,73 +279,6 @@ public:
 	template<class... Explicit, std::integral Id, class Visitor>
 	    requires(sizeof...(Explicit) == 0)
 	bool visit(Id, Visitor&&) const&& = delete;
-
-	template<auto Id>
-	[[nodiscard]] auto read() const noexcept
-	{
-		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
-		constexpr auto group = packed >> 16;
-		constexpr auto entry = packed & 0xffffu;
-		static_assert(group < staticSize, "Field group is outside this catalog");
-		if constexpr (group < staticSize)
-			return std::get<group>(groups_).table->template read<entry>();
-	}
-
-	template<auto Id, class Argument>
-	[[nodiscard]] telemetry::WriteResult write(Argument&& value) const noexcept
-	{
-		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
-		constexpr auto group = packed >> 16;
-		constexpr auto entry = packed & 0xffffu;
-		static_assert(group < staticSize, "Field group is outside this catalog");
-		if constexpr (group < staticSize)
-			return std::get<group>(groups_).table->template write<entry>(
-			    std::forward<Argument>(value));
-	}
-
-	template<class To, auto Id>
-	    requires std::is_same_v<To, std::remove_cvref_t<To>>
-	[[nodiscard]] std::optional<To> readAs() const& noexcept
-	{
-		return get<Id>().template readAs<To>();
-	}
-
-	template<class To, auto Id>
-	void readAs() const&& = delete;
-
-	template<class To, auto Id>
-	    requires std::is_same_v<To, std::remove_cvref_t<To>>
-	[[nodiscard]] BorrowedValue<To> readBorrowed() const& noexcept
-	{
-		const auto& definition = get<Id>();
-		using Definition = std::remove_cvref_t<decltype(definition)>;
-		static_assert(std::is_same_v<To, typename Definition::Value> && Definition::borrowsValue,
-		              "Field readBorrowed requires the exact borrowed value type");
-		return detail::readFieldBorrowed<To>(definition);
-	}
-
-	template<class To, auto Id>
-	void readBorrowed() const&& = delete;
-
-	template<class To, auto Id>
-	    requires std::is_same_v<To, std::remove_cvref_t<To>>
-	[[nodiscard]] FieldReadResult<To> readAsResult() const& noexcept
-	{
-		return get<Id>().template readAsResult<To>();
-	}
-
-	template<class To, auto Id>
-	void readAsResult() const&& = delete;
-
-	template<auto Id, class From>
-	    requires(!std::is_volatile_v<From>)
-	[[nodiscard]] telemetry::WriteResult writeAs(const From& value) const& noexcept
-	{
-		return get<Id>().writeAs(value);
-	}
-
-	template<auto Id, class From>
-	void writeAs(const From&) const&& = delete;
 
 	// Packed runtime IDs are checked at their original width, as in index().
 	// A structural mismatch returns nullopt/InvalidValue without a callback.
@@ -456,6 +373,91 @@ public:
 	};
 
 private:
+	friend struct CatalogAccess;
+
+	// Compile-time typed access by packed ID, not a local position enum: the
+	// engine of paths and handles, reached through CatalogAccess.
+	template<auto Id>
+	[[nodiscard]] constexpr decltype(auto) get() const& noexcept
+	{
+		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
+		constexpr auto group = packed >> 16;
+		constexpr auto entry = packed & 0xffffu;
+		static_assert(group < staticSize, "Field group is outside this catalog");
+		if constexpr (group < staticSize)
+			return std::get<group>(groups_).table->template get<entry>();
+	}
+
+	template<auto Id>
+	void get() const&& = delete;
+
+	template<auto Id>
+	[[nodiscard]] auto read() const noexcept
+	{
+		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
+		constexpr auto group = packed >> 16;
+		constexpr auto entry = packed & 0xffffu;
+		static_assert(group < staticSize, "Field group is outside this catalog");
+		if constexpr (group < staticSize)
+			return std::get<group>(groups_).table->template read<entry>();
+	}
+
+	template<auto Id, class Argument>
+	[[nodiscard]] telemetry::WriteResult write(Argument&& value) const noexcept
+	{
+		constexpr auto packed = telemetry::detail::packedIdValue<Id>();
+		constexpr auto group = packed >> 16;
+		constexpr auto entry = packed & 0xffffu;
+		static_assert(group < staticSize, "Field group is outside this catalog");
+		if constexpr (group < staticSize)
+			return std::get<group>(groups_).table->template write<entry>(
+			    std::forward<Argument>(value));
+	}
+
+	template<class To, auto Id>
+	    requires std::is_same_v<To, std::remove_cvref_t<To>>
+	[[nodiscard]] std::optional<To> readAs() const& noexcept
+	{
+		return get<Id>().template readAs<To>();
+	}
+
+	template<class To, auto Id>
+	void readAs() const&& = delete;
+
+	template<class To, auto Id>
+	    requires std::is_same_v<To, std::remove_cvref_t<To>>
+	[[nodiscard]] BorrowedValue<To> readBorrowed() const& noexcept
+	{
+		const auto& definition = get<Id>();
+		using Definition = std::remove_cvref_t<decltype(definition)>;
+		static_assert(std::is_same_v<To, typename Definition::Value> && Definition::borrowsValue,
+		              "Field readBorrowed requires the exact borrowed value type");
+		return detail::readFieldBorrowed<To>(definition);
+	}
+
+	template<class To, auto Id>
+	void readBorrowed() const&& = delete;
+
+	template<class To, auto Id>
+	    requires std::is_same_v<To, std::remove_cvref_t<To>>
+	[[nodiscard]] FieldReadResult<To> readAsResult() const& noexcept
+	{
+		return get<Id>().template readAsResult<To>();
+	}
+
+	template<class To, auto Id>
+	void readAsResult() const&& = delete;
+
+	template<auto Id, class From>
+	    requires(!std::is_volatile_v<From>)
+	[[nodiscard]] telemetry::WriteResult writeAs(const From& value) const& noexcept
+	{
+		return get<Id>().writeAs(value);
+	}
+
+	template<auto Id, class From>
+	void writeAs(const From&) const&& = delete;
+
 	template<std::size_t... I>
 	constexpr auto makeCatalogs(std::index_sequence<I...>) noexcept
 	{
@@ -470,6 +472,8 @@ private:
 
 template<class... Groups>
 FieldCatalogTable(Groups...) -> FieldCatalogTable<Groups...>;
+
+} // namespace detail
 
 } // namespace telemetry
 

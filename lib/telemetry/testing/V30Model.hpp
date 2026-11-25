@@ -37,22 +37,34 @@
 namespace telemetry::testing {
 
 // The per-family catalog tables, the group(name, table) row that labels one
-// local table, and the explicit empty Field and Command catalogs.
-using ::telemetry::CommandCatalogTable;
-using ::telemetry::EmptyEndpointCatalog;
-using ::telemetry::emptyCommands;
-using ::telemetry::emptyFields;
-using ::telemetry::FieldCatalogTable;
-using ::telemetry::group;
-using ::telemetry::ServiceCatalogTable;
+// local table, and the explicit empty Field and Command catalogs: the catalog
+// engine under every tree, which the public API does not name.
+using ::telemetry::detail::CommandCatalogTable;
+using ::telemetry::detail::EmptyEndpointCatalog;
+using ::telemetry::detail::emptyCommands;
+using ::telemetry::detail::emptyFields;
+using ::telemetry::detail::FieldCatalogTable;
+using ::telemetry::detail::ServiceCatalogTable;
+using ::telemetry::detail::TableGroup;
+
+template<class... Explicit, class Table>
+    requires(sizeof...(Explicit) == 0 && requires { typename Table::RootTypes; })
+[[nodiscard]] constexpr auto group(::telemetry::detail::Name name, Table& table) noexcept
+{
+	return ::telemetry::detail::tableGroup(name, table);
+}
+
+// Compile-time typed access by packed ID into a catalog table, for the
+// engine's own checks: CatalogAccess::read<id>(catalogs).
+using ::telemetry::detail::CatalogAccess;
 
 // A Model over three per-family catalog tables. It borrows them, as the
 // engine does: they and their local tables must outlive it. Descriptor,
 // withoutTypeNames, ModelView and every bound take it as they take the engine.
 template<class Fields, class Commands, class Services>
-class V30Model : public Model<Fields, Commands, Services> {
+class V30Model : public ::telemetry::detail::CatalogModel<Fields, Commands, Services> {
 public:
-	using Model<Fields, Commands, Services>::Model;
+	using ::telemetry::detail::CatalogModel<Fields, Commands, Services>::CatalogModel;
 };
 
 template<class Fields, class Commands, class Services>
