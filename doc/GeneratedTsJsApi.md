@@ -13,16 +13,16 @@ value type. The group objects hold their endpoints without a family level
 named types (v3.1) are `types.adc.Config`. See [type names,
 group trees and endpoint handles](GeneratedNamesAndHandles.md) and the
 [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях). The example
-below uses the per-family exports (`device.services.Inspect`) of a flat
-fixture; those exports are [being removed](user/APIOverview.md#виводиться-з-ужитку).
+below uses the `device` group's exports (`device.Inspect`) of a v3.0
+fixture.
 
 ```ts
 import {device, codecs, fingerprint} from './generated/js/device.js';
 const request: device.types.InspectRequest = {config, multiplier: 4};
-const payload = device.services.Inspect.encode(request);
+const payload = device.Inspect.encode(request);
 // Custom transport sends operation, endpoint.id and payload.
 // Check transport, dispatch, endpoint status and exact length before decoding:
-const response = device.services.Inspect.decodeResponse(responsePayload);
+const response = device.Inspect.decodeResponse(responsePayload);
 ```
 
 Catalog exports have `types`, `fields`, `commands`, `services`. Fields expose

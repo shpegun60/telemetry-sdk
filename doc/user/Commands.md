@@ -7,9 +7,10 @@
 > endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
 > `ts::endpoint<model, "adc/Reset">` далі `.call()`, або `ts::call<model, "adc/Reset">()`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
 > клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
-> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
-> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
-> lifetime rules самих Field, Command і Service від форми Model не залежать.
+> Плоску форму з catalog tables, публічний `makeId` і typed доступ за ID
+> [прибрано](APIOverview.md#прибрано): runtime ID обробляють `model.fields()`,
+> `model.commands()` і `model.services()`, а catalogs позначають саме їх. Signatures,
+> results і lifetime rules самих Field, Command і Service від форми Model не залежать.
 
 `Command` відкриває дію: скинути лічильник, застосувати повний configuration
 block, вибрати канал, почати збереження або передати роботу прикладній черзі.
@@ -85,12 +86,11 @@ inline constexpr ts::CommandTable localCommands{
     ts::command<&Device::reset>("Reset", device),
     ts::command<&Device::configure>("Configure", device),
 };
-inline constexpr ts::CommandCatalogTable commands{
-    ts::group("control", localCommands),
-};
-inline constexpr ts::FieldCatalogTable<> fields{};
-inline constexpr ts::ServiceCatalogTable<> services{};
-inline constexpr ts::Model model{fields, commands, services};
+// The same Commands in a group of the device's Model: runtime IDs and encoded calls.
+inline constexpr ts::Model model{ts::group("control",
+    ts::command<&Device::reset>("Reset", device),
+    ts::command<&Device::configure>("Configure", device))};
+inline constexpr auto& commands = model.commands();
 
 int main() {
     assert(localCommands.call<0>() == ts::CommandResult::Executed);
@@ -100,12 +100,12 @@ int main() {
            == ts::CommandResult::InvalidValue);
     assert(device.config.periodMs == 20);
 
-    constexpr auto configureId = ts::makeId<0, 1>();
+    constexpr auto configureId = ts::idOf<model, "control/Configure">();
     std::array<std::byte, ts::wireSize<Configure>> input{};
     std::array<std::byte, model.maxCommandScratch()> storage{};
     ts::Workspace workspace{storage};
     assert(ts::encode(Configure{30, Mode::Off}, input) == ts::CodecStatus::Ok);
-    const auto result = commands.index().executeEncoded(configureId, input, workspace);
+    const auto result = model.commandIndex().executeEncoded(configureId, input, workspace);
     assert(result.dispatch == ts::DispatchStatus::Ok);
     assert(result.endpointStatus == ts::CommandResult::Executed);
     assert(device.config.periodMs == 30);
@@ -250,8 +250,8 @@ status для своєї прикладної семантики. Encoded length
 
 `CommandTable` зберігає різні declarations у declaration order і генерує
 їхні erased rows. Local position — zero-based integer або scoped enum.
-`CommandCatalogTable` позичає local tables через `group(name, table)`;
-catalog declaration order задає group position.
+`model.commands()` — catalogs моделі (internal engine під деревом); group
+position — pre-order позиція групи дерева.
 
 | API | Результат | Призначення |
 | --- | --- | --- |
@@ -260,38 +260,35 @@ catalog declaration order задає group position.
 | `local.call<Position>(request)` | `CommandResult` | Exact typed native request |
 | `local.call(position)`, `call(position, request)` | `CommandCallStatus` | Рекомендований runtime виклик з одним outcome |
 | `local.callAs(position)`, `callAs(position, request)` | `NativeCallResult<CommandResult>` | Low-level routing та application status окремо |
-| `catalogs.get<Id>()` | `const CommandDefinition&` | Static global declaration |
-| `catalogs.call<Id>()`, `call<Id>(request)` | `CommandResult` | Static global native action |
-| `catalogs.call(id)`, `call(id, request)` | `CommandCallStatus` | Рекомендований runtime packed-ID виклик |
-| `catalogs.callAs(id)`, `callAs(id, request)` | `NativeCallResult<CommandResult>` | Low-level routing та application status окремо |
+| `model.commands().call(id)`, `call(id, request)` | `CommandCallStatus` | Рекомендований runtime packed-ID виклик |
+| `model.commands().callAs(id)`, `callAs(id, request)` | `NativeCallResult<CommandResult>` | Low-level routing та application status окремо |
 | `size()`, `empty()` | `size_t`, `bool` | Local entry count / catalog group count |
 | `data()`, `begin()`, `end()` | Borrowed row pointers | Erased iteration без execution |
 | `operator[](i)` | `const CommandEntry&` / `const CommandCatalog&` | Unchecked; requires `i < size()` |
 | `forEach(visitor)` | `void` | Typed traversal усіх declarations у порядку |
 | `forEachWhile(visitor)` | `bool` | Typed traversal до exact-`bool` false |
-| `catalogs.forEachEntry(visitor)` | `void` | Packed ID, group name та erased CommandEntry |
-| `catalogs.forEachEntryWhile(visitor)` | `bool` | Erased обхід до exact-`bool` false |
+| `model.commands().forEachEntry(visitor)` | `void` | Packed ID, group name та erased CommandEntry |
+| `model.commands().forEachEntryWhile(visitor)` | `bool` | Erased обхід до exact-`bool` false |
 | `visit(position_or_id, visitor)` | `bool` | Checked typed runtime selection |
-| `catalogs.index()` | `CommandIndex` | Copyable borrowed runtime index |
+| `model.commandIndex()` | `CommandIndex` | Copyable borrowed runtime index |
 
 Local table не має `index()`. Для local encoded access використовуйте
 checked method обраної `CommandEntry`; для global external ID —
-`catalogs.index().executeEncoded`.
+`model.commandIndex().executeEncoded`. Typed доступу за compile-time packed ID
+(`call<Id>()`) немає: його дає шлях або handle.
 
 `PackedId` — u32: high 16 bits group, low 16 bits entry.
-`makeId<0, 1>()` обирає другий command першого catalog. Command, Field та
+`ts::idOf<model, "control/Configure">()` дає другий command групи. Command, Field та
 Service мають окремі logical ID spaces: однакове числове ID допустиме в
 різних families, і transport operation має обрати потрібну family.
 Endpoint names не замінюють IDs. Reordering declarations змінює identity.
 
-Static API invalid ID/position дає diagnostic. Runtime global APIs
+Static API invalid position дає diagnostic. Runtime global APIs
 приймають integral packed ID, не local scoped enum, і перевіряють original
-width до conversion: negative ID та value ширше u32 відхиляються.
-`tryMakeId(group, entry)` — fallible components; `makeId<Group, Position>()`
-— гарантовані static checks. `makeId(group, entry)` invalid runtime
-components є contract violation. `tryGroupOf`/`tryIndexOf` перевіряють packed
-range й повертають optional components; `groupOf`/`indexOf` вимагають valid
-range. Lookup окремо перевіряє існування catalog/row.
+width до conversion: negative ID та value ширше u32 відхиляються. Публічного
+`makeId` немає. `tryGroupOf`/`tryIndexOf` перевіряють packed range й
+повертають optional components; `groupOf`/`indexOf` вимагають valid range.
+Lookup окремо перевіряє існування catalog/row.
 
 Local `forEach` приймає `visitor(definition)` або optional typed
 `operator()<Position>(definition)`. Global `forEach` приймає
@@ -312,7 +309,7 @@ metadata, не виконує Command. While-result true означає повн
 
 ```cpp
 const Configure request{40, Mode::Measuring};
-const ts::PackedId id = ts::makeId<0, 1>();
+const ts::PackedId id = ts::idOf<model, "control/Configure">();
 const auto status = commands.call(id, request);
 assert(status == ts::CommandCallStatus::Executed);
 assert(localCommands.call(0) == ts::CommandCallStatus::Executed);
@@ -343,7 +340,7 @@ runtime call. Раніше selection і endpoint status оброблялися �
 ```cpp
 ts::CommandResult outcome = ts::CommandResult::NotFound;
 const Configure request{40, Mode::Measuring};
-const ts::PackedId id = ts::makeId<0, 1>();
+const ts::PackedId id = ts::idOf<model, "control/Configure">();
 const bool selected = commands.visit(id, [&](const auto& definition) {
     using Definition = std::remove_cvref_t<decltype(definition)>;
     if constexpr (std::is_same_v<typename Definition::Request, Configure>)
@@ -362,7 +359,7 @@ const bool selected = commands.visit(id, [&](const auto& definition) {
 
 ```cpp
 const Configure request{40, Mode::Measuring};
-const ts::PackedId id = ts::makeId<0, 1>();
+const ts::PackedId id = ts::idOf<model, "control/Configure">();
 const auto result = commands.callAs(id, request);
 assert(result.status() == ts::NativeCallStatus::Ok);
 assert(result.hasValue());

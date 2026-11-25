@@ -10,10 +10,10 @@ the matching TBM1 capability, normal use is one call:
 
 ```ts
 const result = await client.batch(tbm1, Batch.items(
-    Batch.write(control.fields.Config, draft),
-    Batch.read(control.fields.Config),
-    Batch.command(control.commands.Configure, args),
-    Batch.service(control.services.Echo, query)
+    Batch.write(control.Config, draft),
+    Batch.read(control.Config),
+    Batch.command(control.Configure, args),
+    Batch.service(control.Echo, query)
 ));
 if (result.items?.[1].valueStatus === BatchValueStatus.Ok)
     console.log(result.items[1].value);

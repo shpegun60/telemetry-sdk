@@ -20,8 +20,8 @@ const client = new DeviceClient({backend, matchesHeader: sdk.matchesHeader});
 if (!client.openSession(session, descriptorHeader)) return;
 
 // TRM1 is discovered by the application's existing Resource integration.
-const bound = client.bindReadMany(trm1, [sdk.device.fields.Voltage,
-                                       sdk.device.fields.Counter]);
+const bound = client.bindReadMany(trm1, [sdk.device.Voltage,
+                                       sdk.device.Counter]);
 if (bound.status !== Status.Ok) return;
 const result = await client.readMany(bound.binding);
 if (!result.succeeded || !result.value) return;

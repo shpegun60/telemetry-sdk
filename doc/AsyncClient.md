@@ -34,10 +34,9 @@ The path is the descriptor's `group/.../endpoint`, checked at compile time
 against the generated table: a wrong path or value type is a build error that
 shows the path. A group tree also gives nested handles (`device.adc.Config`).
 Every handle forwards to the client's `read`, `write`, `command` and `service`
-below, with the same callbacks, timeouts and statuses. The per-family endpoint
-constants such as `device_api::device::fields::Config` in
-`client.read(endpoint, callback)` address the same endpoint and are
-[being removed](user/APIOverview.md#виводиться-з-ужитку). The same operation in the device, TS/JS and the Dynamic
+below, with the same callbacks, timeouts and statuses. The group's endpoint
+constant, `device_api::device::Config` in `client.read(endpoint, callback)`,
+addresses the same endpoint. The same operation in the device, TS/JS and the Dynamic
 client: [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях);
 [handles](GeneratedNamesAndHandles.md#endpoint-handles-of-a-bound-device).
 

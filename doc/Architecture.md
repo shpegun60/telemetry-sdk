@@ -101,7 +101,8 @@ Local Position — індекс definition у таблиці. Global PackedId �
 старші 16 bits вибирають group, молодші 16 — entry. Field, Command і Service
 мають окремі ID spaces. Endpoint type/category треба знати разом з ID.
 Runtime routing перевіряє межі до narrowing й використовує прямі індекси.
-Для зовнішніх wide/signed компонентів використовуйте `tryMakeId`.
+ID відомого endpoint дає шлях (`idOf<model, "path">()`) або handle (`.id`);
+packing helpers (`detail::makeId`) внутрішні.
 
 ## Native та encoded виклики
 
@@ -109,7 +110,7 @@ Runtime routing перевіряє межі до narrowing й використо
 
 | Рівень | API | Consumer |
 | --- | --- | --- |
-| Compile-time exact | `read<Id>`, `write<Id>`, `call<Id>` | Код застосунку з відомим endpoint |
+| Compile-time exact | Handle `endpoint<model, "path">` або `read/write/call<model, "path">()` | Код застосунку з відомим endpoint |
 | Typed traversal | `forEach` | Обхід concrete definitions зі збереженими типами |
 | Runtime typed | `visit(id, visitor)`, Field `readAs`/`writeAs` | Runtime вибір із typed branch |
 | Runtime bytes | `readFieldEncoded`, `writeFieldEncoded`, `executeCommandEncoded`, `callServiceEncoded` | Transport/backend з ID та payload bytes |

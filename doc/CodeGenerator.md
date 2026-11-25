@@ -12,8 +12,8 @@ C++ `device.read<"adc/Config">(callback)` and, with `--client-runtime`, TS/JS
 and attributes. A v3.0 descriptor's catalogs of one name form one root group of
 all three families; two endpoints of different families that share a name there
 take a kind suffix (`control::Reset_Field`, `control::Reset_Command`) and have no
-path form. The per-family symbols (`device_api::device::fields::Config`) still
-generate beside them but are [being removed](user/APIOverview.md#виводиться-з-ужитку). See
+path form. There are no per-family symbols (`fields::`, `commands::`,
+`services::`): the group form is the one form. See
 [type names, group trees and endpoint handles](GeneratedNamesAndHandles.md) and
 the [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях).
 

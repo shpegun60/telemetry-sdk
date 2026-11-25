@@ -17,11 +17,11 @@ const client = new DeviceClient({backend, matchesHeader});
 
 async function update(draft: control.types.Config, tbm1: Uint8Array) {
     const result = await client.batch(tbm1, Batch.items(
-        Batch.write(control.fields.Config, draft),
-        Batch.read(control.fields.Config),
-        Batch.command(control.commands.Configure, draft),
-        Batch.service(control.services.Echo, draft),
-        Batch.service(control.services.Ping))); // Void request: no placeholder.
+        Batch.write(control.Config, draft),
+        Batch.read(control.Config),
+        Batch.command(control.Configure, draft),
+        Batch.service(control.Echo, draft),
+        Batch.service(control.Ping))); // Void request: no placeholder.
 
     const written = result.items?.[0];
     if (written?.succeeded) console.log('Write confirmed');

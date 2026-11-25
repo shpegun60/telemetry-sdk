@@ -67,8 +67,7 @@ inline constexpr auto gain1 = ts::endpoint<model, "adc/channel1/Gain">;
 Довідники кожного місця: [Model: group tree](Model.md#group-tree-модель-із-файлів-гілок),
 [handles згенерованих клієнтів і Dynamic `endpoint(path)`](../GeneratedNamesAndHandles.md),
 [DeviceClient](../AsyncClient.md), [DynamicClient](../DynamicClientUsage.md).
-Старі форми, які ще компілюються, зібрано в розділі
-[Виводиться з ужитку](#виводиться-з-ужитку).
+Прибрані форми та їхні заміни — у розділі [Прибрано](#прибрано).
 
 ## Вибір за хвилину
 
@@ -190,13 +189,12 @@ metadata; transport може отримувати цю маленьку view ч�
 ID приходить із пакета; код пристрою, якому потрібен ID відомого endpoint,
 бере його зі шляху: `ts::idOf<model, "adc/Config">()` або `handle.id`.
 
-**Catalog indexes, без створення Model** (плоска форма каталогів;
-[виводиться з ужитку](#виводиться-з-ужитку)):
+**Runtime indexes моделі** (ті самі перевірки без compiled adapter):
 
 ```cpp
-auto fieldIndex = fields.index();       // FieldCatalogTable.
-auto commandIndex = commands.index();   // CommandCatalogTable.
-auto serviceIndex = services.index();   // ServiceCatalogTable.
+auto fieldIndex = model.fieldIndex();       // або model.view().fields
+auto commandIndex = model.commandIndex();
+auto serviceIndex = model.serviceIndex();
 
 auto read = fieldIndex.readEncoded(fieldId, output, workspace);
 auto write = fieldIndex.writeEncoded(fieldId, input, workspace);
@@ -315,9 +313,8 @@ Endpoint адресують шляхом, а не позицією:
 `telemetry::endpoint<model, "adc/channel1/Gain">` оголошує handle
 (`gain1.read()`, `gain1.write(2.5f)`), розв'язаний під час компіляції в
 PackedId. Кожен enum і struct у descriptor має ім'я типу з коду
-(`adc::Config`); `TELEMETRY_TYPE_NAMES 0` прибирає імена. Плоска
-`Model{fields, commands, services}` із catalog tables
-[виводиться з ужитку](#виводиться-з-ужитку).
+(`adc::Config`); `TELEMETRY_TYPE_NAMES 0` прибирає імена. Плоску
+`Model{fields, commands, services}` із catalog tables [прибрано](#прибрано).
 
 **Деталі:** [Model](Model.md), [Tables/Catalogs](TablesAndCatalogs.md),
 [bindings/slots](NativeApi.md), [імена типів](Fields.md#8-імена-типів-у-descriptor),
@@ -331,7 +328,7 @@ telemetry C++20 API. Generic Resource потребує лише `lib`.
 | Сценарій | Public include | Compiled sources |
 | --- | --- | --- |
 | Native declarations/calls | `<telemetry/Telemetry.hpp>`; окремі `<telemetry/field/FieldTable.hpp>`, `<telemetry/command/CommandTable.hpp>`, `<telemetry/service/ServiceTable.hpp>` | Самі template calls header-only; explicit ABI guard потребує `lib/telemetry/abi/StructuredAbi.cpp` |
-| Encoded через catalog index | `<telemetry/field/FieldCatalogs.hpp>`, `<telemetry/command/CommandCatalogs.hpp>`, `<telemetry/service/ServiceCatalogs.hpp>` | Header-only index calls; compiled adapter не потрібний |
+| Encoded через runtime index моделі | `<telemetry/Telemetry.hpp>` (`model.fieldIndex()`, ...) | Header-only index calls; compiled adapter не потрібний |
 | Encoded через ModelView | `<telemetry/model/Adapter.hpp>`; Model declaration у `<telemetry/model/Model.hpp>` | `lib/telemetry/model/Adapter.cpp`; ABI guard — окрема залежність |
 | Standalone Codec | `<telemetry/codec/Codec.hpp>` | Header-only |
 | Generic files/providers | `<resource/Resource.hpp>` | Header-only |
@@ -365,20 +362,21 @@ python tests/docs/run.py --cxx g++ --build-dir /tmp/telemetry-doc-examples
 toolchain modes, результати та межі доказу. Host execution, sanitizer execution
 і ARM compile/link — різні перевірки; ARM docs runner не запускає плату.
 
-## Виводиться з ужитку
+## Прибрано
 
-Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1.
-Новий код їх не використовує; кожна має заміну з таблиці
-[одна операція в чотирьох місцях](#одна-операція-в-чотирьох-місцях).
+Одна форма — дерево груп, шляхи й handles. Ці форми прибрано з public API
+(ROADMAP API-1); before/after для наявного коду — у
+[migration guide](../StructuredTelemetryV3MigrationGuide.md#one-way-the-group-tree-paths-and-handles).
 
-| Форма, що виводиться | Замість неї |
+| Прибрано | Замість цього |
 | --- | --- |
 | Плоска `Model{fields, commands, services}`: `FieldCatalogTable`, `CommandCatalogTable`, `ServiceCatalogTable`, `ts::group(name, table)`, `emptyFields`, `emptyCommands` | `Model{branches...}` із `ts::group(name, items...)` |
-| Публічний `ts::makeId<group, entry>()` і typed доступ за ID: `fields.read<id>()`, `commands.call<id>()`, `services.call<id>()` | `ts::read/write/call<model, "path">()` і `ts::endpoint<model, "path">`; ID — `ts::idOf<model, "path">()` або `handle.id` |
-| Catalog indexes `fields.index()`, `commands.index()`, `services.index()` | `model.view()` і compiled adapter |
-| Згенеровані символи за сімействами: `api::device::fields::Config`, `client.read(api::device::fields::Config, cb)`, `device.motor.fields.Config` | `device.read<"motor/Config">(cb)`, `api::client::endpoint<"motor/Config">(device)`, `device.adc.Config` |
+| Публічний `ts::makeId<group, entry>()`, `tryMakeId` і typed доступ за compile-time ID: `fields.read<id>()`, `write<id>()`, `get<id>()`, `commands.call<id>()`, `services.call<id>()` | `ts::endpoint<model, "path">` і `ts::read/write/call<model, "path">()`; ID — `ts::idOf<model, "path">()` або `handle.id` |
+| Catalog indexes `fields.index()` без Model, `model.flat()` | `model.view()`, `model.fieldIndex()`, compiled adapter |
+| Згенеровані символи за сімействами: `api::device::fields::Config`, `device.motor.fields.Config` | `api::device::Config`, `device.read<"motor/Config">(cb)`, `api::client::endpoint<"motor/Config">(device)`, `device.motor.Config` |
 
-PackedId лишається у wire та в descriptor:
-[WireV3: PackedId](../WireV3.md#packedid). Сторінки
-[Tables and catalogs](TablesAndCatalogs.md), [Native API](NativeApi.md) та
-приклади з плоскими каталогами описують старі форми, доки їх не перенесуть.
+Runtime-ID доступ лишається: `model.fields().readAs<T>(id)`, `visit(id, ...)`,
+`model.commands().call(id)`, `model.services().callAs<R>(id, request)`. Catalog
+engine під деревом внутрішній (`telemetry::detail`,
+[Tables and catalogs](TablesAndCatalogs.md)); PackedId лишається у wire та в descriptor:
+[WireV3: PackedId](../WireV3.md#packedid). Hosts і далі читають descriptors v3.0.

@@ -49,8 +49,8 @@ Native API не потребує генератора коду, virtual base cla
 (`client.endpoint("adc/Config")`). [Одна операція в чотирьох місцях](doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях)
 · [Приклад із файлів гілок](examples/group_tree/README.md)
 · [Клієнт без SDK: один Field байт за байтом](doc/user/ReadingAFieldByHand.md).
-Плоскі каталоги, публічний `makeId` і згенеровані символи за сімействами ще
-компілюються, але [виводяться з ужитку](#виводиться-з-ужитку).
+Це єдиний шлях: плоскі каталоги, публічний `makeId` і згенеровані символи за
+сімействами прибрано ([migration guide](doc/StructuredTelemetryV3MigrationGuide.md#one-way-the-group-tree-paths-and-handles)).
 
 Необов'язковий [host-side генератор C++/TS/JS SDK](doc/CodeGenerator.md) читає
 Descriptor v3.0 і v3.1 та створює готові типи, endpoint handles за шляхами,
@@ -96,7 +96,6 @@ Boost.PFR зафіксований на **boost-1.92.0**. На 2026-10-04 це �
 - [Пам'ять і build integration](#память-і-build-integration)
 - [Перевірки та вимірювання](#перевірки-та-вимірювання)
 - [Структура й ліцензія](#структура-й-ліцензія)
-- [Виводиться з ужитку](#виводиться-з-ужитку)
 
 ## Як організувати свій протокол
 
@@ -445,18 +444,3 @@ objdump не є виміром cycles/live stack: [H7S qualification](tests/stru
 планів і [міграції](doc/StructuredTelemetryV3MigrationGuide.md).
 Поточний API не має compatibility adapter для старого Scalar/v2.1.
 
-## Виводиться з ужитку
-
-Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1.
-Новий код їх не використовує:
-
-| Форма, що виводиться | Замість неї |
-| --- | --- |
-| Плоска `Model{fields, commands, services}` із `FieldTable` → `FieldCatalogTable{ts::group("device", localFields)}`, `emptyFields`, `emptyCommands` | `Model{ts::group("device", ts::field<...>("Config", device), ...)}` або `Model{branches...}` |
-| Позиції й публічний `makeId`: `localFields.read<0>()`, `fields.read<ts::makeId<0, 0>()>()`, `fields.readAs<Config>(id)`, `fields.visit(id, visitor)`, `commands.call<id>()`, `services.call<id>()` | `ts::endpoint<model, "path">`, `ts::read/write/call<model, "path">()`, `ts::idOf<model, "path">()` |
-| Catalog index `fields.index().readEncoded(...)` | `ts::readFieldEncoded(model.view(), ...)` |
-| Згенеровані символи за сімействами: `api::device::fields::Config`, `client.read(api::device::fields::Config, cb)` | `device.read<"device/Config">(cb)`, `api::client::endpoint<"device/Config">(device)` |
-
-[API Map: виводиться з ужитку](doc/user/APIOverview.md#виводиться-з-ужитку)
-перелічує ті самі форми з посиланнями. PackedId лишається у wire і descriptor:
-[WireV3](doc/WireV3.md#packedid).

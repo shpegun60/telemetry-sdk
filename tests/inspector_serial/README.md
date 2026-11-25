@@ -11,6 +11,12 @@ python3 -B tests/inspector_serial/run.py --build-dir /external/inspector-serial 
   --qt-prefix /usr --cobs-root /path/to/COBS --cxx /usr/bin/g++
 ```
 
+SDK CI does not run this suite since the flat Model and the public catalog
+forms were removed: the UX Inspector's demonstration peer (`examples/inspector/DemoPeer.cpp`
+at the pinned UX commit) still declares flat catalogs, so it no longer compiles against
+the current SDK. It returns to CI pinned to the UX commit that moves that peer to the
+group tree.
+
 It needs Qt 6.12 LTS or newer with SerialPort, Network, Quick Controls and Test. COBS remains
 an explicitly selected external checkout for the test peer. The GUI comes from
 Telemetry UX and consumes the installed SDK; the peer uses the actual SDK NUCLEO

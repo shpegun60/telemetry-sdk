@@ -19,8 +19,8 @@
 - [group_tree](../../examples/group_tree/README.md): пристрій із файлів гілок,
   вкладені групи, handles і descriptor, який отримує host.
 - [Device integration](../../examples/device_integration/README.md): клас,
-  простий facade, файли та приймання порцій даних у різних файлах; його
-  модель ще в плоскій формі каталогів, що виводиться з ужитку.
+  простий facade, файли та приймання порцій даних у різних файлах; модель
+  на дереві груп.
 
 ## Навігація
 
@@ -35,7 +35,7 @@
 - [Крок 9. Рознесіть application і metadata по своїх файлах](#крок-9-рознесіть-application-і-metadata-по-своїх-файлах)
 - [Крок 10. Підключіть transport або files](#крок-10-підключіть-transport-або-files)
 - [Контрольний список першої інтеграції](#контрольний-список-першої-інтеграції)
-- [Виводиться з ужитку: local tables, каталоги й makeId](#виводиться-з-ужитку)
+- [Runtime ID і local tables](#runtime-id-і-local-tables)
 
 ## Крок 1. Оберіть, як застосунок звертатиметься до даних
 
@@ -325,8 +325,8 @@ payload і scratch до виклику callback. [Encoded access](Model.md#encod
 frames, які несуть ці операції.
 
 Runtime selection без wire encoding (`readAs`, `writeAs`, `visit`,
-`callAs` за runtime ID) поки що працює через каталоги плоскої форми; її
-описує розділ [Виводиться з ужитку](#виводиться-з-ужитку).
+`callAs` за runtime ID) іде через `model.fields()`, `model.commands()` і
+`model.services()`; розділ [Runtime ID і local tables](#runtime-id-і-local-tables).
 
 ## Крок 9. Рознесіть application і metadata по своїх файлах
 
@@ -375,72 +375,41 @@ mutex за вас і не робить атомарним читання баг�
 
 Розв'язання типових помилок: [питання та діагностика](Troubleshooting.md).
 
-<a id="виводиться-з-ужитку"></a>
+## Runtime ID і local tables
 
-## Виводиться з ужитку: local tables, каталоги й makeId
-
-Плоска форма ще компілюється, але зникне в наступних кроках ROADMAP API-1.
-Новий код використовує групу, handles і шляхи з кроків 5-8. Для коду, який
-ще використовує стару форму, нижче збережено її опис.
-
-**Local tables.** Кожний елемент table отримує позицію за порядком
-оголошення:
+**Local tables.** Без Model кожний елемент local table отримує позицію за
+порядком оголошення; це native доступ поруч із table:
 
 ```cpp
 inline constexpr ts::FieldTable localFields{
     ts::field<&Device::read, &Device::write>("Config", device)};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::reset>("Reset", device)};
-inline constexpr ts::ServiceTable localServices{
-    ts::service<&Device::sample>("Sample", device)};
 
 enum class LocalField : unsigned { Config = 0 };
 auto value = localFields.read<LocalField::Config>();
 const auto changed = localFields.write<0>(Config{240.0f, true});
-const auto reply = localServices.call<0>();
-const auto resetStatus = localCommands.call<0>();
 ```
 
 Самі tables мають стабільні адреси: не переносіть їх у container, який
 переміщує elements.
 
-**Каталоги й `makeId`.** Каталог дає групам позиції, а `makeId` пакує групу
-й позицію в global ID:
-
-```cpp
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("device", localFields)};
-inline constexpr ts::CommandCatalogTable commands{
-    ts::group("device", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{
-    ts::group("device", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
-
-inline constexpr auto ConfigId = ts::makeId<0, LocalField::Config>();
-```
-
-`0` у `makeId` — позиція групи в каталозі Fields. `LocalField::Config` —
-позиція в local table. Command і Service мають окремі ID spaces.
-
-**Доступ за позицією й ID:**
+**Runtime ID.** ID приходить із пакета або від handle (`config.id`); catalogs
+моделі вибирають endpoint і перевіряють ID до виклику:
 
 | У цьому місці коду відомо | Приклад | Для чого |
 | --- | --- | --- |
-| Local position compile-time | `localFields.read<LocalField::Config>()` | Internal firmware logic поруч із table |
-| Global ID compile-time | `fields.read<ConfigId>()` | Internal logic, яка працює з усіма групами |
-| Runtime ID та exact C++ type | `fields.readAs<Config>(runtimeId)` | Runtime selection без wire encoding |
-| Runtime ID та numeric source value | `fields.writeAs(runtimeId, number)` | Checked numeric conversion до типу Field |
-| Runtime ID та конкретна definition | `fields.visit(runtimeId, visitor)` | Умовний typed branch з `if constexpr` |
+| Runtime ID та exact C++ type | `model.fields().readAs<Config>(runtimeId)` | Runtime selection без wire encoding |
+| Runtime ID та numeric source value | `model.fields().writeAs(runtimeId, number)` | Checked numeric conversion до типу Field |
+| Runtime ID та конкретна definition | `model.fields().visit(runtimeId, visitor)` | Умовний typed branch з `if constexpr` |
 
 Для Config `writeAs` приймає exact `Config`, а не окремий number. Numeric row
 у таблиці стосується numeric Field. `readAs<T>` повертає owning copy навіть
-для borrowed getter. Для великого payload використайте його borrowed native
-read або encoded path, якщо копія не потрібна.
+для borrowed getter. Для великого payload використайте handle або encoded
+path, якщо копія не потрібна.
 
 Коли runtime ID та exact native Request/Response відомі, Command викликайте
-через `commands.call(id, request)`, а Service — через
-`services.callAs<Reply>(id, request)`. Для операцій без Request аргумент
+через `model.commands().call(id, request)`, а Service — через
+`model.services().callAs<Reply>(id, request)`. Для операцій без Request аргумент
 `request` не потрібний. [Flat runtime API](FlatNative.md) описує статуси,
 перевірку сигнатур та borrowed result. `visit` лишається для generic обходу,
-а encoded API — для wire payload. Compile-time Command/Service викликаються
-через `call<Position>()` / `call<PackedId>(request)`.
+а encoded API — для wire payload. Публічного `makeId` і compile-time доступу
+за ID немає: compile-time доступ — шлях і handle ([прибрано](APIOverview.md#прибрано)).

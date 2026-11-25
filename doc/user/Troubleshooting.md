@@ -139,8 +139,8 @@ reflection розкладає members request для codec/descriptor автом
 
 ## У UI приходить double, а setter приймає float
 
-Для numeric Field використайте runtime `fields.writeAs(id, valueFromUi)` або
-compile-time `fields.writeAs<Id>(valueFromUi)`. Значення буде перевірено перед
+Для numeric Field використайте runtime `model.fields().writeAs(id, valueFromUi)`
+з ID від handle (`gain.id`) або з пакета. Значення буде перевірено перед
 conversion; відмова не викликає setter.
 
 Command/Service потребує exact Request. Складіть його у своєму UI/application

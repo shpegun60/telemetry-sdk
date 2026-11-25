@@ -9,18 +9,16 @@ and `device.adc.Config` in C++, `await device.read('adc/Config')` in TS/JS, and
 `client.endpoint("adc/Config")` in the Dynamic clients
 ([handles](#endpoint-handles-of-a-bound-device),
 [the same operation in four places](user/APIOverview.md#одна-операція-в-чотирьох-місцях)).
-The per-family symbols (`fields::`, `commands::`, `services::`) still generate
-but are [being removed](user/APIOverview.md#виводиться-з-ужитку).
+There are no per-family symbols (`fields::`, `commands::`, `services::`): the
+group form is the one form for every descriptor.
 
 Descriptor v3.1 adds three things to a device's descriptor: a unique type name on
 an enum or struct (`adc::Config`), a group tree (groups inside groups, each holding
 Fields, Commands and Services side by side) and a skippable attribute area. The
 generator reads all three. Every descriptor gets the same group form: a v3.0
 descriptor's catalogs of one name are one root group of all three families
-([v3.0 input](#a-v30-descriptor)). Every symbol a v3.0 descriptor generated before
-keeps its name and signature; the group constants and handles are added beside them
-(the frozen hashes are in `tests/ux_codegen_extension/legacy_output_hashes.json`
-and `tests/codegen/test_names.py`).
+([v3.0 input](#a-v30-descriptor)). The output of the frozen v3.0 descriptors is
+pinned by `tests/codegen/v30_output_hashes.json` and `tests/codegen/test_names.py`.
 
 ## Type names
 
@@ -64,22 +62,19 @@ constant in it, beside the group's subgroups:
 ```cpp
 using namespace device_api;
 codec::encode(adc::channel1::Gain, 2.5f, out);       // the path adc/channel1/Gain
-static_assert(adc::Config.id == adc::fields::Config.id);
+static_assert(adc::channel1::Gain.id == 0x10000);       // group adc/channel1, entry 0
 ```
 
 ```ts
 import {adc} from './ts/device.js';
-await client.write(adc.channel1.Gain, 2.5);          // adc.channel1.Gain === adc.channel1.fields.Gain
+await client.write(adc.channel1.Gain, 2.5);          // the path adc/channel1/Gain
 ```
 
-The flat form's `fields::`, `commands::`, `services::` and per-group `types::`
-constants are generated in every group as well (plan section 15.5), so code written
-for a flat model compiles unchanged after the device moves to the group form with the
-same group names (`tests/codegen`, `names-aliases-*`). These aliases are
-[being removed](user/APIOverview.md#виводиться-з-ужитку) with the per-family symbols. Names in one group share one
-scope; a support name such as `Status` gets the same `_value` suffix it gets in the
-flat `fields::` namespace (`adc::Status_value`). Every JS/TS endpoint object of a tree
-carries its `path`.
+Each group also keeps its `types::` aliases of the endpoint value types, so code
+written for a flat model's group form compiles unchanged after the device moves to a
+tree with the same group names (`tests/codegen`, `names-aliases-*`). Names in one
+group share one scope; a support name such as `Status` gets a `_value` suffix
+(`adc::Status_value`). Every JS/TS endpoint object carries its `path`.
 
 ## A v3.0 descriptor
 

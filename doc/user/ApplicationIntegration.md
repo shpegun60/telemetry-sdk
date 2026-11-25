@@ -10,8 +10,8 @@
 > `ts::read/write/call<model, "path">()`
 > ([Model: group tree](Model.md#group-tree-модель-із-файлів-гілок),
 > [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях)).
-> Фрагменти цієї сторінки з local tables, catalogs і `makeId` описують плоску
-> форму, що [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); правила
+> Плоску форму з catalogs і публічний `makeId` [прибрано](APIOverview.md#прибрано);
+> runtime ID обробляють `model.fields()`, `commands()` і `services()`. Правила
 > owners, bindings, slots, validation і synchronization від форми Model не залежать.
 
 Цей маршрут починається там, де у прошивці вже є об'єкти з даними та методами.
@@ -85,7 +85,7 @@ struct Query { std::uint16_t channel; };
 | Definition | Binding; адреса імені | Owner, callable або slot відповідного binding |
 | Local table | Definitions і записи для runtime доступу | Позичені ними owners/callables/slots та імена |
 | Catalog table | Групи, що посилаються на local tables | Самі named local tables |
-| `Model` | Посилання на каталоги; спільний опис типів | Named catalog tables |
+| `Model` | Tables своїх груп і internal catalogs; спільний опис типів | Гілки `ts::group`, owners і slots |
 | `ModelView`, Index, metadata view | Позичені адреси | Таблиці та інші об'єкти, з яких створено view |
 
 Для прошивки зі сталим набором модулів зручно розмістити ці objects у одному
@@ -94,18 +94,15 @@ integration `.cpp`, у порядку оголошення. Рядкові лі�
 прив'яжіть object під час запуску модуля — це показано у кроці 4.
 
 ```cpp
-// Плоска форма; Native.cpp будує ті самі endpoints групами дерева.
+// Native.cpp будує ті самі endpoints більшим деревом груп.
 inline Device device;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device)};
-inline constexpr ts::FieldCatalogTable fields{
-    ts::group("meter", localFields)};
-// commands і services також мають бути named catalog objects.
-inline constexpr ts::Model model{fields, commands, services};
+inline constexpr ts::Model model{ts::group("meter",
+    ts::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device))};
+inline constexpr auto& fields = model.fields(); // runtime-ID доступ
 ```
 
-Це скорочена альтернативна таблиця з одним Field; наступні фрагменти
-плоскої форми відповідають endpoints із `Native.cpp`.
+Це скорочена модель з одним Field; наступні фрагменти відповідають endpoints
+із `Native.cpp`.
 Таблиці й slots не можна копіювати або переміщувати. Не збирайте view із
 локальної таблиці функції та не повертайте його після виходу з цієї функції.
 `Model` приймає named lvalue catalogs. Він не зберігає копію всіх поточних
@@ -365,12 +362,12 @@ Borrowed wrappers мають `bool`, `*` та `->`. `value()` потребує �
 
 ## 9. Для runtime ID використовуйте явний тип або typed visitor
 
-Коли endpoint відомий у цьому місці коду, використовуйте `read<Position>()`,
-`write<Position>(value)` або `call<Id>(request)`. Runtime доступ потрібен для
+Коли endpoint відомий у цьому місці коду, використовуйте handle або шлях
+(`voltage.read()`, `ts::write<model, "meter/Voltage">(value)`). Runtime доступ потрібен для
 загального редактора, диспетчера чи обраного користувачем ID.
 
 ```cpp
-const auto id = ts::makeId<0, Position::Voltage>();
+const auto id = ts::idOf<model, "meter/Voltage">(); // or a runtime ID from a packet
 const auto voltage = fields.readAs<double>(id);
 const auto status = fields.writeAs(id, 240);
 ```

@@ -5,14 +5,19 @@
 [API Overview](APIOverview.md) · [Посібник](README.md) · [Native reference](NativeApi.md) ·
 [API шпаргалка](API-CHEATSHEET.md) · [Архітектура](../Architecture.md)
 
-> **Ця сторінка описує плоску форму, що [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку).**
-> Новий код описує пристрій деревом груп (`ts::group(name, items...)`,
-> `Model{branches...}`) і адресує endpoints шляхом і handles
+> **Internal: ця сторінка описує catalog engine під деревом груп, а не public API.**
+> Пристрій описують деревом груп (`ts::group(name, items...)`, `Model{branches...}`)
+> і адресують endpoints шляхом і handles
 > ([Model: group tree](Model.md#group-tree-модель-із-файлів-гілок),
 > [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях)).
-> Позиції, групи й PackedId нижче лишаються тими самими під деревом: група
-> дерева — це рядок кожного catalog, а `ts::idOf<model, "path">()` дає той
-> самий PackedId, що `makeId` ([WireV3: PackedId](../WireV3.md#packedid)).
+> `FieldCatalogTable`, `CommandCatalogTable`, `ServiceCatalogTable`, `group(name, table)`,
+> `emptyFields`, `emptyCommands`, `makeId` і `CatalogModel` живуть у `telemetry::detail`;
+> лише testing-only `telemetry/testing/V30Model.hpp` (не встановлюється, не в
+> `Telemetry.hpp`) називає їх для перевірок v3.0. Публічні тут лише local tables
+> (`FieldTable`, `CommandTable`, `ServiceTable`) і runtime-ID доступ, який
+> `model.fields()`, `commands()` і `services()` дають до catalogs моделі. Група
+> дерева — це рядок кожного catalog, а `ts::idOf<model, "path">()` дає PackedId
+> ([WireV3: PackedId](../WireV3.md#packedid)). [Міграція](../StructuredTelemetryV3MigrationGuide.md#one-way-the-group-tree-paths-and-handles).
 
 Необов'язковий рівень над catalogs — [Model](Model.md). Local native access
 не потребує catalogs або Model; global native IDs потребують catalogs, але

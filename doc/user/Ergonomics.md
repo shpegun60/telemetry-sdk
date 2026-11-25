@@ -8,9 +8,10 @@
 > endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
 > `ts::endpoint<model, "adc/Config">` далі `.read()`, або `ts::read<model, "adc/Config">()`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
 > клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
-> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
-> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
-> lifetime rules самих Field, Command і Service від форми Model не залежать.
+> Плоску форму з catalog tables, публічний `makeId` і typed доступ за ID
+> [прибрано](APIOverview.md#прибрано): runtime ID обробляють `model.fields()`,
+> `model.commands()` і `model.services()`, а catalogs позначають саме їх. Signatures,
+> results і lifetime rules самих Field, Command і Service від форми Model не залежать.
 
 Цей розділ збирає типові операції, для яких не потрібно писати власний typed
 visitor. Всі доповнення працюють із поточними таблицями, positional IDs і

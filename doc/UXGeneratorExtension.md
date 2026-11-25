@@ -39,6 +39,12 @@ headless generation available.
 
 ## Version 1 emitter seam
 
+The seam is API version 1 over IR version 2. IR 2 (the one group form) gives
+every endpoint one public symbol, its symbol in its group (`Schema.api_groups`,
+`Schema.api_symbols`); the generated SDK has no `fields::`, `commands::` or
+`services::` namespaces, so an extension written for IR 1 is refused by version
+rather than generating references to symbols that no longer exist.
+
 `tools.telemetry_codegen.emitter_api` exports `API_VERSION`, `IR_VERSION`,
 `SDK_VERSION`, `Schema`, `Endpoint`, `GeneratedTarget`, `KEYWORDS`, `identifier`,
 `cpp_string_literal` and `reachable_type_ids`. The extension imports this public

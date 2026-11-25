@@ -21,12 +21,12 @@ const draft: control.types.Config = {
     number: 37, enabled: true, gains: [0, 65535, 17], mode: -123,
     large: 0xffffffffffffffffn, negative: -0x8000000000000000n, f32: 4.25, f64: -0
 };
-await client.write(control.fields.Config, draft);
-const reply = await client.service(control.services.Echo, draft);
+await client.write(control.Config, draft);
+const reply = await client.service(control.Echo, draft);
 const batch = await client.batch(tbm1, Batch.items(
-    Batch.write(control.fields.Config, draft), Batch.read(control.fields.Config),
-    Batch.command(control.commands.Accepted, draft),
-    Batch.service(control.services.Echo, draft)));
+    Batch.write(control.Config, draft), Batch.read(control.Config),
+    Batch.command(control.Accepted, draft),
+    Batch.service(control.Echo, draft)));
 if (batch.items?.[1].valueStatus === 'Ok')
     console.log(batch.items[1].value.number);
 ```

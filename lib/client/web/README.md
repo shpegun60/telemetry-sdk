@@ -72,7 +72,7 @@ See the [runnable example](../../../examples/client_web/README.md) and
 ## Optional Encoded ReadMany
 
 Use `new EncodedBackend(sendFrame, {readMany: true})`, discover remote TRM1 and
-call `client.bindReadMany(trm1, [sdk.device.fields.Voltage, sdk.device.fields.Counter])`.
+call `client.bindReadMany(trm1, [sdk.device.Voltage, sdk.device.Counter])`.
 After checking the binding status, `client.readMany(binding)` returns an inferred
 tuple with independent item statuses and owned values. Only explicitly marked
 scalar/open-enum Fields are eligible. RPC refuses this operation before transfer.

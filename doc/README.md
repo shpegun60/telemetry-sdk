@@ -52,7 +52,7 @@
 endpoint на пристрої, у Static C++ клієнті, у TS/JS і в Dynamic клієнті
 ([одна операція в чотирьох місцях](user/APIOverview.md#одна-операція-в-чотирьох-місцях)).
 Плоскі каталоги, публічний `makeId` і згенеровані символи за сімействами
-[виводяться з ужитку](user/APIOverview.md#виводиться-з-ужитку).
+[прибрано](user/APIOverview.md#прибрано).
 
 Цей індекс описує чинний C++20 `telemetry` і wire v3.0 та v3.1. Для першої
 інтеграції почніть із [GettingStarted](user/GettingStarted.md); повні
@@ -92,7 +92,7 @@ endpoint на пристрої, у Static C++ клієнті, у TS/JS і в Dyn
 | Getter/setter і конкретні Field operations | [Fields](user/Fields.md) |
 | Request та результат application дії | [Commands](user/Commands.md) |
 | Request/Response, Service statuses і reply payload | [Services](user/Services.md) |
-| Local tables, named groups, packed IDs та runtime indexes (плоска форма, виводиться з ужитку) | [Tables and catalogs](user/TablesAndCatalogs.md) |
+| Local tables, packed IDs і internal catalog engine під деревом | [Tables and catalogs](user/TablesAndCatalogs.md) |
 | Structural TypeRegistry, ModelView та всі runtime indexes | [Model](user/Model.md) |
 | Великі catalogs, unique DTOs, visitor code size та module dependencies | [Масштабування](Scalability.md), [reproducible checks](../tests/scalability/README.md) |
 | Canonical codec, Workspace/Lease, scratch та overlap | [Codec and Workspace](user/CodecAndWorkspace.md) |
