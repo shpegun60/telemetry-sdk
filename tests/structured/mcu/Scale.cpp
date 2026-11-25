@@ -64,7 +64,7 @@ std::uint32_t typedLocal(std::uint32_t) noexcept
 
 std::uint32_t typedGlobal(std::uint32_t) noexcept
 {
-	return fields.read<0>().value_or(0);
+	return ::telemetry::detail::CatalogAccess::read<0>(fields).value_or(0);
 }
 
 struct Visitor {

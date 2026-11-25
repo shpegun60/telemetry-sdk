@@ -180,53 +180,47 @@ template<class Q, class R> struct Service {
 """
 
 
+def _endpoint_constant(schema, endpoint, symbol):
+    """One endpoint constant: its descriptor ID, type IDs and wire sizes."""
+    if endpoint.category == 1:
+        index = endpoint.value_type
+        signature = f"Field<{_type(index)}>"
+        arguments = f"{endpoint.id}, {index}, {schema.types[index]['wire']}, {endpoint.capabilities}"
+    elif endpoint.category == 2:
+        index = endpoint.request_type
+        signature = f"Command<{_type(index)}>"
+        arguments = f"{endpoint.id}, {index}, {schema.types[index]['wire']}"
+    else:
+        q, r = endpoint.request_type, endpoint.response_type
+        signature = f"Service<{_type(q)}, {_type(r)}>"
+        arguments = f"{endpoint.id}, {q}, {r}, {schema.types[q]['wire']}, {schema.types[r]['wire']}"
+    return f"inline constexpr endpoint::{signature} {symbol}{{{arguments}}};\n"
+
+
 def _endpoints(schema):
-    rows = [_header(schema, "Endpoints", '#include "Types.hpp"\n#include "Schema.hpp"\n#include <type_traits>\n'), ENDPOINTS]
-    for endpoint in schema.endpoints:
-        category = ("", "fields", "commands", "services")[endpoint.category]
-        rows.append(f"\nnamespace {endpoint.group}::{category} {{\n")
-        if endpoint.category == 1:
-            index = endpoint.value_type
-            signature = f"Field<{_type(index)}>"
-            arguments = f"{endpoint.id}, {index}, {schema.types[index]['wire']}, {endpoint.capabilities}"
-        elif endpoint.category == 2:
-            index = endpoint.request_type
-            signature = f"Command<{_type(index)}>"
-            arguments = f"{endpoint.id}, {index}, {schema.types[index]['wire']}"
-        else:
-            q, r = endpoint.request_type, endpoint.response_type
-            signature = f"Service<{_type(q)}, {_type(r)}>"
-            arguments = f"{endpoint.id}, {q}, {r}, {schema.types[q]['wire']}, {schema.types[r]['wire']}"
-        rows.append(f"inline constexpr endpoint::{signature} {endpoint.symbol}{{{arguments}}};\n")
-        rows.append(f"}} // namespace {endpoint.group}::{category}\n")
-    rows.append(_group_endpoints(schema))
-    rows.append(f"}} // namespace {schema.namespace}\n")
-    return "".join(rows)
-
-
-def _group_endpoints(schema):
-    """One namespace per group, its endpoints as constants in it, for every descriptor.
+    """One namespace per group, its endpoints as constants beside its subgroups.
 
     A GroupTree descriptor nests its groups; a catalog descriptor's catalogs of
     one name are one root group of all three families, where two endpoints of
     different families sharing a name take a kind suffix (Reset_Field and
-    Reset_Command) and have no path. The fields::/commands::/services::
-    constants above stay beside them for now; each endpoint is also a constant
-    beside the group's subgroups, the path's form.
+    Reset_Command) and have no path. Either way api::adc::channel1::Gain is the
+    path adc/channel1/Gain: one form, with no per-family namespaces.
     """
+    rows = [_header(schema, "Endpoints", '#include "Types.hpp"\n#include "Schema.hpp"\n#include <type_traits>\n'),
+            ENDPOINTS]
     if schema.groups is not None:
-        rows = ["\n// Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.\n"]
+        rows.append("\n// Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.\n")
     else:
-        rows = ["\n// Groups: the catalogs of one name are one group; api::motor::Config is the path motor/Config.\n"]
+        rows.append("\n// Groups: the catalogs of one name are one group; api::motor::Config is the path motor/Config.\n")
     members = {}
     for endpoint, group, symbol in zip(schema.endpoints, schema.api_group_of, schema.api_symbols):
         members.setdefault(group, []).append((endpoint, symbol))
     for group in schema.api_groups:
         rows.append(f"namespace {group.qualified} {{\n")
         for endpoint, symbol in members.get(group.index, ()):
-            family = ("", "fields", "commands", "services")[endpoint.category]
-            rows.append(f"inline constexpr auto {symbol} = {family}::{endpoint.symbol};\n")
+            rows.append(_endpoint_constant(schema, endpoint, symbol))
         rows.append(f"}} // namespace {group.qualified}\n")
+    rows.append(f"}} // namespace {schema.namespace}\n")
     return "".join(rows)
 
 

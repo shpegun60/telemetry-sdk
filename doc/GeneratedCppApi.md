@@ -12,8 +12,8 @@ and the group namespaces hold their endpoint constants without a family level
 group per catalog name). Named types (v3.1) are `types::adc::Config`. See [type names, group trees and endpoint
 handles](GeneratedNamesAndHandles.md) and the
 [API map](user/APIOverview.md#одна-операція-в-чотирьох-місцях). The examples
-below use the per-family constants (`device::services::Inspect`) of a flat
-fixture; those constants are [being removed](user/APIOverview.md#виводиться-з-ужитку).
+below use the `device` group's constants (`device::Inspect`) of a v3.0
+fixture.
 
 ## Types and operations
 
@@ -30,7 +30,7 @@ are identical across categories share one namespace.
 using namespace device_api;
 device::types::InspectRequest request{};
 std::array<std::byte, codec::wireSize<decltype(request)>> bytes{};
-auto status = codec::encode(device::services::Inspect, request, bytes);
+auto status = codec::encode(device::Inspect, request, bytes);
 // Custom transport: endpoint::Operation::Service, endpoint.id, bytes.
 ```
 
@@ -80,7 +80,7 @@ canonical/overlap failures, exact float bits, no-heap controls and ARM probes.
 
 ```cpp
 auto outcome = device_api::encoded::callService(model.view(),
-    device_api::device::services::Inspect, request,
+    device_api::device::Inspect, request,
     requestBytes, responseBytes, workspace, response);
 if (outcome.ok()) { /* use response */ }
 ```
@@ -107,7 +107,7 @@ admits the peer schema for the current session, then explicitly asserts trust:
 ```cpp
 namespace rpc = resource::telemetry::v3;
 client.beginService(device_api::rpc::binding(
-    device_api::device::services::Inspect, ::telemetry::client::rpc::trustedRpcMapping), request);
+    device_api::device::Inspect, ::telemetry::client::rpc::trustedRpcMapping), request);
 // Drive process/nextPacket/onSendAccepted/onReply as documented by RpcClient.
 // Once completed, client.decodeResult(response) enforces its status/type gate.
 ```

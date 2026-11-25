@@ -33,8 +33,8 @@ int main()
 	if (api::codec::decode(bytes, request) != api::codec::Status::Ok)
 		return 4;
 	// This explicit trust assertion follows per-peer/session schema admission.
-	const auto endpoint = api::rpc::binding(api::device::services::Inspect,
-	                                        ::telemetry::client::rpc::trustedRpcMapping);
+	const auto endpoint =
+	    api::rpc::binding(api::device::Inspect, ::telemetry::client::rpc::trustedRpcMapping);
 	if (client.beginService(endpoint, request) != ::telemetry::client::rpc::RpcClientStatus::Ok)
 		return 5;
 	for (unsigned now = 0; client.active() && now < 200; ++now) {

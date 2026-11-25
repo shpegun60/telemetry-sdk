@@ -47,20 +47,23 @@ std::uint32_t get32(std::span<const std::byte> input) noexcept
 extern "C" bool SCALABILITY_CLIENT_FUNCTION() noexcept
 {
 #if SCALABILITY_TYPED_HEADER
-	const auto before = modular::composition::fields.read<selectedId>();
+	const auto before =
+	    telemetry::testing::CatalogAccess::read<selectedId>(modular::composition::fields);
 	if (!before) {
 		return false;
 	}
 	using Reading = std::remove_cvref_t<decltype(*before)>;
-	if (modular::composition::fields.write<selectedId>(Reading{submitted}) !=
-	    telemetry::WriteResult::Applied) {
+	if (telemetry::testing::CatalogAccess::write<selectedId>(
+	        modular::composition::fields, Reading{submitted}) != telemetry::WriteResult::Applied) {
 		return false;
 	}
-	if (modular::composition::commands.call<selectedId>(modular::Delta{2}) !=
+	if (telemetry::testing::CatalogAccess::call<selectedId>(modular::composition::commands,
+	                                                        modular::Delta{2}) !=
 	    telemetry::CommandResult::Executed) {
 		return false;
 	}
-	const auto inspected = modular::composition::services.call<selectedId>(modular::Query{3});
+	const auto inspected = telemetry::testing::CatalogAccess::call<selectedId>(
+	    modular::composition::services, modular::Query{3});
 	if (!inspected.hasValue() || inspected.value().value != (submitted + 2) * 3) {
 		return false;
 	}

@@ -15,8 +15,7 @@
 клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях),
 [приклад із файлів гілок](../../examples/group_tree/README.md). Клієнт без SDK
 читає Field за [покроковим прикладом із байтами](ReadingAFieldByHand.md).
-Плоскі каталоги та `makeId` ще компілюються, але
-[виводяться з ужитку](APIOverview.md#виводиться-з-ужитку).
+Плоскі каталоги та публічний `makeId` [прибрано](APIOverview.md#прибрано).
 
 Якщо ви пишете клієнт, а не firmware Model, оберіть
 [типізований DeviceClient](../AsyncClient.md) або
@@ -59,7 +58,7 @@
 | [Command/Service: один runtime result](FlatNative.md) | call, callAs<Reply>, callBorrowed<Reply>, один status/value і exact ownership | [Runnable example](../../examples/user_guide/FlatNative.cpp) |
 | [Commands](Commands.md) | Дії без response payload, Request, Executed/Accepted/refusal і повтори | [Tables and catalogs](TablesAndCatalogs.md) |
 | [Services](Services.md) | Request/Response, status, owning/borrowed результат і encoded reply | [Tables and catalogs](TablesAndCatalogs.md) |
-| [Tables and catalogs](TablesAndCatalogs.md) | Плоска форма, що виводиться з ужитку: local Position, global PackedId, групи, typed traversal і runtime indexes | [Model](Model.md) |
+| [Tables and catalogs](TablesAndCatalogs.md) | Internal catalog engine під деревом: local Position, global PackedId, typed traversal і runtime indexes | [Model](Model.md) |
 | [Model](Model.md) | Спільний structural registry, ModelView, TypeIds і encoded access | [Codec and Workspace](CodecAndWorkspace.md) |
 | [Codec and Workspace](CodecAndWorkspace.md) | Canonical bytes, Lease lifetime, storage budget, scratch і overlap | [Descriptor and Values](DescriptorAndValues.md) |
 | [Resource files](Resources.md) | Provider signatures, FileSystem/FileView, cursor, partial transfer і capability | [Descriptor and Values](DescriptorAndValues.md) |
@@ -83,7 +82,7 @@ project sources наведені у [прикладах](../../examples/user_gui
 | Перші native calls без Model/Workspace | [Native API](NativeApi.md) | [NativeOnly.cpp](../../examples/user_guide/NativeOnly.cpp) |
 | Самостійно перетворити struct/array ↔ bytes | [Codec and Workspace](CodecAndWorkspace.md) | [Codec.cpp](../../examples/user_guide/Codec.cpp) |
 | Оголосити Field, Command, Service; працювати з native типами | [Fields](Fields.md), [Commands](Commands.md), [Services](Services.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
-| Локальні/глобальні ID, iteration і indexes (плоска форма, виводиться з ужитку) | [Tables and catalogs](TablesAndCatalogs.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
+| Локальні/глобальні ID, iteration і indexes (internal engine) | [Tables and catalogs](TablesAndCatalogs.md) | [Native.cpp](../../examples/user_guide/Native.cpp) |
 | Model, TypeRegistry, runtime view та encoded buffers | [Model](Model.md), [Codec and Workspace](CodecAndWorkspace.md) | [Encoded.cpp](../../examples/user_guide/Encoded.cpp) |
 | Оголосити масив файлів і власний provider, вибрати шляхи | [Resource files](Resources.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |
 | LIST/STAT/READ/WRITE/SAVE, порційний transfer і cursor | [Resource files](Resources.md), [protocol](../../lib/resource/protocol/README.md) | [Resources.cpp](../../examples/user_guide/Resources.cpp) |

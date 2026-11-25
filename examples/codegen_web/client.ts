@@ -11,14 +11,14 @@ export async function run(exchange: Exchange, declaredHeader: Uint8Array)
 	if (!matchesHeader(declaredHeader))
 		throw new Error('Descriptor identity mismatch');
 	const current =
-	    await rpcInvoke(exchange, device.fields.Config.read, undefined, {transactionId : 1});
+	    await rpcInvoke(exchange, device.Config.read, undefined, {transactionId : 1});
 	const config: device.types.Config = current.value;
 	config.gain = 1.5;
-	await rpcInvoke(exchange, device.fields.Config.write, config, {transactionId : 2});
-	await rpcInvoke(exchange, device.commands.Apply, config, {transactionId : 3});
-	const inspected = await rpcInvoke(exchange, device.services.Inspect, {config, multiplier : 4},
+	await rpcInvoke(exchange, device.Config.write, config, {transactionId : 2});
+	await rpcInvoke(exchange, device.Apply, config, {transactionId : 3});
+	const inspected = await rpcInvoke(exchange, device.Inspect, {config, multiplier : 4},
 	                                  {transactionId : 4});
-	const accepted = await rpcInvoke(exchange, edge.commands.Accept, {}, {transactionId : 5});
+	const accepted = await rpcInvoke(exchange, edge.Accept, {}, {transactionId : 5});
 	// Accepted acknowledges application admission; physical work may continue.
 	return {
 		config : inspected.value.config,

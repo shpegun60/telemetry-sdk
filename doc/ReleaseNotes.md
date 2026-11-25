@@ -5,6 +5,44 @@
 [Документація](README.md) · [Migration guide](StructuredTelemetryV3MigrationGuide.md) ·
 [API Map](user/APIOverview.md)
 
+## 2026-11-25: one way - the group tree, paths and handles
+
+ROADMAP API-1, step R3. The SDK has one way to describe and address a device:
+the group tree (`Model{branches...}` with `ts::group(name, items...)`), paths
+and handles, on the device, the generated Static clients and the Dynamic
+clients. The flat Model, the public `makeId` and the per-family generated
+symbols are removed.
+
+- **Removed from the public C++ API.** The flat `Model{fields, commands,
+  services}`; `FieldCatalogTable`, `CommandCatalogTable`, `ServiceCatalogTable`,
+  the catalog form of `group(name, table)`, `emptyFields`, `emptyCommands` and
+  `TableGroup`; `makeId` and `tryMakeId`; typed access by a compile-time ID
+  (`fields().read<id>()`, `write<id>()`, `get<id>()`, `readAs<T, id>()`,
+  `commands().call<id>()`, `services().call<id>()`); `model.flat()`. The
+  catalog engine stays under the tree as `telemetry::detail::CatalogModel`.
+- **Kept.** `idOf<model, "path">()`, `model.idOf<"path">()` and `handle.id`
+  (store an ID with the descriptor's fingerprint); `groupOf`/`indexOf`;
+  runtime-ID access through `model.fields()`, `commands()` and `services()`;
+  `model.view()` and the runtime indexes; local tables without a Model.
+- **Generator.** One form for v3.0 and v3.1 input: group namespaces and objects
+  hold the endpoint constants (`api::adc::Config`, TS `adc.Config`) beside their
+  subgroups; there are no `fields::`, `commands::` or `services::` namespaces
+  or family objects, and an endpoint's manifest `symbol` is its symbol in its
+  group. The extension hook (`emitter_api`) stays generic; its IR version is
+  2, so an extension built for the per-family symbols is refused by version.
+- **v3.0.** Hosts read v3.0 descriptors as before. Frozen v3.0 goldens stay as
+  bytes, produced by the testing-only `telemetry/testing/V30Model.hpp`, which
+  is not installed and not included by `Telemetry.hpp`.
+- **Checks.** `tests/structured/group_tree/Removed.cpp` proves each removed form
+  fails to compile from `Telemetry.hpp` alone and that the testing producer is
+  unreachable from it. SDK CI no longer builds the pinned UX generator (its QML
+  consumer and the UX extension suite) or the UX Inspector serial suite, whose
+  demonstration peer still uses flat catalogs; the serial suite returns pinned
+  to the UX commit that moves that peer to the tree.
+
+Before and after for existing code:
+[migration guide](StructuredTelemetryV3MigrationGuide.md#one-way-the-group-tree-paths-and-handles).
+
 ## 2026-11-20: descriptor v3.1 - імена типів, дерево груп, шляхи й handles
 
 [PR #65](https://github.com/shpegun60/telemetry-sdk/pull/65) додає descriptor

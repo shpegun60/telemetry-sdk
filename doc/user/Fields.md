@@ -7,9 +7,10 @@
 > endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
 > `ts::endpoint<model, "adc/Config">` далі `.read()` і `.write(value)`, член — `ts::read<model, "adc/Config.rateHz">()`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
 > клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
-> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
-> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
-> lifetime rules самих Field, Command і Service від форми Model не залежать.
+> Плоску форму з catalog tables, публічний `makeId` і typed доступ за ID
+> [прибрано](APIOverview.md#прибрано): runtime ID обробляють `model.fields()`,
+> `model.commands()` і `model.services()`, а catalogs позначають саме їх. Signatures,
+> results і lifetime rules самих Field, Command і Service від форми Model не залежать.
 
 `Field` відкриває одне прикладне значення через getter і, за потреби,
 setter. Це може бути напруга, лічильник, режим, масив коефіцієнтів або ціла
@@ -79,10 +80,10 @@ inline constexpr ts::FieldTable localFields{
     ts::field<&Meter::readLimit, &Meter::setLimit>("Limit", meter),
     ts::field<&Meter::readConfig, &Meter::setConfig>("Config", meter),
 };
-inline constexpr ts::FieldCatalogTable fields{ts::group("meter", localFields)};
-inline constexpr ts::CommandCatalogTable<> commands{};
-inline constexpr ts::ServiceCatalogTable<> services{};
-inline constexpr ts::Model model{fields, commands, services};
+// The same two Fields in a group of the device's Model, for the encoded path.
+inline constexpr ts::Model model{ts::group("meter",
+    ts::field<&Meter::readLimit, &Meter::setLimit>("Limit", meter),
+    ts::field<&Meter::readConfig, &Meter::setConfig>("Config", meter))};
 
 int main() {
     assert(localFields.write<0>(240.0f) == ts::WriteResult::Applied);
@@ -97,8 +98,8 @@ int main() {
     std::array<std::byte, model.maxScratch()> scratch{};
     ts::Workspace workspace{scratch};
     std::array<std::byte, ts::wireSize<Config>> bytes{};
-    constexpr auto configId = ts::makeId<0, 1>();
-    const auto result = fields.index().readEncoded(configId, bytes, workspace);
+    constexpr auto configId = ts::idOf<model, "meter/Config">();
+    const auto result = model.fieldIndex().readEncoded(configId, bytes, workspace);
     assert(result.dispatch == ts::DispatchStatus::Ok);
     assert(result.written == bytes.size());
     assert(workspace.used() == 0);
@@ -379,12 +380,12 @@ structural mismatch і range failure дають `nullopt`. Failed numeric writeA
 
 `FieldTable` володіє declarations і erased rows, але не owners/values.
 Local position — declaration order від zero; local API приймає integer або
-scoped position enum. `FieldCatalogTable` групує named local tables через
-`group("meter", localFields)`. Catalog size — кількість groups, не Fields.
+scoped position enum. `model.fields()` — catalogs моделі (internal engine під
+деревом, по рядку на групу); catalog size — кількість groups, не Fields.
 
 Global `PackedId` має high 16 bits group і low 16 bits local position:
-`makeId<0, 1>()` позначає другий Field першої групи. Порядок declarations
-визначає identity; names не беруть участі в runtime lookup.
+`ts::idOf<model, "meter/Config">()` дає другий Field групи `meter`. Порядок
+declarations визначає identity; names не беруть участі в runtime lookup.
 
 Модель із дерева груп (`Model{adc::tlm::branch, ...}`) дає той самий доступ
 за шляхом замість позицій: `telemetry::endpoint<model, "adc/channel1/Gain">`
@@ -407,32 +408,29 @@ Global `PackedId` має high 16 bits group і low 16 bits local position:
 | `local.readBorrowed<T>(position)` | `BorrowedValue<T>` | Checked exact borrowed runtime read |
 | `local.readAsResult<To>(position)` | `FieldReadResult<To>` | Checked owning read з причиною відмови |
 | `local.writeAs(position, value)` | `WriteResult` | Checked runtime local selection |
-| `catalogs.get<Id>()` | `const FieldDefinition&` | Exact declaration by packed static ID |
-| `catalogs.read<Id>()`, `write<Id>(value)` | Definition read / `WriteResult` | Exact native global access |
-| `catalogs.readAs<To, Id>()`, `writeAs<Id>(value)` | Owning read / `WriteResult` | Static global conversion access |
-| `catalogs.readAs<To>(id)`, `writeAs(id, value)` | Owning read / `WriteResult` | Checked runtime global conversion access |
-| `catalogs.readBorrowed<T, Id>()`, `readBorrowed<T>(id)` | `BorrowedValue<T>` | Static/checked runtime exact borrowed read |
-| `catalogs.readAsResult<To, Id>()`, `readAsResult<To>(id)` | `FieldReadResult<To>` | Static/checked runtime owning read з native status |
+| `model.fields().readAs<To>(id)`, `writeAs(id, value)` | Owning read / `WriteResult` | Checked runtime global conversion access |
+| `model.fields().readBorrowed<T>(id)` | `BorrowedValue<T>` | Checked runtime exact borrowed read |
+| `model.fields().readAsResult<To>(id)` | `FieldReadResult<To>` | Checked runtime owning read з native status |
 | `size()`, `empty()` | `size_t`, `bool` | Entry count for local table; group count for catalog table |
 | `data()`, `begin()`, `end()` | Borrowed row pointers | Erased iteration, без getter invocation |
 | `operator[](i)` | `const FieldEntry&` або `const FieldCatalog&` | Unchecked; caller requires `i < size()` |
 | `forEach(visitor)` | `void` | Typed declaration traversal |
 | `forEachWhile(visitor)` | `bool` | Typed traversal до exact-`bool` false; true означає повний обхід |
-| `catalogs.forEachEntry(visitor)` | `void` | Packed ID, group name та erased FieldEntry |
-| `catalogs.forEachEntryWhile(visitor)` | `bool` | Такий самий erased обхід до exact-`bool` false |
+| `model.fields().forEachEntry(visitor)` | `void` | Packed ID, group name та erased FieldEntry |
+| `model.fields().forEachEntryWhile(visitor)` | `bool` | Такий самий erased обхід до exact-`bool` false |
 | `visit(position_or_id, visitor)` | `bool` | Checked typed selection; callback return ignored |
-| `catalogs.index()` | `FieldIndex` | Copyable borrowed runtime view |
+| `model.fieldIndex()` | `FieldIndex` | Copyable borrowed runtime view |
 
-`FieldTable` не має `index()`: для local encoded row використовуйте
-`local[position].readEncoded/writeEncoded`; для checked global lookup —
-`catalogs.index()`. Runtime packed IDs приймають integral values, не local
+Typed доступу за compile-time packed ID (`read<Id>()`, `get<Id>()`) немає: його
+дає шлях або handle. `FieldTable` не має `index()`: для local encoded row
+використовуйте `local[position].readEncoded/writeEncoded`; для checked global
+lookup — `model.fieldIndex()`. Runtime packed IDs приймають integral values, не local
 enum. Вони перевіряються до narrowing: negative/wide invalid ID не може
-wrap до іншого валідного Field. Використовуйте `tryMakeId(group, entry)`
-для fallible external components; `makeId<Group, Position>()` — для
-гарантованих compile-time diagnostics. `makeId(group, entry)` invalid runtime
-components є contract violation. `tryGroupOf`/`tryIndexOf` повертають optional
-components; `groupOf`/`indexOf` вимагають valid u32 packed input. Component
-validity ще не доводить існування row у конкретному catalog.
+wrap до іншого валідного endpoint. ID відомого endpoint дає
+`ts::idOf<model, "path">()` або handle `.id`; публічного `makeId` немає.
+`tryGroupOf`/`tryIndexOf` повертають optional components; `groupOf`/`indexOf`
+вимагають valid u32 packed input. Component validity ще не доводить існування
+row у конкретній Model.
 
 Local `forEach` приймає ordinary `visitor(definition)` або, якщо callable
 підтримує її, форму `visitor.template operator()<Position>(definition)`.
@@ -613,9 +611,8 @@ struct telemetry::reflection::TypeReflection<app::Internal> {
 #define TELEMETRY_TYPE_NAMES 0
 ```
 
-З 0 жоден рядок імені не потрапляє в image, а descriptor плоскої моделі
-`Model{fields, commands, services}` побайтово дорівнює v3.0 (дерево груп
-лишається v3.1). Ім'я коштує 4 байти довжини плюс свої байти: у
+З 0 жоден рядок імені не потрапляє в image; descriptor дерева груп лишається
+v3.1, бо несе GroupTree flag. Ім'я коштує 4 байти довжини плюс свої байти: у
 [NUCLEO demo](../../examples/nucleo_h7s3l8/README.md#type-names) чотири імена
 займають 90 B packed descriptor. Значення має бути однаковим у кожному
 translation unit; compiled SDK sources перетворюють розбіжність на link error.

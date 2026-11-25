@@ -72,9 +72,9 @@ int main()
 	CHECK(rows.read<Position::First>() == 21.5f);
 	CHECK(rows.write<Position::First>(22.f) == WriteResult::Applied);
 	CHECK(local.call<Position::First>() == CommandResult::Executed);
-	CHECK(fields.read<UINT64_C(65536)>() == 22.f);
-	CHECK(fields.write<INT64_C(65536)>(23.f) == WriteResult::Applied);
-	CHECK(commands.call<UINT64_C(65536)>() == CommandResult::Executed);
+	CHECK(testing::CatalogAccess::read<UINT64_C(65536)>(fields) == 22.f);
+	CHECK(testing::CatalogAccess::write<INT64_C(65536)>(fields, 23.f) == WriteResult::Applied);
+	CHECK(testing::CatalogAccess::call<UINT64_C(65536)>(commands) == CommandResult::Executed);
 	CHECK(groupOf(std::int64_t{65536}) == 1 && indexOf(std::int64_t{65536}) == 0);
 	CHECK(tryGroupOf(0xffffffffULL) == 65535 && tryIndexOf(0xffffffffULL) == 65535);
 	Workspace workspace{std::span<std::byte>{}};

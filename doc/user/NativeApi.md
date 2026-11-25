@@ -10,9 +10,10 @@
 > endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
 > `ts::endpoint<model, "adc/channel1/Gain">` далі `.read()`, `.write(2.5f)`, `.call(args...)`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
 > клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
-> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
-> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
-> lifetime rules самих Field, Command і Service від форми Model не залежать.
+> Плоску форму з catalog tables, публічний `makeId` і typed доступ за ID
+> [прибрано](APIOverview.md#прибрано): runtime ID обробляють `model.fields()`,
+> `model.commands()` і `model.services()`, а catalogs позначають саме їх. Signatures,
+> results і lifetime rules самих Field, Command і Service від форми Model не залежать.
 
 Це canonical reference для **Native access**: C++ значень, typed викликів,
 runtime selection і traversal. Для одного endpoint family відкрийте окрему
@@ -82,10 +83,10 @@ Global access додає відповідні
 
 | Рівень | Типовий API | Коли вибрати |
 | --- | --- | --- |
-| A. Compile-time exact | `read<Id>()`, `write<Id>(value)`, `call<Id>(request)` | Рекомендований application API, коли endpoint відомий компілятору |
+| A. Compile-time exact | `handle.read()`, `handle.write(value)`, `handle.call(request)`, `ts::read<model, "path">()`; local `read<Position>()` | Рекомендований application API, коли endpoint відомий компілятору |
 | B. Typed traversal | `forEach(visitor)` | Обійти всі concrete definitions із їхніми native типами |
 | C. Runtime ID, typed endpoint | `readAs<T>`, Command `call`, Service `callAs<Response>` / `callBorrowed<Response>`, `visit(id, visitor)` | Known native type або concrete definition у runtime |
-| D. Erased/encoded | Catalog `index()` або чотири ModelView encoded functions | Окремий byte API для transport/backend; [canonical reference](Model.md#encoded-api-catalog-index-або-modelview) |
+| D. Erased/encoded | `model.fieldIndex()` / `commandIndex()` / `serviceIndex()` або чотири ModelView encoded functions | Окремий byte API для transport/backend; [canonical reference](Model.md#encoded-api-catalog-index-або-modelview) |
 
 Local tables використовують Position замість global Id. Для Field також є
 прямий runtime `readAs<T>/writeAs`, коли caller знає потрібний native тип.
@@ -685,37 +686,30 @@ Interfaces, що повертають borrowed definitions/iteration views, ві
 ## 11. Каталоги, packed ID і Model
 
 ```cpp
-inline constexpr telemetry::FieldCatalogTable fields{
-    telemetry::group("meter", localFields),
-};
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("control", localCommands),
-};
-inline constexpr telemetry::ServiceCatalogTable services{
-    telemetry::group("queries", localServices),
-};
-constexpr auto voltageId = telemetry::makeId<0, Position::Voltage>();
-auto value = fields.read<voltageId>();
-auto write = fields.write<voltageId>(240.0f);
-auto commandStatus = commands.call<telemetry::makeId<0, 0>()>();
-auto response = services.call<telemetry::makeId<0, 0>()>();
+inline constexpr telemetry::Model model{
+    telemetry::group("meter",
+        telemetry::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device),
+        telemetry::field<&Device::borrowSettings>("Settings", device)),
+    telemetry::group("control", telemetry::command<&Device::reset>("Reset", device)),
+    telemetry::group("queries", telemetry::service<&Device::sample>("Sample", device))};
+inline constexpr auto voltage = telemetry::endpoint<model, "meter/Voltage">;
+auto value = voltage.read();
+auto write = voltage.write(240.0f);
+auto commandStatus = telemetry::call<model, "control/Reset">();
+auto response = telemetry::call<model, "queries/Sample">();
+inline constexpr auto& fields = model.fields(); // runtime IDs: readAs, writeAs, visit
+constexpr auto voltageId = voltage.id;          // == telemetry::idOf<model, "meter/Voltage">()
 ```
 
-Ці native global виклики не потребують Model. `group` позичає named lvalue
-table; каталог позичає ці таблиці.
-Для порожніх категорій можна оголосити empty catalog table, а для Fields і
-Commands також є `telemetry::emptyFields` / `telemetry::emptyCommands`.
+Шляхи й handles розв'язуються під час компіляції; публічного `makeId` і typed
+доступу за compile-time ID немає ([прибрано](APIOverview.md#прибрано)). Група,
+у якій немає family, нічого для неї не потребує.
 
-Packed ID — `uint32_t`: верхні 16 біт є group position, нижні 16 — local entry
-position. `makeId<Group, Position>()` перевіряє ширину compile-time, а table
-перевіряє реальні межі каталогу. Перестановка оголошень може змінити IDs і
-descriptor; це зміна інтерфейсу, навіть якщо method names лишилися ті самі.
-
-Для неперевірених runtime чисел використайте `tryMakeId(group, entry)`:
-він поверне empty optional, якщо component не вміщається у 16 біт. Він ще не
-підтверджує, що така group/entry існує: це встановлює `index().find(id)`.
-Runtime global API приймає integral packed ID, не локальний enum. Локальний
-enum спочатку запакуйте через `makeId`.
+Packed ID — `uint32_t`: верхні 16 біт є group position (pre-order позиція
+групи дерева), нижні 16 — local entry position. Перестановка оголошень може
+змінити IDs і descriptor; це зміна інтерфейсу, навіть якщо шляхи лишилися ті
+самі. Runtime global API приймає integral packed ID, не локальний enum, і
+перевіряє, що така group/entry існує (`model.fieldIndex().find(id)`).
 
 `groupOf(id)` / `indexOf(id)` розкладають valid u32 ID на 16-бітні компоненти.
 Для негативного або wider runtime числа поза u32 вони завершують виконання;
@@ -723,9 +717,8 @@ invalid constant expression відхиляється при компіляції
 input користуйтеся `tryGroupOf(id)` / `tryIndexOf(id)`: це optional форми без
 тихого narrowing. Жодна з цих функцій не встановлює існування endpoint у Model.
 
-Коли потрібний спільний registry, descriptors або compiled adapter, додайте
-`telemetry::Model model{fields, commands, services}`. Model позичає lvalue
-каталоги, не зберігає live values і не знімає snapshot. Її `types()`,
+Model володіє tables своїх груп, не зберігає live values і не знімає
+snapshot. Її `types()`,
 `typeId<T>()`, `view()` та type lookup описані в [Model](Model.md).
 
 | Public object / API | Що належить object, що позичено | Час / callbacks |
@@ -765,9 +758,9 @@ auto global = fields.readAs<double>(voltageId);
 auto write = fields.writeAs(voltageId, 240);
 ```
 
-Compile-time варіант має порядок template аргументів
-`readAs<To, PositionOrPackedId>()`; `writeAs<PositionOrPackedId>(value)` виводить
-тип source. Global/local runtime `readAs<To>(id)` і `writeAs(id, value)`
+Compile-time варіант local table має порядок template аргументів
+`readAs<To, Position>()`; `writeAs<Position>(value)` виводить тип source.
+Global/local runtime `readAs<To>(id)` і `writeAs(id, value)`
 перевіряють оригінальну ширину ID перед індексуванням.
 
 `readAs`/`writeAs` дозволяють numeric conversions між integer, bool, float,
@@ -1000,8 +993,8 @@ result types, їхні поля, callback invocation та порядок пер�
 
 Цей історичний anchor збережено; canonical byte access тепер описаний у
 [Encoded API](Model.md#encoded-api-catalog-index-або-modelview). Є два способи:
-`FieldCatalogTable/CommandCatalogTable/ServiceCatalogTable::index()` без Model
-та чотири compiled functions із `ModelView`. Local tables не мають `index()`;
+runtime indexes моделі (`model.fieldIndex()`, ...) та чотири compiled functions
+із `ModelView`. Local tables не мають `index()`;
 їхні erased rows доступні через `operator[]` після вашої перевірки position.
 
 Публічні encoded methods перевіряють lengths, capacity та потрібний scratch

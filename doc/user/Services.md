@@ -7,9 +7,10 @@
 > endpoint оголошують усередині `ts::group(...)` і викликають за шляхом:
 > `ts::call<model, "adc/Calibrate">(adc::Reference{1.25f})` або handle `calibrate.call(request)`. Шлях однаковий на пристрої, у Static C++, TS/JS і Dynamic
 > клієнті: [одна операція в чотирьох місцях](APIOverview.md#одна-операція-в-чотирьох-місцях).
-> Приклади цієї сторінки, де є catalog tables і `makeId`, описують плоску форму, що
-> [виводиться з ужитку](APIOverview.md#виводиться-з-ужитку); signatures, results і
-> lifetime rules самих Field, Command і Service від форми Model не залежать.
+> Плоску форму з catalog tables, публічний `makeId` і typed доступ за ID
+> [прибрано](APIOverview.md#прибрано): runtime ID обробляють `model.fields()`,
+> `model.commands()` і `model.services()`, а catalogs позначають саме їх. Signatures,
+> results і lifetime rules самих Field, Command і Service від форми Model не залежать.
 
 `Service` відкриває прикладну операцію з відповіддю: одержати snapshot,
 запитати дані каналу, прочитати large cached block, перевірити стан або
@@ -83,12 +84,13 @@ inline constexpr ts::ServiceTable localServices{
     ts::service<&Device::latest>("Latest", device),
     ts::service<&Device::ping>("Ping", device),
 };
-inline constexpr ts::ServiceCatalogTable services{
-    ts::group("device", localServices),
-};
-inline constexpr ts::FieldCatalogTable<> fields{};
-inline constexpr ts::CommandCatalogTable<> commands{};
-inline constexpr ts::Model model{fields, commands, services};
+// The same Services in a group of the device's Model: paths, runtime IDs, encoded calls.
+inline constexpr ts::Model model{ts::group("device",
+    ts::service<&Device::snapshot>("Snapshot", device),
+    ts::service<&Device::query>("Query", device),
+    ts::service<&Device::latest>("Latest", device),
+    ts::service<&Device::ping>("Ping", device))};
+inline constexpr auto& services = model.services();
 
 int main() {
     const auto owned = localServices.call<0>();
@@ -98,8 +100,8 @@ int main() {
     assert(localServices.call<3>().status() == ts::ServiceStatus::Ok);
     assert(device.pings == 1);
 
-    constexpr auto queryId = ts::makeId<0, 1>();
-    const auto rejected = services.call<queryId>(Query{9});
+    constexpr auto queryId = ts::idOf<model, "device/Query">();
+    const auto rejected = ts::call<model, "device/Query">(Query{9});
     assert(rejected.status() == ts::ServiceStatus::InvalidArgument);
     assert(!rejected.hasValue());
 
@@ -370,8 +372,8 @@ Encoded callback може повернути reference на decoded request: req
 ## 7. Table, catalog та positional IDs
 
 `ServiceTable` володіє declarations і erased rows; local position —
-declaration order. `ServiceCatalogTable` позичає local tables через named
-`group`. Group order визначає high part global ID.
+declaration order. `model.services()` — catalogs моделі (internal engine під
+деревом); pre-order позиція групи визначає high part global ID.
 
 | API | Тип/результат | Meaning |
 | --- | --- | --- |
@@ -380,36 +382,33 @@ declaration order. `ServiceCatalogTable` позичає local tables через 
 | `local.callAs<Response>(position[, request])` | `ServiceCallResult<Response>` | Рекомендований owning runtime виклик; `Response` може бути `void` |
 | `local.callBorrowed<Response>(position[, request])` | `BorrowedServiceCallResult<Response>` | Рекомендований borrowed runtime виклик |
 | `local.callAs<Result>(position[, request])` | `NativeCallResult<Result>` | Low-level exact result wrapper та routing окремо |
-| `catalogs.get<Id>()` | `const ServiceDefinition&` | Static packed-ID declaration |
-| `catalogs.call<Id>()`, `call<Id>(request)` | Definition `Result` | Static global typed call |
-| `catalogs.callAs<Response>(id[, request])` | `ServiceCallResult<Response>` | Рекомендований owning runtime packed-ID виклик |
-| `catalogs.callBorrowed<Response>(id[, request])` | `BorrowedServiceCallResult<Response>` | Рекомендований borrowed runtime packed-ID виклик |
-| `catalogs.callAs<Result>(id[, request])` | `NativeCallResult<Result>` | Low-level exact result wrapper та routing окремо |
+| `model.services().callAs<Response>(id[, request])` | `ServiceCallResult<Response>` | Рекомендований owning runtime packed-ID виклик |
+| `model.services().callBorrowed<Response>(id[, request])` | `BorrowedServiceCallResult<Response>` | Рекомендований borrowed runtime packed-ID виклик |
+| `model.services().callAs<Result>(id[, request])` | `NativeCallResult<Result>` | Low-level exact result wrapper та routing окремо |
 | `size()`, `empty()` | `size_t`, `bool` | Local entry count / catalog group count |
 | `data()`, `begin()`, `end()` | Borrowed row pointers | Erased rows/catalog iteration |
 | `operator[](i)` | `const ServiceEntry&` / `const ServiceCatalog&` | Unchecked, `i < size()` required |
 | `forEach(visitor)` | `void` | Typed traversal, без implicit execution |
 | `forEachWhile(visitor)` | `bool` | Typed traversal до exact-`bool` false |
-| `catalogs.forEachEntry(visitor)` | `void` | Packed ID, group name та erased ServiceEntry |
-| `catalogs.forEachEntryWhile(visitor)` | `bool` | Erased обхід до exact-`bool` false |
+| `model.services().forEachEntry(visitor)` | `void` | Packed ID, group name та erased ServiceEntry |
+| `model.services().forEachEntryWhile(visitor)` | `bool` | Erased обхід до exact-`bool` false |
 | `visit(position_or_id, visitor)` | `bool` | Checked typed selection; visitor return ignored |
-| `catalogs.index()` | `ServiceIndex` | Copyable borrowed runtime view |
+| `model.serviceIndex()` | `ServiceIndex` | Copyable borrowed runtime view |
 
 Local table не має `index()`. `local[position].callEncoded` працює з
 erased row після вашого local bounds check; global external ID перевіряється
-через `catalogs.index().find/callEncoded`.
+через `model.serviceIndex().find/callEncoded`. Typed доступу за compile-time
+packed ID (`call<Id>()`) немає: його дає шлях або handle.
 
 `PackedId` — integer u32 з 16-bit group і 16-bit entry. Наприклад,
-`makeId<0, 1>()` — другий Service першого catalog. Field/Command/Service
+`ts::idOf<model, "device/Query">()` — другий Service групи. Field/Command/Service
 ID spaces окремі; transport operation обирає family. Reordering declarations
 змінює IDs, а зміна slot target — ні. Names не шукаються при dispatch.
 
 Local position може бути integer/scoped enum. Global packed ID має бути
-integral, не local enum. Static positions/IDs перевіряються compile-time;
+integral, не local enum. Static positions перевіряються compile-time;
 runtime original width перевіряється до narrowing, тому negative/wide
-input не wraps до валідного endpoint. `tryMakeId` повертає optional для
-fallible group/entry components; `makeId<Group, Position>()` дає static
-diagnostics; invalid runtime `makeId(group, entry)` є contract violation.
+input не wraps до валідного endpoint. Публічного `makeId` немає.
 `tryGroupOf`/`tryIndexOf` fallible; `groupOf`/`indexOf` вимагають valid u32.
 Range validity ще не означає, що catalog/row існує у вашій моделі.
 
@@ -432,7 +431,7 @@ metadata без response invocation. Приклади й усі traversal contra
 
 ```cpp
 const Query request{1};
-const auto result = services.callAs<Reply>(ts::makeId<0, 1>(), request);
+const auto result = services.callAs<Reply>(ts::idOf<model, "device/Query">(), request);
 assert(result && result.status() == ts::ServiceCallStatus::Ok);
 assert(result.value().sequence == 7);
 
@@ -488,7 +487,7 @@ response і selection окремо:
 using Result = ts::ServiceResult<Reply>;
 Result outcome = Result::failure(ts::ServiceStatus::Unavailable);
 const Query request{1};
-const ts::PackedId id = ts::makeId<0, 1>();
+const ts::PackedId id = ts::idOf<model, "device/Query">();
 const bool selected = services.visit(id, [&](const auto& definition) {
     using Definition = std::remove_cvref_t<decltype(definition)>;
     if constexpr (std::is_same_v<typename Definition::Request, Query> &&
@@ -502,7 +501,7 @@ const bool selected = services.visit(id, [&](const auto& definition) {
 ```cpp
 const Query request{1};
 const auto result = services.callAs<ts::ServiceResult<Reply>>(
-    ts::makeId<0, 1>(), request);
+    ts::idOf<model, "device/Query">(), request);
 assert(result.status() == ts::NativeCallStatus::Ok && result.hasValue());
 assert(result.value().status() == ts::ServiceStatus::Ok);
 assert(result.value().hasValue() && result.value().value().sequence == 7);

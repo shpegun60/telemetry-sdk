@@ -110,6 +110,12 @@ constexpr std::uintmax_t positionValue() noexcept
 }
 } // namespace detail
 
+// The packing helpers are internal. A device names an endpoint by its path
+// (idOf<model, "adc/Gain">()) or a handle (.id); the PackedId stays on the
+// wire. The engine, the generated code's checks and the checks of the ID
+// packing itself call detail::makeId and detail::tryMakeId.
+namespace detail {
+
 // The narrow overload remains just a shift and OR. Lookup separately checks
 // the actual catalog bounds.
 constexpr PackedId makeId(GroupId group, EntryOffset index) noexcept
@@ -170,12 +176,6 @@ template<class... Explicit, class Group, class Position,
                           int> = 0>
 PackedId makeId(Group, Position) = delete;
 
-// The packing helpers under their internal name. A device names an endpoint
-// by its path (idOf<model, "adc/Gain">()) or a handle (.id); a check of the
-// ID packing itself, or of an ID no model holds, uses detail::makeId.
-namespace detail {
-using ::telemetry::makeId;
-using ::telemetry::tryMakeId;
 } // namespace detail
 
 template<class... Explicit, class Id,

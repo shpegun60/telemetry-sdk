@@ -89,10 +89,10 @@ int main()
 		    ++completed;
 	    },
 	    requestTimeoutMs);
-	// The per-family constant api::device::fields::Config names the same
-	// endpoint; that form is being removed.
+	// The group's endpoint constant api::device::Config names the same
+	// endpoint.
 	auto three = client.read(
-	    api::device::fields::Config,
+	    api::device::Config,
 	    [](const auto& result) noexcept {
 		    if (!result.hasValue() || result.value().gain != 2.0f)
 			    ++failed;

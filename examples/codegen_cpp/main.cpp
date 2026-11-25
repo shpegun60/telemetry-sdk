@@ -19,7 +19,7 @@ int main()
 	request.config.samples = {1, 256, 65535};
 	request.multiplier = 4;
 	std::array<std::byte, api::codec::wireSize<decltype(request)>> bytes{};
-	const auto endpoint = api::device::services::Inspect;
+	const auto endpoint = api::device::Inspect;
 	if (api::codec::encode(endpoint, request, bytes) != api::codec::Status::Ok)
 		return 1;
 	// A custom transport sends Operation::Service, endpoint.id and these bytes.

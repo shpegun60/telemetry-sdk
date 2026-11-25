@@ -82,7 +82,7 @@ cl::Submission FreeRtosPort::requestConfig(
 {
 	if (!completed)
 		return {cl::Status::InvalidArgument, {}};
-	return producers_.read(::device_api::device::fields::Config, completed);
+	return producers_.read(::device_api::device::Config, completed);
 }
 
 void FreeRtosPort::wake(void* context) noexcept

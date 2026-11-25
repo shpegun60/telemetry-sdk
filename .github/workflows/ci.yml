@@ -943,13 +943,6 @@ jobs:
           python3 -B tests/sdk_conformance/run.py --cxx '${{ matrix.compiler }}' \
             --node node --tsc "$RUNNER_TEMP/codegen-tools/node_modules/typescript/bin/tsc" \
             --build-dir "$RUNNER_TEMP/sdk-conformance-${{ matrix.mode }}" "${options[@]}"
-      - name: Check out the versioned optional UX generator
-        if: matrix.mode == 'release'
-        uses: actions/checkout@v4
-        with:
-          repository: shpegun60/telemetry-ux
-          ref: 4bf3ac7da19f555e305e9b2d69bc08be56feb8e7
-          path: .ci/telemetry-ux
       - name: Relocated CMake, packed ESM and installed Python consumers
         if: matrix.mode == 'release'
         run: |
@@ -958,11 +951,6 @@ jobs:
           "$RUNNER_TEMP/sdk-package-tools/bin/python" -B tests/sdk_packages/run.py \
             --node node --tsc "$RUNNER_TEMP/codegen-tools/node_modules/typescript/bin/tsc" \
             --build-dir "$RUNNER_TEMP/sdk-packages"
-      - name: Installed core, optional UX and complete distribution ownership
-        if: matrix.mode == 'release'
-        run: |
-          "$RUNNER_TEMP/sdk-package-tools/bin/python" -B tests/ux_codegen_extension/run.py \
-            --ux-root .ci/telemetry-ux --build-dir "$RUNNER_TEMP/ux-codegen-extension"
       - name: Retain generated SDK qualification logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -980,8 +968,6 @@ jobs:
             ${{ runner.temp }}/sdk-conformance-${{ matrix.mode }}/
             ${{ runner.temp }}/sdk-packages/*.json
             ${{ runner.temp }}/sdk-packages/*.log
-            ${{ runner.temp }}/ux-codegen-extension/*.json
-            ${{ runner.temp }}/ux-codegen-extension/*.log
           if-no-files-found: ignore
   arm:
     name: Cortex-M7 compile and link
@@ -1259,32 +1245,13 @@ jobs:
           if-no-files-found: error
 
   qml-codegen:
-    name: Generated Qt QML SDK
+    name: Installed Qt transports and read paths
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Bound host package downloads
         uses: ./.github/actions/setup-apt
-      - name: Check out the versioned optional UX generator
-        uses: actions/checkout@v4
-        with:
-          repository: shpegun60/telemetry-ux
-          ref: 4bf3ac7da19f555e305e9b2d69bc08be56feb8e7
-          path: .ci/telemetry-ux
-      - name: Install current core and pinned UX generator wheels outside checkouts
-        run: |
-          python3 -m venv "$RUNNER_TEMP/ux-generator-tools"
-          "$RUNNER_TEMP/ux-generator-tools/bin/pip" install setuptools==80.9.0 wheel==0.45.1
-          mkdir -p "$RUNNER_TEMP/ux-generator-core-source" "$RUNNER_TEMP/ux-generator-ux-source" "$RUNNER_TEMP/ux-generator-wheels"
-          git archive HEAD | tar -x -C "$RUNNER_TEMP/ux-generator-core-source"
-          git -C .ci/telemetry-ux archive HEAD | tar -x -C "$RUNNER_TEMP/ux-generator-ux-source"
-          "$RUNNER_TEMP/ux-generator-tools/bin/pip" wheel --no-deps --no-index --no-build-isolation \
-            --wheel-dir "$RUNNER_TEMP/ux-generator-wheels" \
-            "$RUNNER_TEMP/ux-generator-core-source" "$RUNNER_TEMP/ux-generator-ux-source"
-          version="$(tr -d '\r\n' < VERSION)"
-          "$RUNNER_TEMP/ux-generator-tools/bin/pip" install --no-index --find-links "$RUNNER_TEMP/ux-generator-wheels" \
-            "telemetry-codegen-core==$version" "telemetry-ux-codegen==$version"
       - name: Install the host compiler and build tools
         run: |
           sudo apt-get update
@@ -1320,7 +1287,7 @@ jobs:
         run: |
           python3 -B tests/link_transport/run.py --build-dir "$RUNNER_TEMP/link-transport" \
             --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake cmake --ninja ninja
-      - name: Install the current SDK for cross-repository Qt consumers
+      - name: Install the current SDK with every Qt component, sanitized
         run: |
           cmake -S . -B "$RUNNER_TEMP/ux-sdk-build" -G Ninja \
             '-DTELEMETRY_COMPONENTS=inspector;workbench;read_many_workbench;encoded_backend;encoded_server;core;tcp_server;qt_serial_transport;qt_connection;resource_adapter;rpc_backend;rpc_sessions' \
@@ -1330,18 +1297,6 @@ jobs:
             -DTELEMETRY_SOURCE_REVISION="$(git rev-parse HEAD)" \
             -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/ux-sdk-prefix"
           cmake --build "$RUNNER_TEMP/ux-sdk-build" --target install --parallel 2
-      - name: Installed SDK and Python wheels through the pinned UX QML consumer
-        run: |
-          python3 -B .ci/telemetry-ux/tests/codegen_qml/run.py --build-dir "$RUNNER_TEMP/codegen-qml" \
-            --sdk-prefix "$RUNNER_TEMP/ux-sdk-prefix" \
-            --codegen-python "$RUNNER_TEMP/ux-generator-tools/bin/python" \
-            --qt-prefix "$QT_ROOT_DIR" --cxx /usr/bin/clang++-18 --sanitize --cmake /usr/bin/cmake --ninja /usr/bin/ninja
-      - name: Sanitized serial discovery and fault injection through real PTYs
-        run: |
-          python3 -B tests/inspector_serial/run.py --build-dir "$RUNNER_TEMP/inspector-serial" \
-            --ux-root "$GITHUB_WORKSPACE/.ci/telemetry-ux" --sdk-prefix "$RUNNER_TEMP/ux-sdk-prefix" \
-            --cobs-root "$GITHUB_WORKSPACE/build/dependencies/cobs" --qt-prefix "$QT_ROOT_DIR" \
-            --cxx /usr/bin/clang++-18 --sanitize --cmake /usr/bin/cmake --ninja /usr/bin/ninja
       - name: Sanitized Nucleo dispatch and physical TX ownership gate
         run: |
           python3 -B examples/nucleo_h7s3l8/tests/run.py --build-dir "$RUNNER_TEMP/nucleo-host" \
@@ -1372,12 +1327,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: generated-qml-sdk
+          name: qt-transports-read-paths
           path: |
-            ${{ runner.temp }}/codegen-qml/
-            ${{ runner.temp }}/ux-generator-wheels/
             ${{ runner.temp }}/ux-sdk-prefix/share/telemetry/SDKMetadata.json
-            ${{ runner.temp }}/inspector-serial/
             ${{ runner.temp }}/qt-transport-packages/
             ${{ runner.temp }}/qt-read-many/
             ${{ runner.temp }}/qt-batch/

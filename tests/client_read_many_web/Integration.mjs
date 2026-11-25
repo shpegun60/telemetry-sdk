@@ -53,8 +53,7 @@ const bind = selected => {
 };
 try {
 	truth(client.openSession(17, declared));
-	const selected =
-	    Array.from({length : 32}, (_, i) => scalar.fields[`F${String(i).padStart(2, '0')}`]);
+	const selected = Array.from({length : 32}, (_, i) => scalar[`F${String(i).padStart(2, '0')}`]);
 	const all = bind(selected);
 	const values = await client.readMany(all);
 	truth(values.succeeded);
@@ -64,8 +63,8 @@ try {
 		equal(item.value, 100 + i);
 	});
 	const mixed = bind([
-		extra.fields.Wide, extra.fields.Signed, extra.fields.Enabled, extra.fields.Mode,
-		extra.fields.Real, extra.fields.Double, scalar.fields.F04, extra.fields.Absent
+		extra.Wide, extra.Signed, extra.Enabled, extra.Mode, extra.Real, extra.Double, scalar.F04,
+		extra.Absent
 	]);
 	const result = await client.readMany(mixed);
 	truth(result.succeeded);
@@ -79,19 +78,19 @@ try {
 	equal(result.value[6].value, 104);
 	equal(result.value[7].status, 3);
 	equal(result.value[7].value, undefined);
-	equal(client.bindReadMany(capability, [ extra.fields.Aggregate ]).status, Status.Unsupported);
-	equal(extra.fields.Aggregate.read.responseBytes, 4);
-	equal(extra.fields.Aggregate.read.readManyScalar, undefined);
-	const unknown = {...scalar.fields.F00.read, id : 0xffffffff};
-	const aggregate = {...scalar.fields.F00.read, id : extra.fields.Aggregate.id};
+	equal(client.bindReadMany(capability, [ extra.Aggregate ]).status, Status.Unsupported);
+	equal(extra.Aggregate.read.responseBytes, 4);
+	equal(extra.Aggregate.read.readManyScalar, undefined);
+	const unknown = {...scalar.F00.read, id : 0xffffffff};
+	const aggregate = {...scalar.F00.read, id : extra.Aggregate.id};
 	const refusals = await client.readMany(bind([ unknown, aggregate ]));
 	equal(refusals.value.map(item => item.status), [ 1, 2 ]);
 	// All five operations enter the same FIFO; a batch observes preceding mutations.
-	const one = bind([ scalar.fields.F00 ]);
+	const one = bind([ scalar.F00 ]);
 	const promises = [
-		client.write(scalar.fields.F00, 700), client.readMany(one),
-		client.command(control.commands.Configure, {value : 900}), client.readMany(one),
-		client.service(control.services.Echo, {value : 123}), client.read(scalar.fields.F00)
+		client.write(scalar.F00, 700), client.readMany(one),
+		client.command(control.Configure, {value : 900}), client.readMany(one),
+		client.service(control.Echo, {value : 123}), client.read(scalar.F00)
 	];
 	const outcomes = await Promise.all(promises);
 	truth(outcomes.every(outcome => outcome.succeeded));

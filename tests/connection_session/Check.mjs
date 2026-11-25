@@ -9,7 +9,7 @@ import * as sdk from './generated/js/device.js';
 
 const descriptor = new Uint8Array(await readFile(new URL('./descriptor.bin', import.meta.url)));
 const header = descriptor.slice(0, 64);
-const F = sdk.control.fields, C = sdk.control.commands, S = sdk.control.services;
+const F = sdk.control, C = sdk.control, S = sdk.control;
 let checks = 0;
 const cases = [];
 const equal = (actual, expected, label) => {

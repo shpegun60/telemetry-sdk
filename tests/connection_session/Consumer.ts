@@ -8,7 +8,7 @@ import * as sdk from './generated/js/device.js';
 export async function staticConsumer(transport: ConnectionProfile) {
     const session = await connectStatic({sdk, transport});
 	const generatedContext: StaticSdk = session.sdk;
-    const read: SessionRequest<sdk.control.types.Config> = session.read(sdk.control.fields.Config);
+    const read: SessionRequest<sdk.control.types.Config> = session.read(sdk.control.Config);
     const id: number = read.requestId, generation: number = read.session;
     const cancelled: boolean = read.cancel();
     const result: SessionResult<sdk.control.types.Config> = await read;
@@ -17,22 +17,22 @@ export async function staticConsumer(transport: ConnectionProfile) {
         const number: number = result.value.number, large: bigint = result.value.large;
         void number; void large;
     }
-    session.write(sdk.control.fields.Config, {number: 1, enabled: true, gains: [1, 2, 3],
+    session.write(sdk.control.Config, {number: 1, enabled: true, gains: [1, 2, 3],
         mode: -123, large: 1n, negative: -1n, f32: 0, f64: -0});
-	const preserving: SessionRequest<undefined> = session.writePreserving(sdk.control.fields.Config,
+	const preserving: SessionRequest<undefined> = session.writePreserving(sdk.control.Config,
 	    {number: 1, enabled: true, gains: [1, 2, 3], mode: -123, large: 1n,
 	     negative: -1n, f32: 0, f64: -0}, new Uint8Array(41));
-    session.command(sdk.control.commands.Reset, undefined);
-    session.service(sdk.control.services.Echo, {number: 2, enabled: true, gains: [1, 2, 3],
+    session.command(sdk.control.Reset, undefined);
+    session.service(sdk.control.Echo, {number: 2, enabled: true, gains: [1, 2, 3],
         mode: -123, large: 1n, negative: -1n, f32: 0, f64: 0});
     // @ts-expect-error Static reads require a generated Field binding rather than a numeric ID.
     session.read(65536);
     // @ts-expect-error Generated Config DTO cannot be replaced with an arbitrary number.
-    session.write(sdk.control.fields.Config, 123);
+    session.write(sdk.control.Config, 123);
 	// @ts-expect-error Preserving writes retain generated DTO inference.
-	session.writePreserving(sdk.control.fields.Config, 123, new Uint8Array(41));
+	session.writePreserving(sdk.control.Config, 123, new Uint8Array(41));
 	// @ts-expect-error Original payload must be bytes, not serialized text.
-	session.writePreserving(sdk.control.fields.Config, result.value!, '00');
+	session.writePreserving(sdk.control.Config, result.value!, '00');
 	// @ts-expect-error Generated context cannot be replaced after connection.
 	session.sdk = sdk;
     // @ts-expect-error Static inference retains exact bigint leaves.
@@ -55,11 +55,11 @@ export async function dynamicConsumer(transport: ConnectionProfile) {
     // @ts-expect-error Runtime values remain unknown without application narrowing.
     const guessed: sdk.control.types.Config = result.value;
     // @ts-expect-error Dynamic API deliberately uses current runtime IDs, not generated static bindings.
-    session.read(sdk.control.fields.Config);
+    session.read(sdk.control.Config);
     session.write(65536, {}); session.command(65537); session.service(65537);
 	const preserving: SessionRequest<undefined> = session.writePreserving(65536, {}, new DataView(new ArrayBuffer(41)));
 	// @ts-expect-error Dynamic preserving writes use numeric runtime IDs.
-	session.writePreserving(sdk.control.fields.Config, {}, new Uint8Array(41));
+	session.writePreserving(sdk.control.Config, {}, new Uint8Array(41));
 	// @ts-expect-error Dynamic Session has no generated SDK context.
 	void session.sdk;
     const schema = session.schema, capabilities = session.capabilities;
@@ -74,7 +74,7 @@ export async function optionalConsumer(transport: ConnectionProfile, capability:
 {
 	const session = await connectStatic({sdk, transport});
 	const selected = await session.readMany(
-	    capability, [ sdk.control.fields.Counter, sdk.control.fields.Bool ] as const);
+	    capability, [ sdk.control.Counter, sdk.control.Bool ] as const);
 	if (selected.items) {
 		const count: number|undefined = selected.items[0].value;
 		const flag: boolean|undefined = selected.items[1].value;
@@ -85,9 +85,9 @@ export async function optionalConsumer(transport: ConnectionProfile, capability:
 		void wrong;
 	}
 	const result =
-	    await session.batch(capability, Batch.items(Batch.read(sdk.control.fields.Config),
-	                                                Batch.command(sdk.control.commands.Reset),
-	                                                Batch.service(sdk.control.services.Echo, {
+	    await session.batch(capability, Batch.items(Batch.read(sdk.control.Config),
+	                                                Batch.command(sdk.control.Reset),
+	                                                Batch.service(sdk.control.Echo, {
 		                                                number : 1,
 		                                                enabled : false,
 		                                                gains : [ 1, 2, 3 ],
@@ -109,7 +109,7 @@ export async function optionalConsumer(transport: ConnectionProfile, capability:
 		void wrong;
 	}
 	// @ts-expect-error ReadMany rejects aggregate fields at the Static type boundary.
-	session.readMany(capability, [ sdk.control.fields.Config ]);
+	session.readMany(capability, [ sdk.control.Config ]);
 	// @ts-expect-error Static Batch requires branded typed selectors, not runtime recipes.
 	session.batch(capability, [ {operation : 'Command', id : 1} ]);
 	const dynamic = await connectDynamic({transport});
@@ -118,7 +118,7 @@ export async function optionalConsumer(transport: ConnectionProfile, capability:
 	// @ts-expect-error Dynamic item values remain unknown.
 	const guessed: number = runtime.items![0].value;
 	// @ts-expect-error Numeric runtime IDs are required for Dynamic ReadMany.
-	dynamic.readMany(capability, [ sdk.control.fields.Counter ]);
+	dynamic.readMany(capability, [ sdk.control.Counter ]);
 	void guessed;
 	await session.close();
 	await dynamic.close();

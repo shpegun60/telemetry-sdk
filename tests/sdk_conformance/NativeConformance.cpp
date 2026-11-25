@@ -250,31 +250,29 @@ static Surface staticSequence()
 	      cl::Status::Ok);
 	const auto written = data(1111), configured = data(37), echoed = data(99),
 	           batchValue = data(888), final = data(55);
-	CHECK(client.write(api::control::fields::Config, written, [&](const auto& result) noexcept {
+	CHECK(client.write(api::control::Config, written, [&](const auto& result) noexcept {
 		surface.records[0].capture(result, false);
 	}));
 	port.exchange(client, surface.records[0]);
-	CHECK(client.read(api::control::fields::Config, [&](const auto& result) noexcept {
+	CHECK(client.read(api::control::Config, [&](const auto& result) noexcept {
 		CHECK(result.hasValue());
 		exact(result.value(), 1000);
 		surface.records[1].capture(result, true);
 	}));
 	port.exchange(client, surface.records[1]);
-	CHECK(client.command(api::control::commands::Configure, configured,
-	                     [&](const auto& result) noexcept {
-		                     CHECK(result.executed());
-		                     surface.records[2].capture(result, false);
-	                     }));
+	CHECK(client.command(api::control::Configure, configured, [&](const auto& result) noexcept {
+		CHECK(result.executed());
+		surface.records[2].capture(result, false);
+	}));
 	port.exchange(client, surface.records[2]);
-	CHECK(client.service(api::control::services::Echo, echoed, [&](const auto& result) noexcept {
+	CHECK(client.service(api::control::Echo, echoed, [&](const auto& result) noexcept {
 		CHECK(result.hasValue());
 		exact(result.value(), 99);
 		surface.records[3].capture(result, true);
 	}));
 	port.exchange(client, surface.records[3]);
-	const auto watch =
-	    rm::bindReadMany(client, port.backend, port.trm,
-	                     rm::fields(api::control::fields::Counter, api::control::fields::Bool));
+	const auto watch = rm::bindReadMany(client, port.backend, port.trm,
+	                                    rm::fields(api::control::Counter, api::control::Bool));
 	CHECK(watch);
 	CHECK(rm::readMany(client, watch.binding, [&](const auto& result) noexcept {
 		auto& record = surface.records[4];
@@ -294,11 +292,10 @@ static Surface staticSequence()
 		    });
 	}));
 	port.exchange(client, surface.records[4]);
-	const auto request = bt::items(bt::write(api::control::fields::Config, batchValue),
-	                               bt::read(api::control::fields::Config),
-	                               bt::command(api::control::commands::Accepted, configured),
-	                               bt::service(api::control::services::Busy, echoed),
-	                               bt::service(api::control::services::Echo, final));
+	const auto request =
+	    bt::items(bt::write(api::control::Config, batchValue), bt::read(api::control::Config),
+	              bt::command(api::control::Accepted, configured),
+	              bt::service(api::control::Busy, echoed), bt::service(api::control::Echo, final));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto batch = bt::bindBatch(client, port.backend, port.tbm, request);
 	CHECK(batch);

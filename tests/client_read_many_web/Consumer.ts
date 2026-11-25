@@ -26,7 +26,7 @@ const client = new DeviceClient({
 	matchesHeader
 });
 const bound = client.bindReadMany(new Uint8Array(24),
-                                  [ scalar.fields.F00, extra.fields.Wide, extra.fields.Enabled ]);
+                                  [ scalar.F00, extra.Wide, extra.Enabled ]);
 if (bound.status === Status.Ok) {
 	const pending: RequestPromise<
 	    readonly[ReadManyItem<number>, ReadManyItem<bigint>, ReadManyItem<boolean>]> =
@@ -47,10 +47,10 @@ if (bound.status === Status.Ok) {
 	});
 }
 // @ts-expect-error A four-byte aggregate is not a scalar.
-client.bindReadMany(new Uint8Array(24), [ extra.fields.Aggregate ]);
+client.bindReadMany(new Uint8Array(24), [ extra.Aggregate ]);
 // @ts-expect-error Commands cannot be read as Fields.
-client.bindReadMany(new Uint8Array(24), [ control.commands.Configure ]);
-const legacy: ReadBinding<number> = scalar.fields.F00.read;
+client.bindReadMany(new Uint8Array(24), [ control.Configure ]);
+const legacy: ReadBinding<number> = scalar.F00.read;
 // @ts-expect-error Old bindings without explicit eligibility remain ineligible.
 client.bindReadMany(new Uint8Array(24), [ legacy ]);
 // @ts-expect-error A caller cannot construct a binding from public metadata.

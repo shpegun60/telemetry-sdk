@@ -54,8 +54,10 @@ Dynamic clients take the same paths:
 `device.read<"adc/Config">(callback)`, `await device.read('adc/Config')`,
 `client.endpoint("adc/Config")`; the
 [API map](../../doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях) shows
-one operation in all four places. The flat `Model{fields, commands, services}`
-and `makeId` still compile but are [being removed](#being-removed). See
+one operation in all four places. This is the one way: the flat
+`Model{fields, commands, services}`, the public `makeId` and the per-family
+generated symbols are removed
+([migration](../../doc/StructuredTelemetryV3MigrationGuide.md#one-way-the-group-tree-paths-and-handles)). See
 [Model](../../doc/user/Model.md#group-tree-модель-із-файлів-гілок), the
 [group tree example](../../examples/group_tree/README.md) and
 [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp).
@@ -73,10 +75,10 @@ Start with [Field](field/Field.hpp), [Command](command/Command.hpp) or
 [Service](service/Service.hpp) for a native declaration.
 [GroupTree](model/GroupTree.hpp) flattens `group(name, items...)` branches into
 one Model, and [TreePath](model/TreePath.hpp) resolves paths and handles at
-compile time. Underneath, local tables keep the original definitions
-alongside erased runtime entries; catalog tables borrow local tables and
-assign group positions. [Model](model/Model.hpp) then combines the catalogs
-with one [type registry](type/Registry.hpp).
+compile time. Underneath, each group's local tables keep the original
+definitions alongside erased runtime entries, and the internal catalog engine
+([Model.hpp](model/Model.hpp), `detail::CatalogModel`) assigns group positions
+and combines the catalogs with one [type registry](type/Registry.hpp).
 
 The [public codec](codec/Codec.hpp) owns standalone byte-boundary validation.
 Encoded table entries establish their own bounds before using
@@ -100,11 +102,10 @@ and `service<target>`; parameter forms accept native function pointers,
 capture-free lambdas, stable callable lvalues and slots.
 
 This complete example uses all three families and the compiled encoded
-adapter. The native and encoded calls share the same model definitions. It is
-written in the flat catalog form, which is [being removed](#being-removed);
-[QuickStart.cpp](../../examples/user_guide/QuickStart.cpp) and the
-[group tree example](../../examples/group_tree/main.cpp) make the same calls
-through handles and paths.
+adapter. The native and encoded calls share the same model definitions:
+handles name the endpoints, and a handle's `id` is the ID a runtime caller or
+the encoded adapter takes. [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp)
+and the [group tree example](../../examples/group_tree/main.cpp) are runnable.
 
 ```cpp
 #include <telemetry/Telemetry.hpp>
@@ -134,41 +135,28 @@ struct Device {
 };
 
 inline Device device;
-inline constexpr telemetry::FieldTable localFields{
+inline constexpr auto motor = telemetry::group("motor",
     telemetry::field<&Device::readRpm>("RPM", device),
-    telemetry::field<&Device::readConfig, &Device::writeConfig>("Config", device)
-};
-inline constexpr telemetry::CommandTable localCommands{
-    telemetry::command<&Device::configure>("Configure", device)
-};
-inline constexpr telemetry::ServiceTable localServices{
-    telemetry::service<&Device::readCalibration>("Calibration", device)
-};
-inline constexpr telemetry::FieldCatalogTable fields{
-    telemetry::group("motor", localFields)
-};
-inline constexpr telemetry::CommandCatalogTable commands{
-    telemetry::group("motor", localCommands)
-};
-inline constexpr telemetry::ServiceCatalogTable services{
-    telemetry::group("motor", localServices)
-};
-inline constexpr telemetry::Model model{fields, commands, services};
+    telemetry::field<&Device::readConfig, &Device::writeConfig>("Config", device),
+    telemetry::command<&Device::configure>("Configure", device),
+    telemetry::service<&Device::readCalibration>("Calibration", device));
+inline constexpr telemetry::Model model{motor};
+inline constexpr auto rpm = telemetry::endpoint<model, "motor/RPM">;
+inline constexpr auto config = telemetry::endpoint<model, "motor/Config">;
+inline constexpr auto configure = telemetry::endpoint<model, "motor/Configure">;
+inline constexpr auto calibration = telemetry::endpoint<model, "motor/Calibration">;
 
 int main() {
-    constexpr auto rpmId = telemetry::makeId<0, 0>();
-    constexpr auto configId = telemetry::makeId<0, 1>();
-    constexpr auto callId = telemetry::makeId<0, 0>();
-    const auto rpm = localFields.read<0>(); // optional<uint16_t>
-    const auto config = fields.read<configId>(); // optional<Config>
-    if (!rpm || *rpm != 1500 || !config || !config->enabled) return 1;
-    if (localFields.write<1>(Config{240.f, 1600, true}) !=
-        telemetry::WriteResult::Applied) return 2;
-    if (commands.call<callId>(Config{250.f, 1800, true}) !=
-        telemetry::CommandResult::Executed) return 3;
-    const auto converted = fields.readAs<double>(rpmId);
+    const auto current = config.read(); // optional<Config>
+    if (rpm.read() != 1500 || !current || !current->enabled) return 1;
+    if (config.write(Config{240.f, 1600, true}) != telemetry::WriteResult::Applied)
+        return 2;
+    if (configure.call(Config{250.f, 1800, true}) != telemetry::CommandResult::Executed)
+        return 3;
+    // A runtime ID, as a transport delivers one: checked, then converted.
+    const auto converted = model.fields().readAs<double>(rpm.id);
     if (!converted || *converted != 1800.0) return 4;
-    const auto native = services.call<callId>(Request{7});
+    const auto native = calibration.call(Request{7});
     if (!native.hasValue() || native.value().target != 257.f) return 5;
 
     std::array<std::byte, telemetry::wireSize<Request>> input{};
@@ -178,7 +166,7 @@ int main() {
     if (telemetry::encode(Request{7}, input) != telemetry::CodecStatus::Ok)
         return 6;
     const auto encoded = telemetry::callServiceEncoded(
-        model.view(), callId, input, output, workspace);
+        model.view(), calibration.id, input, output, workspace);
     return encoded.dispatch == telemetry::DispatchStatus::Ok &&
            encoded.endpointStatus == telemetry::ServiceStatus::Ok &&
            encoded.written == output.size() ? 0 : 7;
@@ -195,9 +183,8 @@ their underlying integer representation. Failed conversion does not invoke a
 setter. A runtime structural mismatch does not invoke a getter.
 
 Local positions may be integers or enums. A global `PackedId` is a `u32`
-group/position pair; `idOf<model, path>()` gives it from a path
-(`makeId<Group, Position>()` is being removed). Field, Command and Service IDs
-occupy separate spaces. By-value Field reads return an owning
+group/position pair; `idOf<model, path>()` or a handle's `id` gives it from a
+path. Field, Command and Service IDs occupy separate spaces. By-value Field reads return an owning
 `optional<T>`. `readAs<Big>` likewise owns `Big`, so a large native return may
 use a large stack frame according to the compiler's return ABI.
 `ServiceResult<T>` owns its optional response; use `successFrom(factory)` for
@@ -275,9 +262,9 @@ the innermost scope and the type's own name (`adc::Config`). A
 `typeName("...")` or removes it with `noTypeName()`, and must precede the
 first descriptor containing `T`, like `EnumReflection`. The project switch
 `TELEMETRY_TYPE_NAMES` (default 1, in [Config.hpp](Config.hpp), set in the
-project's own `telemetry_config.hpp`) at 0 leaves every name out and the
-descriptor of a flat Model is byte for byte v3.0, which hosts built before descriptor v3.1
-need. See [Fields](../../doc/user/Fields.md#8-імена-типів-у-descriptor).
+project's own `telemetry_config.hpp`) at 0 leaves every name out. A group
+tree's descriptor stays v3.1 (it carries the GroupTree flag); hosts read v3.0
+descriptors from older devices as before. See [Fields](../../doc/user/Fields.md#8-імена-типів-у-descriptor).
 
 ## Encoded access and storage
 
@@ -326,9 +313,9 @@ release the leases they acquire; Workspace and its storage remain caller-owned.
 
 Definitions borrow owners, callable lvalues, slots and immutable names. These
 objects and any transitive references must outlive their definitions and every
-table/catalog/model view that uses them. Tables own definitions and runtime
-entries with internal references, and cannot be copied or moved. Catalogs
-borrow stable tables and cannot be copied or moved. The Model borrows catalogs;
+table/model view that uses them. Local tables own definitions and runtime
+entries with internal references, and cannot be copied or moved. The Model
+owns its groups' tables and catalogs and cannot be copied or moved;
 descriptors and resource providers borrow the Model's metadata.
 
 The retained [slot families](slot/README.md) support late binding of owners,
@@ -386,18 +373,3 @@ records wire constants and dependency pins. The
 [protocol](../../examples/structured_protocol/README.md) and
 [client](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/examples/structured_client/README.md) examples keep application
 transport behavior outside the library.
-
-## Being removed
-
-These forms still compile and are removed by the next steps of ROADMAP API-1.
-New code uses the group tree, paths and handles above.
-
-| Being removed | Use instead |
-| --- | --- |
-| `Model{fields, commands, services}`, `FieldCatalogTable` / `CommandCatalogTable` / `ServiceCatalogTable`, `group(name, table)`, `emptyFields`, `emptyCommands` | `Model{branches...}` with `group(name, items...)` |
-| Public `makeId<group, entry>()` and typed access by ID: `fields.read<id>()`, `commands.call<id>()`, `services.call<id>()` | `endpoint<model, path>`, `read/write/call<model, path>()`; the ID from `idOf<model, path>()` or `handle.id` |
-| Catalog `index()` without a Model | `model.view()` and the compiled adapter |
-| Generated per-family symbols such as `api::device::fields::Config` | `device.read<"device/Config">(callback)`, `api::client::endpoint<"device/Config">(device)` |
-
-The flat engine stays inside the SDK under the tree; the PackedId stays on the
-wire. [API map: being removed](../../doc/user/APIOverview.md#виводиться-з-ужитку).

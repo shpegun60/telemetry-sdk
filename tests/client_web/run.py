@@ -137,8 +137,8 @@ def main():
                 "const C = new DeviceClient({backend: new EncodedBackend(() => {}), matchesHeader:S.matchesHeader});\n"
                 "const options: EncodedRetryOptions = {replyTimeoutMs:100,maxRetries:3};\n"
                 "new DeviceClient({backend: new RetryingEncodedBackend(() => {},options), matchesHeader:S.matchesHeader});\n"
-                "const r: Promise<Result<S.device.types.Config>> = C.read(S.device.fields.Config);\n"
-                "const w = C.write(S.device.fields.Config, {} as S.device.types.Config);\n"
+                "const r: Promise<Result<S.device.types.Config>> = C.read(S.device.Config);\n"
+                "const w = C.write(S.device.Config, {} as S.device.types.Config);\n"
                 "Promise.all([r,w]);\n")
             run([*tsc, consumer, '--strict', '--target', 'ES2022', '--module', 'ES2022', '--noEmit'], 'consumer-' + mode)
             example = []

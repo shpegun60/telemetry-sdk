@@ -9,9 +9,8 @@
 
 `namespace ts = telemetry;` далі лише скорочення. Фрагменти дерева груп
 використовують named objects із [group_tree](../../examples/group_tree/README.md);
-фрагменти плоских таблиць у розділі [Виводиться з ужитку](#виводиться-з-ужитку)
-показують стару форму; [Native.cpp](../../examples/user_guide/Native.cpp) уже
-побудований на дереві груп. Усі callbacks — `noexcept`;
+фрагменти розділу [Runtime ID](#runtime-id) беруть catalogs моделі;
+[Native.cpp](../../examples/user_guide/Native.cpp) побудований на дереві груп. Усі callbacks — `noexcept`;
 owners, names і slots живуть довше за Model.
 
 Одна операція на пристрої, у Static C++, TS/JS і Dynamic клієнті зведена в
@@ -28,7 +27,7 @@ owners, names і slots живуть довше за Model.
 - [Результати й пам'ять](#результати-й-память)
 - [Standalone codec](#standalone-codec)
 - [Files](#files)
-- [Виводиться з ужитку: плоскі таблиці, каталоги й makeId](#виводиться-з-ужитку)
+- [Runtime ID: model.fields(), commands(), services()](#runtime-id)
 
 <a id="створити"></a>
 
@@ -82,9 +81,9 @@ model.idOf<"adc/channel1/Gain">();          // consteval PackedId
 
 Шлях: `group/.../endpoint`, далі `.member` і `[i]`. Імена в дереві без `/ . [ ] \`,
 унікальні в межах групи. Хибний шлях, write члена чи call на Field — build
-error; handle порожній і компілюється в той самий код, що typed доступ за ID.
-Плоска `Model{fields, commands, services}` і `makeId` ще працюють, але
-[виводяться з ужитку](#виводиться-з-ужитку).
+error; handle порожній і компілюється в той самий код, що внутрішній typed
+доступ за ID. Плоску `Model{fields, commands, services}` і публічний `makeId`
+[прибрано](APIOverview.md#прибрано).
 [Model: group tree](Model.md#group-tree-модель-із-файлів-гілок).
 
 ## Ті самі шляхи в клієнтах
@@ -252,48 +251,26 @@ catalogs і формує structural registry, а не зберігає всі li
 Повний cookbook: [Native API](NativeApi.md) ·
 [Транспорт і ресурси](TransportAndResources.md) · [Всі приклади](../../examples/user_guide/README.md).
 
-<a id="виводиться-з-ужитку"></a>
+<a id="runtime-id"></a>
 
-## Виводиться з ужитку: плоскі таблиці, каталоги й makeId
+## Runtime ID: model.fields(), commands(), services()
 
-Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1;
-новий код використовує дерево груп, шляхи й handles вище. Фрагменти нижче
-показують стару форму тих самих endpoints, що в
-[Native.cpp](../../examples/user_guide/Native.cpp), який уже на дереві груп.
-
-### Створити плоску Model
+ID відомого endpoint дає `handle.id` або `ts::idOf<model, "path">()`; ID із
+пакета приходить числом. Runtime-ID доступ і traversal ідуть через catalogs
+моделі; compile-time доступ — шлях і handle вище:
 
 ```cpp
-ts::field<&Device::readVoltage, &Device::writeVoltage>("Voltage", device);
-ts::field<&Device::borrowSettings>("Settings", device); // const T& output
-ts::command<&Device::reset>("Reset", device);
-ts::service<&Device::query>("Query", device);
+const auto& fields = model.fields();
+const auto& commands = model.commands();
+const auto& services = model.services();
 
-// Definitions -> named local tables -> catalog groups -> Model.
-ts::FieldTable localFields{ /* field(...) */ };
-ts::FieldCatalogTable fields{ts::group("device", localFields)};
-ts::Model model{fields, commands, services};
-```
-
-<a id="a-compile-time-exact--рекомендовано-для-application-code"></a>
-
-### A. Compile-time exact за позицією або makeId
-
-```cpp
-localFields.read<Position::Voltage>();
+localFields.read<Position::Voltage>();   // local table, без Model
 localFields.write<Position::Voltage>(240.0f);
-localCommands.call<0>();
-localServices.call<0>();
-
-constexpr auto id = ts::makeId<0, Position::Voltage>();
-fields.read<id>();
-fields.write<id>(240.0f);
-commands.call<ts::makeId<0, 0>()>();
-services.call<ts::makeId<0, 1>()>(Query{0});
 ```
 
-Local Position — індекс у table; global ID — packed u32 group/entry (16/16).
-`get<Position>()` / `get<Id>()` повертає concrete definition за const reference.
+Local Position — індекс у local table; global ID — packed u32 group/entry
+(16/16). Публічного `makeId` і typed доступу за compile-time ID
+(`fields.read<id>()`) немає ([прибрано](APIOverview.md#прибрано)).
 
 <a id="b-typed-traversal--усі-definitions"></a>
 
@@ -306,8 +283,8 @@ localFields.forEach([]<std::size_t I>(const auto& field) {
 });
 fields.forEach([]<std::size_t G, std::size_t I>(
                    std::string_view group, const auto& field) {
-    constexpr auto id = ts::makeId<G, I>();
-    // Конкретна definition, group name і compile-time ID.
+    // Конкретна definition і group name; G і I — позиції групи та entry
+    // (PackedId = G << 16 | I).
 });
 ```
 
@@ -320,15 +297,15 @@ fields.forEach([]<std::size_t G, std::size_t I>(
 Рекомендовані runtime calls із одним outcome:
 
 ```cpp
-const auto configured = commands.call(ts::makeId<0, 1>(), Configure{device.settings});
+const auto configured = commands.call(ts::idOf<model, "device/Configure">(), Configure{device.settings});
 const auto reset = localCommands.call(0); // CommandCallStatus; no request.
-const auto snapshot = services.callAs<Snapshot>(ts::makeId<0, 1>(), Query{0});
+const auto snapshot = services.callAs<Snapshot>(ts::idOf<model, "device/Snapshot">(), Query{0});
 if (snapshot) {
     const Snapshot& response = snapshot.value();
     (void)response;
 }
-const auto settings = services.callBorrowed<Settings>(ts::makeId<0, 3>(), Query{0});
-const auto ping = services.callAs<void>(ts::makeId<0, 4>());
+const auto settings = services.callBorrowed<Settings>(ts::idOf<model, "device/Settings">(), Query{0});
+const auto ping = services.callAs<void>(ts::idOf<model, "device/Ping">());
 ```
 
 `CommandCallStatus` охоплює application outcomes та runtime `NotFound` /
@@ -359,13 +336,13 @@ fields.writeAs(id, 240);
 localFields.readAs<double, Position::Voltage>();
 
 // Low-level Command: routing та CommandResult окремо.
-const auto configured = commands.callAs(ts::makeId<0, 1>(), Configure{device.settings});
+const auto configured = commands.callAs(ts::idOf<model, "device/Configure">(), Configure{device.settings});
 const auto reset = localCommands.callAs(0); // No request.
 
 // Low-level Service: exact result wrapper та exact request type.
-const auto snapshot = services.callAs<ts::ServiceResult<Snapshot>>(ts::makeId<0, 1>(), Query{0});
-const auto settings = services.callAs<ts::BorrowedServiceResult<Settings>>(ts::makeId<0, 3>(), Query{0});
-const auto ping = services.callAs<ts::ServiceResult<void>>(ts::makeId<0, 4>()); // No request/payload.
+const auto snapshot = services.callAs<ts::ServiceResult<Snapshot>>(ts::idOf<model, "device/Snapshot">(), Query{0});
+const auto settings = services.callAs<ts::BorrowedServiceResult<Settings>>(ts::idOf<model, "device/Settings">(), Query{0});
+const auto ping = services.callAs<ts::ServiceResult<void>>(ts::idOf<model, "device/Ping">()); // No request/payload.
 ```
 
 Numeric `As` conversions checked; struct/array потребують exact C++ type.

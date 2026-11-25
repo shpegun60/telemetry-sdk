@@ -93,7 +93,7 @@ for (const mode of ['static', 'dynamic']) {
 	                    ? await connectStatic({sdk, transport : profile, timeoutMs : 5000})
 	                    : await connectDynamic({transport : profile, timeoutMs : 5000});
 	const endpoint = object => mode === 'static' ? object : object.id;
-	const F = sdk.control.fields, C = sdk.control.commands, S = sdk.control.services;
+	const F = sdk.control, C = sdk.control, S = sdk.control;
 	try {
 		const results = [];
 		results.push(await session.read(endpoint(F.Config)));

@@ -66,46 +66,44 @@ try {
 	    {backend, matchesHeader : sdk.matchesHeader, maxPending : 8, timeoutMs : 5000});
 	truth(client.openSession(mode === 'rpc' ? 1 : 17, declaredHeader));
 	const {device} = sdk;
-	const initial = await client.read(device.fields.Config);
+	const initial = await client.read(device.Config);
 	truth(initial.succeeded);
-	equal(device.fields.Config.read.requestBytes, 0);
-	equal(initial.payload.length, device.fields.Config.read.responseBytes);
+	equal(device.Config.read.requestBytes, 0);
+	equal(initial.payload.length, device.Config.read.responseBytes);
 	equal(client.snapshotBytes, 0);
 	if (mode === 'encoded') {
 		equal(initial.value.value, 42);
 		equal(initial.value.enabled, true);
 		const config = {value : 0x12345678, enabled : false};
-		const write = client.write(device.fields.Config, config);
+		const write = client.write(device.Config, config);
 		config.value = 99;
-		const read = client.read(device.fields.Config);
-		const echo = client.service(device.services.Echo, {value : 55, enabled : true});
+		const read = client.read(device.Config);
+		const echo = client.service(device.Echo, {value : 55, enabled : true});
 		const outcomes = await Promise.all([ write, read, echo ]);
 		truth(outcomes.every(result => result.succeeded));
 		equal(outcomes[1].value.value, 0x12345678);
 		equal(outcomes[2].value.value, 55);
-		const command =
-		    await client.command(device.commands.Configure, {value : 88, enabled : true});
+		const command = await client.command(device.Configure, {value : 88, enabled : true});
 		truth(command.executed);
 		equal(command.accepted, false);
-		const accepted =
-		    await client.command(device.commands.Accepted, {value : 66, enabled : false});
+		const accepted = await client.command(device.Accepted, {value : 66, enabled : false});
 		truth(accepted.accepted);
 		equal(accepted.executed, false);
-		const busy = await client.service(device.services.Busy, {value : 77, enabled : true});
+		const busy = await client.service(device.Busy, {value : 77, enabled : true});
 		equal(busy.status, Status.Ok);
 		equal(busy.succeeded, false);
 		equal(busy.endpointStatus, 3);
 		equal(busy.payload.length, 0);
 		equal(busy.value, undefined);
-		equal((await client.write(device.fields.ReadOnly, {value : 5, enabled : false})).status,
+		equal((await client.write(device.ReadOnly, {value : 5, enabled : false})).status,
 		      Status.ReadOnly);
-		const unavailable = await client.read(device.fields.Optional);
+		const unavailable = await client.read(device.Optional);
 		equal(unavailable.succeeded, false);
 		equal(unavailable.dispatch, 9);
 		equal(unavailable.payload.length, 0);
-		truth((await client.service(device.services.Ping, undefined)).succeeded);
-		truth((await client.command(device.commands.Reset, undefined)).executed);
-		const big = await client.read(device.fields.Big);
+		truth((await client.service(device.Ping, undefined)).succeeded);
+		truth((await client.command(device.Reset, undefined)).executed);
+		const big = await client.read(device.Big);
 		truth(big.succeeded);
 		equal(big.payload.length, 512);
 		// Optional TEQ1 retry against the real stateless dispatcher. A lost reply
@@ -134,10 +132,10 @@ try {
 					truth(retryClient.openSession(17, declaredHeader));
 					const config = {value : 0x10203040, enabled : true};
 					const handle = ({
-						read : () => retryClient.read(device.fields.Config),
-						write : () => retryClient.write(device.fields.Config, config),
-						command : () => retryClient.command(device.commands.Configure, config),
-						service : () => retryClient.service(device.services.Echo, config)
+						read : () => retryClient.read(device.Config),
+						write : () => retryClient.write(device.Config, config),
+						command : () => retryClient.command(device.Configure, config),
+						service : () => retryClient.service(device.Echo, config)
 					})[operation]();
 					await first;
 					await flush();
@@ -171,27 +169,27 @@ try {
 		equal(initial.value.offset, -0x8000000000000000n);
 		const config = initial.value;
 		config.gain = 1.5;
-		const write = client.write(device.fields.Config, config);
+		const write = client.write(device.Config, config);
 		config.gain = 2.5;
-		const read = client.read(device.fields.Config);
-		const call = client.service(device.services.Inspect, {config, multiplier : 4});
+		const read = client.read(device.Config);
+		const call = client.service(device.Inspect, {config, multiplier : 4});
 		const outcomes = await Promise.all([ write, read, call ]);
 		truth(outcomes.every(result => result.succeeded));
 		equal(outcomes[1].value.gain, 1.5);
 		equal(outcomes[2].value.config.gain, 2.5);
-		truth((await client.command(device.commands.Apply, config)).executed);
-		const accepted = await client.command(sdk.edge.commands.Accept, {});
+		truth((await client.command(device.Apply, config)).executed);
+		const accepted = await client.command(sdk.edge.Accept, {});
 		truth(accepted.accepted);
-		const busy = await client.service(sdk.edge.services.Fail, undefined);
+		const busy = await client.service(sdk.edge.Fail, undefined);
 		equal(busy.status, Status.Ok);
 		equal(busy.succeeded, false);
 		equal(busy.endpointStatus, 3);
 		equal(busy.payload.length, 0);
 		equal(busy.value, undefined);
-		const empty = await client.service(sdk.edge.services.Good, undefined);
+		const empty = await client.service(sdk.edge.Good, undefined);
 		truth(empty.succeeded);
 		equal(Object.keys(empty.value), []);
-		truth((await client.service(device.services.Ping, undefined)).succeeded);
+		truth((await client.service(device.Ping, undefined)).succeeded);
 		if (examplePath) {
 			const example = await import(pathToFileURL(examplePath).href);
 			const results = await example.run(client, config);
@@ -225,7 +223,7 @@ try {
 		    new DeviceClient({backend : retryBackend, matchesHeader : sdk.matchesHeader});
 		try {
 			truth(retryClient.openSession(1, declaredHeader));
-			const outcome = await retryClient.command(device.commands.Reset, undefined);
+			const outcome = await retryClient.command(device.Reset, undefined);
 			truth(outcome.executed);
 			equal(outcome.dispatch, 0);
 			equal(outcome.endpointStatus, 0);
@@ -254,8 +252,8 @@ try {
 		try {
 			truth(partialClient.openSession(1, declaredHeader));
 			const changed = {...initial.value, gain : 3.75};
-			abandoned = partialClient.command(device.commands.Apply, changed);
-			const next = partialClient.read(device.fields.Config);
+			abandoned = partialClient.command(device.Apply, changed);
+			const next = partialClient.read(device.Config);
 			equal((await abandoned).status, Status.Cancelled);
 			const current = await next;
 			truth(current.succeeded);

@@ -68,12 +68,24 @@ directory must be outside the checkout. Nothing touches a device.
    deeper or wider profile, the flat form with path characters and 65-byte
    names, one endpoint name in two groups, and a handle used in constant
    expressions whose write of a read-only Field compiles (it returns
-   `ReadOnly` at run time, as `fields().write<id>()` does).
+   `ReadOnly` at run time, as `write<model, path>()` does).
+   **One way.** `Removed.cpp` includes only `<telemetry/Telemetry.hpp>` and
+   compiles one case at a time: the flat `Model{fields, commands, services}`,
+   `FieldCatalogTable`, `CommandCatalogTable`, `ServiceCatalogTable`, the
+   catalog form of `group(name, table)`, `emptyCommands`, `emptyFields`,
+   `EmptyEndpointCatalog`, `TableGroup`, `makeId` (both forms), `tryMakeId`,
+   typed access by a compile-time ID (`fields().read<id>()`, `write<id>()`,
+   `get<id>()`, `readAs<T, id>()`, `commands().call<id>()`,
+   `services().call<id>()`), `model.flat()` and `telemetry::testing::V30Model`
+   must each fail with GCC's or Clang's diagnostic for it; the control builds
+   handles, paths, `idOf`, `handle.id`, runtime-ID access and checks that the
+   testing header was not included.
 4. **ARM.** With `--arm-cxx`, the tree descriptor from ARM GCC must equal
    `tree.hex`, and `DispatchSize.cpp` links `dispatch_root` alone over the same
    endpoints as a tree and as today's flat catalogs. `HandleSize.cpp` writes
-   each operation three ways (a handle, the free path function, typed access by
-   a `detail::makeId` ID) and is compiled with `-fno-ipa-icf`: every handle function
+   each operation three ways (a handle, the free path function, the engine's
+   typed access by a `detail::makeId` ID through `detail::CatalogAccess`) and is
+   compiled with `-fno-ipa-icf`: every handle function
    must have exactly the instructions and relocations of the other two, at O2
    and Os, with a control that the comparison tells read from write. Its
    linked image must hold no path text.

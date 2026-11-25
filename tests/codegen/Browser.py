@@ -59,10 +59,10 @@ def main():
                     const desc=await load('descriptor');
                     check(api.matchesHeader(desc.subarray(0,64)));
                     for(let i=0;i<64;++i) { const h=desc.slice(0,64); h[i]^=1; check(!api.matchesHeader(h)); }
-                    for (const [name,id] of [['config',api.device.fields.Config.valueTypeId],
-                        ['request',api.device.services.Inspect.requestTypeId],
-                        ['response',api.device.services.Inspect.responseTypeId],
-                        ['scalars',api.edge.fields.Scalars.valueTypeId],['empty',api.edge.services.Good.responseTypeId]]) {
+                    for (const [name,id] of [['config',api.device.Config.valueTypeId],
+                        ['request',api.device.Inspect.requestTypeId],
+                        ['response',api.device.Inspect.responseTypeId],
+                        ['scalars',api.edge.Scalars.valueTypeId],['empty',api.edge.Good.responseTypeId]]) {
                         const bytes=await load(name), codec=api.codecs['Type_'+id], value=codec.decode(bytes);
                         const encoded=codec.encode(value);
                         check(encoded.length===bytes.length && encoded.every((x,i)=>x===bytes[i]));
@@ -71,12 +71,12 @@ def main():
                         check(offset.slice(3,3+bytes.length).every((x,i)=>x===bytes[i]));
                         check(offset[0]===0x5a && offset[offset.length-1]===0x5a);
                     }
-                    const config=api.device.fields.Config.read.decode(await load('config'));
+                    const config=api.device.Config.read.decode(await load('config'));
                     check(config.serial===18446744073709551615n && config.offset===-9223372036854775808n);
                     check(Object.is(config.gain,-0) && Object.getPrototypeOf(config)===null);
-                    check(api.edge.fields.Scalars.read.decode(await load('scalars')).f64===Infinity);
+                    check(api.edge.Scalars.read.decode(await load('scalars')).f64===Infinity);
                     const bad=await load('config');bad[28]=2;
-                    let rejected=false;try {api.device.fields.Config.read.decode(bad);}catch(e){rejected=e instanceof api.TelemetryCodecError;}
+                    let rejected=false;try {api.device.Config.read.decode(bad);}catch(e){rejected=e instanceof api.TelemetryCodecError;}
                     check(rejected);
                     return {checks,browser:navigator.userAgent};
                 }""")

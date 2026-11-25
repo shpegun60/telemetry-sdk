@@ -7,22 +7,22 @@
   ],
   "format": "telemetry-codegen-owned-output-v1",
   "generated_files": {
-    "cpp/device_api/ClientBindings.hpp": "bed2f96b59f32d5d926fe2c5f42d35e705a74e9649408c67609b0d77c7349cca",
+    "cpp/device_api/ClientBindings.hpp": "83a3a17b1529f59cd24de439175b82eb16fe9950f789b1b0f63be3274a55cd7c",
     "cpp/device_api/Codec.hpp": "5211abb6cfe641b3743035a8735562b0cc42b792d59fac5d8b02ed5189e9ce83",
     "cpp/device_api/EncodedBindings.hpp": "e686a70066c99246379b0e9344a1b4396c102503a9757f72324d088a85716f7d",
-    "cpp/device_api/Endpoints.hpp": "19b9b66ccde13669ba4c7d0970591c843c08a65e22bc2a902be2e5b5eb28659a",
+    "cpp/device_api/Endpoints.hpp": "93c71202d6cb8f488877ecf5752aecaea698604e7cf197acf6903268859ea38c",
     "cpp/device_api/Metadata.hpp": "41d9a8f878e8fb50ce202c74d0de6cb12f42668a49e08f823b5d76069a2d5fca",
     "cpp/device_api/RpcBindings.hpp": "e15ac37f241d9295c38ddd33c0eea0cc587a4cd1db5bef50faa323acd3854529",
     "cpp/device_api/Schema.hpp": "478484414fdadf3e66fb43b1bc4526e989f6cac885c2aacf91801a0a8989052e",
     "cpp/device_api/TelemetryBindings.hpp": "4ff47cf9b1157ef1fff448299df06207c971d762c5541e107f3d110d35e35bba",
     "cpp/device_api/Types.hpp": "9296c450ad69d2aa5acbcf2aec5bf6523c402bc44cecba2471bc4d52672ee070",
-    "js/device.d.ts": "01f6d3fec6e35b1f92968861613bf23bbbd56cd5784eec612f45b525caee21fa",
-    "js/device.js": "3e102f0519cc64e4f2299c10663a24a03e165ea82e107f1b12048114757eb7db",
+    "js/device.d.ts": "a811fcd03dc0782bc3c336ca58a9def98fb3952fced159ca413127895e740ce6",
+    "js/device.js": "7477797252769c6e2ae56682d50e938cbc1512026272612876c25dc2673f2de4",
     "js/device.metadata.d.ts": "6d43224c3c982067571d0ffd0e5cc8084ccf426422e65d6e803b6929f08adf7d",
     "js/device.metadata.js": "23df17b554b816b3409f8b12381ee25a74025f8ece31c45508deff7dbfa2fdb2",
     "metadata/schema.json": "b05869440d0e7a5c5aa1c4a97c1263adbfbfe1e0ce2bc1d71d8bb5316114f2cf",
     "ts/device.metadata.ts": "3810762e8b3b3731395a91f774f30ce36637ff092784448c3d91501832991d11",
-    "ts/device.ts": "ba45bbe33d2596629f38e08deda0398e4dae3c2e8448309b88b433bdc86ed2ab"
+    "ts/device.ts": "8141710a9a0d26ca7b80786536dedc5dfe15346f5cc15003ee20c878dd199277"
   },
   "generated_symbol_mapping": {
     "endpoints": [

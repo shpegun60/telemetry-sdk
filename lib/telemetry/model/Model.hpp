@@ -9,9 +9,10 @@
  * Combines endpoint catalogs with one structural type registry and runtime view.
  *
  * Registry roots follow Field, Command and Service declaration order; Service
- * requests precede their responses. The Model borrows catalogs and exposes
- * their live entries alongside immutable metadata. Reported scratch maxima
- * cover one encoded operation, including alignment, rather than concurrent calls.
+ * requests precede their responses. The catalog engine borrows catalogs and
+ * exposes their live entries alongside immutable metadata; the public Model is
+ * the group tree built on it (GroupTree.hpp). Reported scratch maxima cover one
+ * encoded operation, including alignment, rather than concurrent calls.
  */
 
 #ifndef TELEMETRY_MODEL_MODEL_HPP
@@ -30,15 +31,6 @@
 #include <type_traits>
 
 namespace telemetry {
-
-// Empty categories can be explicit without requiring a dummy local table.
-struct EmptyEndpointCatalog {
-	using RootTypes = detail::TypeList<>;
-	using RegistryRootTypes = detail::TypeList<>;
-};
-
-inline constexpr EmptyEndpointCatalog emptyFields{};
-inline constexpr EmptyEndpointCatalog emptyCommands{};
 
 // Copyable erased view pairing runtime endpoint rows with structural metadata.
 // Every pointer borrows coherent catalog/registry storage; copying the view does
@@ -107,12 +99,25 @@ private:
 	}
 };
 
-// Borrows stable endpoint catalogs and derives one immutable registry from all
-// roots. Copying a Model copies catalog pointers; it owns no live value storage.
+namespace detail {
+
+// An empty family of the catalog engine, without a dummy local table.
+struct EmptyEndpointCatalog {
+	using RootTypes = detail::TypeList<>;
+	using RegistryRootTypes = detail::TypeList<>;
+};
+
+inline constexpr EmptyEndpointCatalog emptyFields{};
+inline constexpr EmptyEndpointCatalog emptyCommands{};
+
+// The catalog engine under every group-tree Model, and the testing-only v3.0
+// producer's base (telemetry/testing/V30Model.hpp); not a way to write a
+// device. It borrows stable endpoint catalogs and derives one immutable
+// registry from all roots. Copying it copies catalog pointers; it owns no live value storage.
 // Catalogs, local tables, names and their transitive owner references must outlive
 // any Model/index/provider use. Synchronization remains the application's job.
 // Public methods:
-// - Model(): Borrow endpoint catalogs.
+// - CatalogModel(): Borrow endpoint catalogs.
 // - types(): Borrow type registry.
 // - typeId(): Resolve exact type.
 // - serviceIndex(): Borrow Service index.
@@ -128,7 +133,7 @@ private:
 // - maxServiceScratch(): Bound Service scratch.
 // - maxServiceResponseWireSize(): Bound response payload.
 template<class Fields, class Commands, class Services>
-class Model {
+class CatalogModel {
 	using AllRoots =
 	    typename detail::ConcatLists<typename detail::RegistryRootsOf<Fields>::type,
 	                                 typename detail::RegistryRootsOf<Commands>::type,
@@ -145,7 +150,7 @@ public:
 	             std::is_same_v<std::remove_cvref_t<F>, std::remove_cv_t<Fields>> &&
 	             std::is_same_v<std::remove_cvref_t<C>, std::remove_cv_t<Commands>> &&
 	             std::is_same_v<std::remove_cvref_t<S>, std::remove_cv_t<Services>>)
-	constexpr Model(F&& fields, C&& commands, S&& services) noexcept
+	constexpr CatalogModel(F&& fields, C&& commands, S&& services) noexcept
 	    : fields_(std::addressof(fields)), commands_(std::addressof(commands)),
 	      services_(std::addressof(services))
 	{}
@@ -153,7 +158,7 @@ public:
 	template<class F, class C, class S>
 	    requires(!std::is_lvalue_reference_v<F> || !std::is_lvalue_reference_v<C> ||
 	             !std::is_lvalue_reference_v<S>)
-	Model(F&&, C&&, S&&) = delete;
+	CatalogModel(F&&, C&&, S&&) = delete;
 
 	[[nodiscard]] static constexpr TypeRegistryView types() noexcept
 	{
@@ -322,12 +327,13 @@ private:
 	const Services* services_;
 };
 
-// The three-catalog form. Three group branches select the group-tree guide in
-// GroupTree.hpp instead.
+} // namespace detail
+
+// A device's Model: the group tree, Model{branches...} with group(name,
+// items...), defined in GroupTree.hpp. Paths and handles (TreePath.hpp)
+// name its endpoints.
 template<class Fields, class Commands, class Services>
-    requires(!(detail::groupBranch<Fields> && detail::groupBranch<Commands> &&
-               detail::groupBranch<Services>))
-Model(const Fields&, const Commands&, const Services&) -> Model<Fields, Commands, Services>;
+class Model;
 
 } // namespace telemetry
 

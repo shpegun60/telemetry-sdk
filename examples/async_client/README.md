@@ -15,9 +15,9 @@ auto two = deviceConfig.write(config, callback, requestTimeoutMs);
 ```
 
 The path is checked at compile time against the generated table, and the
-handle forwards to the same `DeviceClient` queue. The third request still uses
-the per-family constant `api::device::fields::Config`, which names the same
-endpoint; that form is [being removed](../../doc/user/APIOverview.md#виводиться-з-ужитку).
+handle forwards to the same `DeviceClient` queue. The third request uses the
+group's endpoint constant `api::device::Config`, which names the same
+endpoint.
 The same operation in the device, TS/JS and the Dynamic client:
 [API map](../../doc/user/APIOverview.md#одна-операція-в-чотирьох-місцях).
 

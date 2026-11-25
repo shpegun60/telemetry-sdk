@@ -108,11 +108,11 @@ auto invalid = ts::command<&Owner::call, const Owner>("bad", {});
 #elif CASE == 17
 auto invalid = mixedFields.read<8>();
 #elif CASE == 18
-auto invalid = v30Fields.read<ts::detail::makeId<1, 0>()>();
+auto invalid = ts::testing::CatalogAccess::read<ts::detail::makeId<1, 0>()>(v30Fields);
 #elif CASE == 19
 auto invalid = localCommands.call<2>();
 #elif CASE == 20
-auto invalid = v30Commands.call<ts::detail::makeId<1, 0>()>();
+auto invalid = ts::testing::CatalogAccess::call<ts::detail::makeId<1, 0>()>(v30Commands);
 #elif CASE == 21
 auto invalid = mixedFields.write<7>(12.0f);
 #elif CASE == 22

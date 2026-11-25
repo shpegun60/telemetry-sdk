@@ -27,7 +27,7 @@ async function readSelected(freshSession: number, observedHeader: Uint8Array,
 
     // Discover TRM1 through the application's Resource bootstrap before binding.
     const selected = client.bindReadMany(trm1Bytes,
-        [scalar.fields.F00, extra.fields.Wide, extra.fields.Enabled]);
+        [scalar.F00, extra.Wide, extra.Enabled]);
     if (selected.status !== Status.Ok) return;
 
     const result = await client.readMany(selected.binding);

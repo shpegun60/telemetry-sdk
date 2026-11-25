@@ -37,8 +37,8 @@ application assertion, not an automatic descriptor check.
 ```cpp
 #include <telemetry/descriptor/Descriptor.hpp>
 
-// fields, commands and services are stable structured catalog tables.
-inline constexpr telemetry::Model model{fields, commands, services};
+// adc::branch and metrology::branch are telemetry::group(name, items...) branches.
+inline constexpr telemetry::Model model{adc::branch, metrology::branch};
 inline constexpr ::telemetry::descriptor::Descriptor descriptor{model};
 
 // Optional alternative for immutable compile-time metadata: only the final
@@ -47,7 +47,7 @@ inline constexpr auto descriptorBytes =
     ::telemetry::descriptor::packDescriptor<descriptor>();
 ```
 
-The descriptor copies the Model view and borrows its tables and names.
+The descriptor copies the Model view and borrows its group tables and names.
 Table and name storage must outlive the descriptor and remain immutable;
 the Model object itself need not outlive that copied view. Owner state and slot targets may change;
 neither is inspected by construction, hashing or reading. A descriptor view

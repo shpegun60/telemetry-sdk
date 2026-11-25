@@ -2,9 +2,8 @@
 #include "Fixture.hpp"
 using namespace static_batch_test;
 
-using RepresentativeRequest =
-    decltype(bt::items(bt::read(api::control::fields::Config),
-                       bt::command(api::control::commands::Configure, std::declval<Data&>())));
+using RepresentativeRequest = decltype(bt::items(
+    bt::read(api::control::Config), bt::command(api::control::Configure, std::declval<Data&>())));
 using RepresentativeStore = bt::StaticBatchStorage<api::client::CodecPolicy, RepresentativeRequest>;
 static_assert(std::is_trivially_destructible_v<RepresentativeStore>);
 constinit RepresentativeStore representativeStore;
@@ -15,11 +14,10 @@ static void ordered() noexcept
 	Harness<Codec> h;
 	Data written = input(), configured = input(37), echoed = input(99);
 	const auto request = bt::items(
-	    bt::write(api::control::fields::Config, written), bt::read(api::control::fields::Config),
-	    bt::command(api::control::commands::Configure, configured),
-	    bt::read(api::control::fields::Counter), bt::service(api::control::services::Echo, echoed),
-	    bt::command(api::control::commands::Accepted, configured),
-	    bt::service(api::control::services::Busy, echoed), bt::read(api::control::fields::Config));
+	    bt::write(api::control::Config, written), bt::read(api::control::Config),
+	    bt::command(api::control::Configure, configured), bt::read(api::control::Counter),
+	    bt::service(api::control::Echo, echoed), bt::command(api::control::Accepted, configured),
+	    bt::service(api::control::Busy, echoed), bt::read(api::control::Config));
 	bt::StaticBatchStorage<Codec, decltype(request)> storage;
 	static_assert(std::is_trivially_destructible_v<decltype(storage)>);
 	const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
@@ -101,13 +99,11 @@ static void zeroWire() noexcept
 	Harness<Codec> h;
 	Empty empty;
 	Data data = input(23);
-	const auto request = bt::items(bt::command(api::control::commands::Reset),
-	                               bt::command(api::control::commands::EmptyArgument, empty),
-	                               bt::service(api::control::services::Ping),
-	                               bt::service(api::control::services::EmptyService),
-	                               bt::service(api::control::services::Consume, data),
-	                               bt::service(api::control::services::EmptyRequest, empty),
-	                               bt::read(api::control::fields::Empty));
+	const auto request =
+	    bt::items(bt::command(api::control::Reset), bt::command(api::control::EmptyArgument, empty),
+	              bt::service(api::control::Ping), bt::service(api::control::EmptyService),
+	              bt::service(api::control::Consume, data),
+	              bt::service(api::control::EmptyRequest, empty), bt::read(api::control::Empty));
 	bt::StaticBatchStorage<Codec, decltype(request)> storage;
 	const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 	CHECK(bound);
@@ -157,8 +153,8 @@ static void lifecycle() noexcept
 		for (unsigned phase = 0; phase != 3; ++phase) {
 			Harness<> h;
 			Data value = input();
-			const auto request = bt::items(bt::write(api::control::fields::Config, value),
-			                               bt::read(api::control::fields::Config));
+			const auto request =
+			    bt::items(bt::write(api::control::Config, value), bt::read(api::control::Config));
 			bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 			const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 			Observed observed;
@@ -200,7 +196,7 @@ static void lifecycle() noexcept
 	for (unsigned delay : {49u, 50u, 51u}) {
 		Harness<> h;
 		Data value = input();
-		const auto request = bt::items(bt::write(api::control::fields::Config, value));
+		const auto request = bt::items(bt::write(api::control::Config, value));
 		bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 		const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 		Observed observed;
@@ -241,13 +237,13 @@ static void refusalAndReuse() noexcept
 {
 	Harness<CountingCodec, 1> h;
 	Data value = input();
-	const auto request = bt::items(bt::write(api::control::fields::Config, value),
-	                               bt::read(api::control::fields::Config));
+	const auto request =
+	    bt::items(bt::write(api::control::Config, value), bt::read(api::control::Config));
 	bt::StaticBatchStorage<CountingCodec, decltype(request)> storage;
 	const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 	Observed observed;
 	unsigned ordinary = 0;
-	CHECK(h.client.read(api::control::fields::Bool, [&](const auto& result) noexcept {
+	CHECK(h.client.read(api::control::Bool, [&](const auto& result) noexcept {
 		CHECK(result.succeeded() && result.hasValue() && result.value());
 		++ordinary;
 	}));
@@ -299,8 +295,8 @@ static void malformedLast() noexcept
 {
 	for (unsigned mutation = 0; mutation < 8; ++mutation) {
 		Harness<> h;
-		const auto request = bt::items(bt::read(api::control::fields::Config),
-		                               bt::service(api::control::services::Flag));
+		const auto request =
+		    bt::items(bt::read(api::control::Config), bt::service(api::control::Flag));
 		bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 		const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 		unsigned calls = 0;
@@ -434,7 +430,7 @@ static void ownershipReentry() noexcept
 {
 	Harness<> h;
 	Data value = input();
-	const auto request = bt::items(bt::write(api::control::fields::Config, value));
+	const auto request = bt::items(bt::write(api::control::Config, value));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 	OwnershipState state{&h.client, &bound.binding, &request, &storage, &value};
@@ -476,8 +472,8 @@ static void codecReentry() noexcept
 	for (bool duringDecode : {false, true}) {
 		Harness<HookCodec> h;
 		Data value = input();
-		const auto request = bt::items(bt::write(api::control::fields::Config, value),
-		                               bt::read(api::control::fields::Config));
+		const auto request =
+		    bt::items(bt::write(api::control::Config, value), bt::read(api::control::Config));
 		bt::StaticBatchStorage<HookCodec, decltype(request)> storage;
 		const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 		hookOwner = &h;
@@ -520,7 +516,7 @@ static void bindingRefusals() noexcept
 {
 	Harness<> h;
 	Data value = input();
-	const auto request = bt::items(bt::write(api::control::fields::Config, value));
+	const auto request = bt::items(bt::write(api::control::Config, value));
 	auto capability = h.capability;
 	++capability.session;
 	CHECK(bt::bindBatch(h.client, h.backend, capability, request).status ==
@@ -536,11 +532,11 @@ static void bindingRefusals() noexcept
 	capability = h.capability;
 	capability.replyLimit = 13;
 	CHECK(!bt::bindBatch(h.client, h.backend, capability, request));
-	auto readonly = api::control::fields::Config;
+	auto readonly = api::control::Config;
 	readonly.capabilities = 1;
 	CHECK(bt::bindBatch(h.client, h.backend, h.capability, bt::items(bt::write(readonly, value)))
 	          .status == cl::Status::ReadOnly);
-	auto wrong = api::control::fields::Config;
+	auto wrong = api::control::Config;
 	wrong.valueBytes = 1;
 	CHECK(bt::bindBatch(h.client, h.backend, h.capability, bt::items(bt::write(wrong, value)))
 	          .status == cl::Status::InvalidArgument);
@@ -569,12 +565,12 @@ static void sameFifoAndFailures() noexcept
 {
 	Harness<> h;
 	Data value = input();
-	const auto request = bt::items(bt::write(api::control::fields::Config, value),
-	                               bt::read(api::control::fields::Counter));
+	const auto request =
+	    bt::items(bt::write(api::control::Config, value), bt::read(api::control::Counter));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 	unsigned order = 0;
-	CHECK(h.client.read(api::control::fields::Bool, [&](const auto& result) noexcept {
+	CHECK(h.client.read(api::control::Bool, [&](const auto& result) noexcept {
 		CHECK(order++ == 0 && result.succeeded() && result.hasValue() && result.value());
 	}));
 	CHECK(bt::batch(h.client, bound.binding, request, storage, [&](const auto& result) noexcept {
@@ -582,7 +578,7 @@ static void sameFifoAndFailures() noexcept
 		const auto readback = result.template get<1>();
 		CHECK(readback && readback->hasValue() && readback->value() == 1000);
 	}));
-	CHECK(h.client.read(api::control::fields::Counter, [&](const auto& result) noexcept {
+	CHECK(h.client.read(api::control::Counter, [&](const auto& result) noexcept {
 		CHECK(order++ == 2 && result.succeeded() && result.hasValue() && result.value() == 1000);
 	}));
 	CHECK(h.client.pending() == 3 && native::traceCount == 0);
@@ -594,10 +590,9 @@ static void sameFifoAndFailures() noexcept
 	h.stop();
 
 	Harness<> errors;
-	const auto failed = bt::items(bt::command(api::control::commands::Reject, value),
-	                              bt::service(api::control::services::Busy, value),
-	                              bt::read(api::control::fields::Unavailable),
-	                              bt::read(api::control::fields::Config));
+	const auto failed =
+	    bt::items(bt::command(api::control::Reject, value), bt::service(api::control::Busy, value),
+	              bt::read(api::control::Unavailable), bt::read(api::control::Config));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(failed)> errorStore;
 	const auto errorBinding =
 	    bt::bindBatch(errors.client, errors.backend, errors.capability, failed);
@@ -631,13 +626,13 @@ static void sameFifoAndFailures() noexcept
 template<std::size_t... I>
 auto repeatedReads(std::index_sequence<I...>) noexcept
 {
-	return bt::items(((void)I, bt::read(api::control::fields::Counter))...);
+	return bt::items(((void)I, bt::read(api::control::Counter))...);
 }
 
 template<std::size_t... I>
 auto repeatedEcho(Data& value, std::index_sequence<I...>) noexcept
 {
-	return bt::items(((void)I, bt::service(api::control::services::Echo, value))...);
+	return bt::items(((void)I, bt::service(api::control::Echo, value))...);
 }
 
 template<class Request>
@@ -690,7 +685,7 @@ static void repeated() noexcept
 	h.stop();
 }
 
-using ReadItem = decltype(bt::read(api::control::fields::Counter));
+using ReadItem = decltype(bt::read(api::control::Counter));
 using ReadResult = bt::StaticBatchResult<api::client::CodecPolicy, ReadItem>;
 static unsigned freeCalls = 0;
 
@@ -738,7 +733,7 @@ struct MoveOnly {
 static void callableKindsAndClosedRecovery() noexcept
 {
 	Harness<> h;
-	const auto request = bt::items(bt::read(api::control::fields::Counter));
+	const auto request = bt::items(bt::read(api::control::Counter));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto bound = bt::bindBatch(h.client, h.backend, h.capability, request);
 	void (*nullFunction)(const ReadResult&) noexcept = nullptr;

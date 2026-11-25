@@ -6,11 +6,10 @@ namespace api = static_batch_api;
 namespace bt = telemetry::integration::batch;
 namespace cl = telemetry::client;
 using Data = api::control::types::Config;
-using Selection =
-    decltype(bt::items(bt::write(api::control::fields::Config, std::declval<Data&>()),
-                       bt::read(api::control::fields::Config),
-                       bt::command(api::control::commands::Configure, std::declval<Data&>()),
-                       bt::service(api::control::services::Echo, std::declval<Data&>())));
+using Selection = decltype(bt::items(bt::write(api::control::Config, std::declval<Data&>()),
+                                     bt::read(api::control::Config),
+                                     bt::command(api::control::Configure, std::declval<Data&>()),
+                                     bt::service(api::control::Echo, std::declval<Data&>())));
 template<class C>
 using Client = cl::DeviceClient<C, 2, 256>;
 template<class C>
@@ -25,10 +24,9 @@ void qualify(Client<C>& client, telemetry::integration::encoded::EncodedBackend&
              telemetry::protocol::encoded::batch::Capability capability, Data& argument,
              Store<C>& storage, std::uint32_t now) noexcept
 {
-	const auto request = bt::items(bt::write(api::control::fields::Config, argument),
-	                               bt::read(api::control::fields::Config),
-	                               bt::command(api::control::commands::Configure, argument),
-	                               bt::service(api::control::services::Echo, argument));
+	const auto request = bt::items(
+	    bt::write(api::control::Config, argument), bt::read(api::control::Config),
+	    bt::command(api::control::Configure, argument), bt::service(api::control::Echo, argument));
 	const auto bound = bt::bindBatch(client, backend, capability, request);
 	if (bound)
 		(void)bt::batch(client, bound.binding, request, storage, [](const auto& result) noexcept {

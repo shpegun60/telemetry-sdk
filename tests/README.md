@@ -8,9 +8,10 @@ The active checks use the final C++20 telemetry API. Core tests do not require
 Qt. The resource, protocol and client suites have separate runners; the CI
 matrix also builds Cortex-M7 objects and the optional Qt transport and client modules.
 
-The UX-owned [Qt/QML generator suite](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/tests/codegen_qml/README.md) executes the optional Qt
-module in a real QML runtime, with native Encoded operations, existing RpcClient
-and strict lossless QVariant conversions. Its builds stay outside the source tree.
+The UX-owned [Qt/QML generator suite](https://github.com/shpegun60/telemetry-ux/blob/a336b8c2984d5adf235b0791b545a37d3da3cc8b/tests/codegen_qml/README.md) runs in UX's
+own CI. SDK CI no longer builds a pinned UX generator: the optional extension hook
+([UXGeneratorExtension](../doc/UXGeneratorExtension.md)) stays generic, and the
+generator's one group form is checked by the [code generator suite](codegen/README.md).
 
 The optional [code generator suite](codegen/README.md) independently executes
 generated C++ and JS/TS through direct Encoded and Resource/RPC paths, with

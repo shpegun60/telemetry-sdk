@@ -228,7 +228,8 @@ void fields()
 	check(copyOfView.valueOrNull() == &meter.big);
 	check(catalogs.readBorrowed<Big>(bigId).valueOrNull() == &meter.big && meter.calls[0] == 2);
 	check((local.readBorrowed<Big, 0>().valueOrNull() == &meter.big));
-	check((catalogs.readBorrowed<BigAlias, bigId>().valueOrNull() == &meter.big));
+	check((ts::testing::CatalogAccess::readBorrowed<BigAlias, bigId>(catalogs).valueOrNull() ==
+	       &meter.big));
 	const auto beforeMismatch = meter.calls;
 	check(!local.readBorrowed<Big>(1));
 	check(!local.readBorrowed<Other>(0));
@@ -286,7 +287,7 @@ void fields()
 	expect(local.readAsResult<std::uint32_t>(2), Status::ConversionFailed);
 	check(meter.calls[2] == beforeNumber + 2);
 	check((local.readAsResult<bool, 2>().value()));
-	check((catalogs.readAsResult<double, intId>().value() == -3.0));
+	check((ts::testing::CatalogAccess::readAsResult<double, intId>(catalogs).value() == -3.0));
 	check(local.get<2>().readAsResult<double>().value() == -3.0);
 	check(catalogs.readAsResult<std::int32_t>(intId).value() == -3);
 	check(local.readAsResult<std::int32_t>(3).value() == 12);

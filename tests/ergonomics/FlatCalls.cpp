@@ -885,9 +885,10 @@ void checkTypesAndCompatibility()
 	static_assert(std::same_as<decltype(serviceCatalog.callAs<ts::BorrowedServiceResult<Reply>>(0)),
 	                           ts::NativeCallResult<ts::BorrowedServiceResult<Reply>>>);
 	CHECK(commands.call<0>(Request{}) == ts::CommandResult::Executed);
-	CHECK(commandCatalog.call<0x10000>(Request{}) == ts::CommandResult::Executed);
+	CHECK(ts::testing::CatalogAccess::call<0x10000>(commandCatalog, Request{}) ==
+	      ts::CommandResult::Executed);
 	CHECK(services.call<0>(Request{}).value().value == 73);
-	CHECK(serviceCatalog.call<0x10000>(Request{}).value().value == 73);
+	CHECK(ts::testing::CatalogAccess::call<0x10000>(serviceCatalog, Request{}).value().value == 73);
 	auto oldOwned = services.callAs<ts::ServiceResult<Reply>>(0, Request{3});
 	CHECK(oldOwned.hasValue() && !oldOwned.value().hasValue());
 	CHECK(oldOwned.status() == ts::NativeCallStatus::Ok &&

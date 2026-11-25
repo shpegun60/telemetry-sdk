@@ -27,8 +27,8 @@ namespace rm = telemetry::integration::read_many;
 // Use an explicit callback budget for a multi-field selection, for example
 // DeviceClient<device_api::client::CodecPolicy, 2, 128, 128>.
 const auto selected = rm::bindReadMany(client, backend, observedCapability,
-    rm::fields(device_api::measure::fields::VoltageScalar,
-               device_api::measure::fields::CurrentScalar));
+    rm::fields(device_api::measure::VoltageScalar,
+               device_api::measure::CurrentScalar));
 if (!selected)
     return; // Inspect selected.status; nothing was enqueued.
 
@@ -52,7 +52,7 @@ if (!submitted)
 
 Endpoint names are illustrative scalar Fields. The
 [successful installed example](../tests/read_many_static/Example.cpp) reads the
-actual generated `left::fields::F05` and `mixed::fields::U64` endpoints. The
+actual generated `left::F05` and `mixed::U64` endpoints. The
 [minimal installed consumer](../tests/read_many_static/Standalone.cpp) separately
 checks isolation and cancellation; the
 [real Model tests](../tests/read_many_static/Host.cpp) cover the full lifecycle.

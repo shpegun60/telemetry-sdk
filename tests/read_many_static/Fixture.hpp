@@ -152,17 +152,13 @@ struct Observed {
 };
 
 inline constexpr std::array scalarEndpoints{
-    api::left::fields::F00,  api::left::fields::F01,  api::left::fields::F02,
-    api::left::fields::F03,  api::left::fields::F04,  api::left::fields::F05,
-    api::left::fields::F06,  api::left::fields::F07,  api::left::fields::F08,
-    api::left::fields::F09,  api::left::fields::F10,  api::left::fields::F11,
-    api::left::fields::F12,  api::left::fields::F13,  api::left::fields::F14,
-    api::left::fields::F15,  api::right::fields::F16, api::right::fields::F17,
-    api::right::fields::F18, api::right::fields::F19, api::right::fields::F20,
-    api::right::fields::F21, api::right::fields::F22, api::right::fields::F23,
-    api::right::fields::F24, api::right::fields::F25, api::right::fields::F26,
-    api::right::fields::F27, api::right::fields::F28, api::right::fields::F29,
-    api::right::fields::F30, api::right::fields::F31};
+    api::left::F00,  api::left::F01,  api::left::F02,  api::left::F03,  api::left::F04,
+    api::left::F05,  api::left::F06,  api::left::F07,  api::left::F08,  api::left::F09,
+    api::left::F10,  api::left::F11,  api::left::F12,  api::left::F13,  api::left::F14,
+    api::left::F15,  api::right::F16, api::right::F17, api::right::F18, api::right::F19,
+    api::right::F20, api::right::F21, api::right::F22, api::right::F23, api::right::F24,
+    api::right::F25, api::right::F26, api::right::F27, api::right::F28, api::right::F29,
+    api::right::F30, api::right::F31};
 
 template<std::size_t... I>
 constexpr auto selected(std::index_sequence<I...>) noexcept

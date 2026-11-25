@@ -19,7 +19,7 @@ import * as sdk from './generated/js/device.js';
 const transport = demoWebSocket('http://127.0.0.1:8080');
 const session = await connectStatic({sdk, transport});
 try {
-    const result = await session.read(sdk.control.fields.Config);
+    const result = await session.read(sdk.control.Config);
     if (result.status === Status.Ok && result.succeeded && result.valueStatus === 'Ok')
         console.log(result.value);
 } finally {
@@ -107,14 +107,14 @@ try {
     if (capabilities?.readMany) {
         // Use the scalar Field names generated for your own Model.
         const result = await session.readMany(capabilities.readMany,
-            [sdk.control.fields.Counter, sdk.control.fields.Bool]);
+            [sdk.control.Counter, sdk.control.Bool]);
         for (const item of result.items ?? [])
             console.log(item.id, item.status, item.valueStatus, item.value);
     }
     if (capabilities?.batch) {
         const result = await session.batch(capabilities.batch, Batch.items(
-            Batch.read(sdk.control.fields.Counter),
-            Batch.command(sdk.control.commands.Reset)));
+            Batch.read(sdk.control.Counter),
+            Batch.command(sdk.control.Reset)));
         // Inspect each checked result; outer success does not imply item success.
         for (const item of result.items ?? [])
             console.log(item.operation, item.accepted, item.executed, item.valueStatus);

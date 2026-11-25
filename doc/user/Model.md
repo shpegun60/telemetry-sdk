@@ -1,4 +1,4 @@
-# Model: endpoint catalogs і structural types
+# Model: дерево груп і structural types
 
 Автори: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 
@@ -12,15 +12,15 @@ C++ типів один `TypeRegistry`. Він дає runtime indexes, спіл�
 
 Це canonical сторінка побудови Model, reflection/type metadata та
 [encoded access](#encoded-api-catalog-index-або-modelview). Для локального
-native доступу Model не створюють; encoded catalog indexes теж працюють
-без Model. Standalone Codec і generic Resource — незалежні сценарії.
+native доступу до однієї local table Model не створюють. Standalone Codec і
+generic Resource — незалежні сценарії.
 
 **Одна форма — дерево груп.** `ts::group(name, items...)` і
 `Model{branches...}` описують пристрій, шляхи й handles адресують endpoints
-([нижче](#group-tree-модель-із-файлів-гілок)). Плоска форма
-`Model{fields, commands, services}` із catalog tables ще компілюється, але
-[виводиться з ужитку](#виводиться-з-ужитку); розділи про catalogs нижче
-описують її та спільний engine, на якому стоїть і дерево.
+([нижче](#group-tree-модель-із-файлів-гілок)). Це єдиний шлях: плоску
+`Model{fields, commands, services}`, catalog tables, публічний `makeId` і
+typed доступ за ID прибрано ([міграція](../StructuredTelemetryV3MigrationGuide.md#one-way-the-group-tree-paths-and-handles)). Catalog engine під
+деревом внутрішній ([Tables and catalogs](TablesAndCatalogs.md)).
 
 Поточна реалізація міститься у [GroupTree.hpp](../../lib/telemetry/model/GroupTree.hpp),
 [TreePath.hpp](../../lib/telemetry/model/TreePath.hpp), [Model.hpp](../../lib/telemetry/model/Model.hpp),
@@ -44,8 +44,6 @@ native доступу Model не створюють; encoded catalog indexes т�
 - [Порядок IDs і зміни declaration](#порядок-ids-і-зміни-declaration)
 - [Межі та порожні категорії](#межі-та-порожні-категорії)
 - [Lifetime, synchronization і ABI](#lifetime-synchronization-і-abi)
-- [Виводиться з ужитку](#виводиться-з-ужитку)
-- [Повний приклад плоскої форми](#повний-приклад)
 
 ## Group tree: модель із файлів гілок
 
@@ -89,17 +87,14 @@ calibrate.call(adc::Reference{1.25f});   // ServiceResult<adc::Offset>
   звичний catalog array, тепер по одному рядку на групу, порожньому там, де
   група не має цієї family. Dispatch лишається O(1) через незмінний
   `ModelView`, а structured ABI revision лишається 6.
-- Model володіє tables кожної групи й трьома catalog tables
-  (`model.fields()`, `commands()`, `services()`); її не можна копіювати чи
-  переміщувати. `model.flat()` — еквівалентна three-catalog Model.
+- Model володіє tables кожної групи й трьома внутрішніми catalogs; її не можна
+  копіювати чи переміщувати. `model.fields()`, `commands()` і `services()` дають
+  runtime-ID доступ і traversal ([нижче](#typed-access-і-runtime-access)).
 - Імена в дереві є сегментами шляху: без `/`, `.`, `[`, `]` і `\`, унікальні
   серед усього, що містить група (subgroups і endpoints усіх трьох families).
   Порушення будь-якого правила — build error у тому `ts::group`, що його
   порушує. Стелі задає profile descriptor: `maxGroupDepth` 8 рівнів,
   `maxNameBytes` 64, `maxPathBytes` 256.
-- Плоска `Model{fields, commands, services}` ще компілюється й зберігає
-  байти v3.0, але [виводиться з ужитку](#виводиться-з-ужитку); гілки в
-  конструкторі вибирають форму дерева.
 
 ### Шлях до endpoint
 
@@ -126,16 +121,15 @@ calibrate.call(adc::Reference{1.25f});   // ServiceResult<adc::Offset>
 | `Value` | Тип, який вибирає `read()`: увесь Field або член; `void` для Command/Service |
 | `Definition` | Конкретна `FieldDefinition`, `CommandDefinition` чи `ServiceDefinition` із її `Value`, `Request`, `Response` |
 | `read()` | Field: те саме, що `read<model, path>()` |
-| `write(value)` | Лише цілий Field; тип значення перевіряється, як у `fields().write<id>()` |
+| `write(value)` | Лише цілий Field; тип значення перевіряється, як у `write<model, path>()` |
 | `call(args...)` | Command або Service з їхніми native arguments |
 
 - Шлях, що нічого не називає, називає групу, член не-struct або елемент за
   межами масиву, — build error в рядку оголошення handle; trace показує шлях
   як `EndpointPath<N>{"..."}`.
 - Handle — порожній object: PackedId і тип значення є частиною його типу.
-  Виклик компілюється в той самий код, що `read<model, path>()` і typed
-  доступ за ID (`model.fields().read<id>()`), і текст шляху не потрапляє в
-  image. [Group-tree suite](../../tests/structured/group_tree/README.md)
+  Виклик компілюється в той самий код, що `read<model, path>()` і внутрішній
+  typed доступ engine за ID, і текст шляху не потрапляє в image. [Group-tree suite](../../tests/structured/group_tree/README.md)
   порівнює ARM-код усіх трьох форм.
 - Handle члена (`"adc/Config.rateHz"`) лише читає: getter виконується для всього
   Field, повертається вибрана частина в `std::optional`. `write()` на ньому —
@@ -143,7 +137,7 @@ calibrate.call(adc::Reference{1.25f});   // ServiceResult<adc::Offset>
   записує цілі Fields. `read()` на Command, `write()` на Command чи Service і
   `call()` на Field — так само build errors із поясненням.
 - Field без setter приймає `write()` і повертає `WriteResult::ReadOnly`, як і
-  `fields().write<id>()`.
+  `write<model, path>()`.
 
 ### Вільні функції шляху
 
@@ -164,9 +158,8 @@ static_assert(model.idOf<"adc/channel1/Gain">() == 0x00010000u); // група 1
   час компіляції, тому Model — template argument у `read`, `write`, `call`,
   `idOf` та `endpoint`; `model.idOf<"...">()` — єдина member форма, consteval
   виклик на constexpr model.
-- `makeId<group, entry>()` і typed доступ за ID ще працюють, але
-  [виводяться з ужитку](#виводиться-з-ужитку): ID відомого endpoint дає
-  `idOf<model, path>()` або `handle.id`. ID — позиція в одному descriptor;
+- Публічного `makeId` і typed доступу за compile-time ID немає: ID відомого
+  endpoint дає `idOf<model, path>()` або `handle.id`. ID — позиція в одному descriptor;
   клієнт зберігає його разом із fingerprint
   ([WireV3: PackedId](../WireV3.md#packedid)).
 
@@ -193,10 +186,10 @@ TS/JS (`await device.read('adc/Config')`) і Dynamic клієнт
 | Application owner / callable / slot | Прикладний стан або callback target | Виконати getter, setter, Command чи Service |
 | `FieldDefinition`, `CommandDefinition`, `ServiceDefinition` | Ім'я та native binding | Зберегти точну C++ сигнатуру і target |
 | `ts::group(name, items...)` | Назву групи, definitions і підгрупи | Гілка дерева; шлях `group/.../endpoint` |
-| `Model{branches...}` | Розгорнуте дерево: tables кожної групи, три catalogs і тип `Registry` | Зіставити всі endpoint types та runtime families; шляхи й handles |
-| Local table (плоска форма) | Власні definitions і похідні runtime entries | Typed position access та перевірений runtime selection |
-| `TableGroup` / catalog table (плоска форма) | Назву групи, позичені local tables і власні catalog rows | Об'єднати local positions у packed-ID простір |
-| `Model{fields, commands, services}` (плоска форма) | Вказівники на три catalogs; тип `Registry` виведений із roots | Те саме для плоских catalogs; виводиться з ужитку |
+| `Model{branches...}` | Розгорнуте дерево: tables кожної групи, три внутрішні catalogs і тип `Registry` | Зіставити всі endpoint types та runtime families; шляхи й handles |
+| `endpoint<model, "path">` | PackedId, family і тип значення в типі handle | Native `read()`, `write()`, `call()` без тексту шляху в image |
+| `model.fields()`, `commands()`, `services()` | Позичений доступ до catalogs моделі | Runtime-ID доступ (`visit`, `readAs<T>(id)`, `writeAs(id, v)`, `call(id)`, `callAs`) і traversal |
+| Local table (`FieldTable`, ...) | Власні definitions і похідні runtime entries без Model | Typed position access та перевірений runtime selection |
 | `ModelView` | Позичені runtime indexes і паралельні TypeId catalogs | Передати повну модель до compiled adapter чи provider |
 | `TypeRegistry` | Статичні descriptors точних C++ типів | Призначити TypeIds і описати залежності типів |
 | `reflection` | Member, enum і callable facts | Перевірити payload shape та побудувати structural metadata |
@@ -205,13 +198,11 @@ TS/JS (`await device.read('adc/Config')`) і Dynamic клієнт
 ```mermaid
 flowchart TD
     O[Application state and callbacks] --> D[Native endpoint definitions]
-    D --> T[Local tables]
-    T --> N[Native typed access]
-    T --> C[Named catalogs]
-    C --> N
-    C --> I[Family runtime indexes]
+    D --> G[ts::group branches]
+    G --> M[Model owns group tables and internal catalogs]
+    M --> N[Native access by path and handle]
+    M --> I[Family runtime indexes]
     I --> E[Checked encoded calls]
-    C --> M[Model borrows catalogs]
     M --> R[One static TypeRegistry]
     M --> V[ModelView]
     V --> E
@@ -226,15 +217,13 @@ flowchart TD
 `ts::endpoint<model, path>`, `ts::read/write/call<model, path>()`. Сам `Model`
 не має member `read<...>()`, `write<...>()` чи `call<...>()`, бо C++20 не може
 взяти constexpr model зі свого `this`; `model.idOf<"...">()` — єдина member
-форма. У плоскій формі native виклик робили прямо через local table або
-catalog до створення `Model`.
+форма.
 
 | Сценарій | Мінімально потрібні об'єкти |
 | --- | --- |
 | Native доступ за шляхом | Application owner/binding, `ts::group` і constexpr `Model` зі static storage |
-| Native local position (плоска форма) | Application owner/binding і відповідна local table |
-| Native global packed ID (плоска форма) | Ті самі local tables і catalog table відповідної family |
-| Encoded catalog access (плоска форма) | Catalog table, її `index()`, wire buffers та Workspace; Model не потрібна |
+| Native runtime ID | Constexpr `Model`; `model.fields()`, `commands()` чи `services()` |
+| Native local position | Application owner/binding і local table, без Model |
 | Compiled encoded adapter | Узгоджений `ModelView`, wire buffers та Workspace; звичайний спосіб створення view — `model.view()` |
 | Standalone Codec | Supported native T та bytes; Workspace лише для new-object decode |
 | Generic Resource | Paths/providers і filesystem; telemetry tables та Model не потрібні |
@@ -245,7 +234,7 @@ catalog до створення `Model`.
 
 `RootTypes` і `RegistryRootTypes` — публічні контракти для метаданих,
 призначені для авторів адаптерів і перевірок на етапі компіляції. Для читання, запису
-й викликів використовуйте table/catalog API; для інформації про типи —
+й викликів використовуйте шляхи й handles; для інформації про типи —
 `model.types()` і `Model::typeId<T>()`. `RegistryRootTypes` не визначає
 endpoint IDs, кількість рядків чи бізнес-логіку застосунку.
 
@@ -289,7 +278,7 @@ catalogs і Model.
 | --- | --- |
 | `Model{branches...}` | Розгортає гілки `ts::group` під час компіляції й володіє їхніми tables; не копіюється й не переміщується |
 | `model.idOf<"path">()` | `consteval PackedId` endpoint за шляхом; хибний шлях дає compile error |
-| `Model{fields, commands, services}` | Плоска форма, [виводиться з ужитку](#виводиться-з-ужитку): позичає саме ці lvalue catalogs; temporary catalogs відхиляються |
+| `model.fields()`, `model.commands()`, `model.services()` | Runtime-ID доступ і traversal: `visit(id, visitor)`, `readAs<T>(id)`, `writeAs(id, value)`, `call(id[, request])`, `callAs`, `forEach` |
 | `Model::Registry` | Тип повного registry, виведений із roots трьох families |
 | `model.types()` | `TypeRegistryView` на immutable type metadata; метод також доступний статично |
 | `model.typeId<T>()` | `consteval TypeId` точного нормалізованого C++ типу; відсутній тип дає compile error |
@@ -321,15 +310,13 @@ padding і framing. Порожня family або лише no-request endpoints �
 | --- | --- | --- |
 | Handle або шлях | `gain1.read()`, `ts::read<model, "adc/Config.rateHz">()`, `ts::call<model, "adc/Reset">()` | Шлях, сімейство, тип значення й аргументи під час compilation |
 | Local typed Field | `localFields.read<0>()`, `localFields.write<0>(next)` | Position і точний native type під час compilation |
-| Global typed Field | `fields.read<configId>()`, `fields.write<configId>(next)` | Packed group/entry під час compilation |
-| Explicit Field conversion | `fields.readAs<Config, configId>()`, `fields.writeAs<configId>(next)` | Exact structural type або checked numeric conversion |
-| Native Command | `commands.call<ts::makeId<0, 0>()>()` | Request shape із declaration; callback повертає `CommandResult` |
-| Native Service | `services.call<queryId>(Query{1})` | Exact aggregate request; native owning/borrowed result |
-| Runtime typed selection | `fields.visit(id, visitor)` | Original integer width і catalog bounds перед borrowed definition callback |
+| Runtime conversion | `model.fields().readAs<Config>(id)`, `model.fields().writeAs(id, next)` | Original integer width, bounds, exact structural type або checked numeric conversion |
+| Runtime Command і Service | `model.commands().call(id)`, `model.services().callAs<Response>(id, request)` | Bounds і request shape; flat outcome ([FlatNative](FlatNative.md)) |
+| Runtime typed selection | `model.fields().visit(id, visitor)` | Original integer width і catalog bounds перед borrowed definition callback |
 | Runtime erased operation | `model.fieldIndex().readEncoded(id, output, workspace)` | ID, wire capacity та scratch rules |
 | Compiled erased operation | `ts::readFieldEncoded(model.view(), id, output, workspace)` | Ті самі правила плюс exact ABI tag у linked symbol |
 
-Для runtime Field conversions catalog має `readAs<To>(id)` та `writeAs(id, value)`.
+Для runtime Field conversions `model.fields()` має `readAs<To>(id)` та `writeAs(id, value)`.
 Невідповідний structural type не викликає getter/setter: читання повертає
 `nullopt`, запис — `InvalidValue`. Runtime numeric conversion завершується
 до application mutation. Повні сигнатури й ordering шаблонних аргументів є у
@@ -350,45 +337,31 @@ Callback залишається тим самим, що у native definition; д
 implementation або окремого runtime `EncodedApi` object немає. Framing,
 operation envelope, correlation і delivery визначає застосунок.
 
-### A. Catalog indexes без Model
+### A. Runtime indexes моделі
 
-Цей вхід належить плоскій формі, що [виводиться з ужитку](#виводиться-з-ужитку);
-для Model із дерева груп використовуйте [B. ModelView](#b-modelview-і-compiled-adapter).
-Local `FieldTable`, `CommandTable` і `ServiceTable` **не мають `index()`**.
-Цей метод належить відповідним **catalog tables**:
+`model.fieldIndex()`, `commandIndex()` і `serviceIndex()` (а також
+`model.view().fields`, `.commands`, `.services`) — copyable borrowed views:
 
-| Catalog table | Runtime view | Checked methods |
-| --- | --- | --- |
-| `FieldCatalogTable::index() const&` | `FieldIndex` | `readEncoded(id, output, workspace)`, `writeEncoded(id, input, workspace)` |
-| `CommandCatalogTable::index() const&` | `CommandIndex` | `executeEncoded(id, input, workspace)` |
-| `ServiceCatalogTable::index() const&` | `ServiceIndex` | `callEncoded(id, input, output, workspace)` |
-
-```cpp
-// Fragments: fields/commands/services are named catalog tables.
-auto read = fields.index().readEncoded(id, output, workspace);
-auto write = fields.index().writeEncoded(id, input, workspace);
-auto command = commands.index().executeEncoded(id, input, workspace);
-auto service = services.index().callEncoded(id, input, output, workspace);
-```
-
-Indexes — copyable borrowed views. Catalogs, local tables, names, owners і slots
-живуть довше за їх використання. `index()` з temporary catalog відхиляється;
-копія index не подовжує lifetime arrays. Для checked encoded access до одного
-local row є `localFields[position].readEncoded(...)` / `writeEncoded(...)`,
-`localCommands[position].executeEncoded(...)` і
-`localServices[position].callEncoded(...)`. Тут caller спершу забезпечує
-`position < localTable.size()`, бо `operator[]` не перевіряє bounds.
+| Runtime view | Checked methods |
+| --- | --- |
+| `FieldIndex` | `readEncoded(id, output, workspace)`, `writeEncoded(id, input, workspace)` |
+| `CommandIndex` | `executeEncoded(id, input, workspace)` |
+| `ServiceIndex` | `callEncoded(id, input, output, workspace)` |
 
 Index methods приймають integral ID та перевіряють original width до narrowing.
 Від'ємний, ширший за `PackedId` або absent group/entry дає `NotFound`.
 Сам lookup — bounds checks і пряме індексування; обходу назв немає.
 Group і entry — дві zero-based 16-bit positions. Families мають окремі ID spaces.
-TypeId описує тип і не використовується для вибору endpoint.
+TypeId описує тип і не використовується для вибору endpoint. Для checked
+encoded access до одного row local table без Model є
+`localFields[position].readEncoded(...)` / `writeEncoded(...)`,
+`localCommands[position].executeEncoded(...)` і
+`localServices[position].callEncoded(...)`; caller спершу забезпечує
+`position < localTable.size()`, бо `operator[]` не перевіряє bounds.
 
 ### B. ModelView і compiled adapter
 
-`model.fieldIndex()` / `commandIndex()` / `serviceIndex()` повертають ті самі
-family views. Якщо transport/module має повний `ModelView`, використовуйте
+Якщо transport/module має повний `ModelView`, використовуйте
 чотири public functions із [Adapter.hpp](../../lib/telemetry/model/Adapter.hpp):
 
 | Function | Result |
@@ -481,16 +454,13 @@ Request повністю decoded до response write.
 
 ## Headers, compiled sources та ABI
 
-Простий public include — `<telemetry/Telemetry.hpp>`. Для вужчого catalog
-access є `<telemetry/field/FieldCatalogs.hpp>`,
-`<telemetry/command/CommandCatalogs.hpp>` і
-`<telemetry/service/ServiceCatalogs.hpp>`. Compiled API оголошено у
+Простий public include — `<telemetry/Telemetry.hpp>`. Compiled API оголошено у
 `<telemetry/model/Adapter.hpp>`. C++20, `lib`, `lib/boost_pfr/include` і
 `lib/magic_enum` — build settings поточного reflection/type backend.
 
 | Access | Compiled source dependency |
 | --- | --- |
-| Catalog index / checked local entry | Header-defined operation; `Adapter.cpp` не потрібний |
+| Runtime index / checked local entry | Header-defined operation; `Adapter.cpp` не потрібний |
 | Чотири ModelView functions | `lib/telemetry/model/Adapter.cpp`; exact layout tag є частиною linked symbol |
 | Явний `requireStructuredAbi()` | `lib/telemetry/abi/StructuredAbi.cpp`, який визначає current specialization |
 
@@ -504,7 +474,7 @@ adapter автоматично захищає саме цей compiled boundary.
 [Lifetime, synchronization і ABI](#lifetime-synchronization-і-abi).
 
 Повна програма compiled/transport шляху —
-[Encoded.cpp](../../examples/user_guide/Encoded.cpp). Catalog index operations
+[Encoded.cpp](../../examples/user_guide/Encoded.cpp). Runtime-ID операції
 того самого набору declarations є у
 [Native.cpp](../../examples/user_guide/Native.cpp). Framing приклади —
 [Transport walkthrough](TransportWalkthrough.md).
@@ -735,25 +705,14 @@ members**, хоча normalized ceiling `maxStructMembers` дорівнює 256. 
 [вимірювання масштабування](../Scalability.md). Acceptance ceilings не обіцяють
 успішну збірку за default compiler budgets чи вміщення у Flash кожного MCU.
 
-Порожня група в дереві дозволена: `ts::group("spare")`. У плоскій формі
-для порожніх catalogs можна оголосити:
-
-```cpp
-inline constexpr ts::FieldCatalogTable<> noFields{};
-inline constexpr ts::CommandCatalogTable<> noCommands{};
-inline constexpr ts::ServiceCatalogTable<> noServices{};
-inline constexpr ts::Model emptyModel{noFields, noCommands, noServices};
-```
-
-Fields/Commands також мають ready-made `ts::emptyFields` і `ts::emptyCommands`;
-Services передають як `ServiceCatalogTable<>`. Порожня модель усе одно має
+Порожня група в дереві дозволена: `ts::group("spare")`; family, якої в
+групі немає, нічого не потребує. `Model{ts::group("spare")}` усе одно має
 built-in TypeRegistry, нуль runtime rows і `maxScratch() == 0`.
 
 ## Lifetime, synchronization і ABI
 
-Local tables та catalog tables noncopyable/nonmovable: erased contexts або
-runtime views можуть посилатися на їхні внутрішні arrays. `Model` позичає catalogs,
-а його копія позичає ті самі catalogs. Names, owners, callable lvalues, slots
+Local tables і `Model` noncopyable/nonmovable: erased contexts або runtime
+views можуть посилатися на їхні внутрішні arrays. Names, owners, callable lvalues, slots
 і всі transitive references живуть довше за кожний виклик через ці views.
 Static registry arrays існують незалежно від lifetime конкретної копії Model.
 
@@ -773,152 +732,3 @@ header-only module boundary із in-memory views можна явно викли�
 Далі: [Codec і Workspace](CodecAndWorkspace.md) пояснює exact spans, payload
 construction і status handling; [Descriptor і Values](DescriptorAndValues.md)
 показує, як передати structural metadata та live Field values consumer.
-
-## Виводиться з ужитку
-
-Ці форми ще компілюються, але зникнуть у наступних кроках ROADMAP API-1.
-Новий код використовує дерево груп, шляхи й handles:
-
-| Форма, що виводиться | Замість неї |
-| --- | --- |
-| `Model{fields, commands, services}`, `FieldCatalogTable` / `CommandCatalogTable` / `ServiceCatalogTable`, `ts::group(name, table)`, `emptyFields`, `emptyCommands` | `Model{branches...}` із `ts::group(name, items...)` |
-| Публічний `makeId<group, entry>()` і typed доступ `fields.read<id>()`, `commands.call<id>()`, `services.call<id>()` | `ts::endpoint<model, path>`, `ts::read/write/call<model, path>()`; ID — `idOf<model, path>()` або `handle.id` |
-| Catalog index `fields.index()` без Model | `model.view()` і compiled adapter |
-
-Плоский engine лишається всередині SDK під деревом, а `ModelView` і compiled
-adapter не змінюються; зникає публічна плоска форма. Таблиці й каталоги детально описує
-[Tables and catalogs](TablesAndCatalogs.md).
-
-<a id="повний-приклад"></a>
-
-## Повний приклад плоскої форми
-
-Цей приклад використовує плоску форму, що [виводиться з ужитку](#виводиться-з-ужитку);
-та сама програма в дереві груп — [QuickStart.cpp](../../examples/user_guide/QuickStart.cpp)
-і [group_tree](../../examples/group_tree/main.cpp). Приклад показує одну Field-структуру, Command без request і Service з aggregate
-request/response. Він використовує owning Service result та borrowed Field
-getter. Усі declarations мають стабільні адреси, а application state живе довше
-за таблиці.
-
-```cpp
-#include <telemetry/Telemetry.hpp>
-
-#include <array>
-#include <cassert>
-#include <cmath>
-#include <cstdint>
-
-namespace ts = telemetry;
-
-struct Config {
-    float limit;
-    bool enabled;
-};
-
-struct Query {
-    std::uint16_t channel;
-};
-
-struct Response {
-    float limit;
-    std::uint16_t channel;
-};
-
-struct Device {
-    Config config{230.0f, true};
-
-    const Config& readConfig() const noexcept
-    {
-        return config;
-    }
-
-    ts::WriteResult writeConfig(const Config& next) noexcept
-    {
-        if (!std::isfinite(next.limit) || next.limit < 1.0f || next.limit > 1000.0f) {
-            return ts::WriteResult::InvalidValue;
-        }
-        config = next;
-        return ts::WriteResult::Applied;
-    }
-
-    ts::CommandResult restoreDefaults() noexcept
-    {
-        config = {230.0f, true};
-        return ts::CommandResult::Executed;
-    }
-
-    ts::ServiceResult<Response> query(const Query& request) const noexcept
-    {
-        if (request.channel >= 3) {
-            return ts::ServiceResult<Response>::failure(ts::ServiceStatus::InvalidArgument);
-        }
-        return ts::ServiceResult<Response>::success({config.limit, request.channel});
-    }
-};
-
-inline Device device;
-inline constexpr ts::FieldTable localFields{
-    ts::field<&Device::readConfig, &Device::writeConfig>("Config", device),
-};
-inline constexpr ts::CommandTable localCommands{
-    ts::command<&Device::restoreDefaults>("RestoreDefaults", device),
-};
-inline constexpr ts::ServiceTable localServices{
-    ts::service<&Device::query>("Query", device),
-};
-
-inline constexpr ts::FieldCatalogTable fields{ts::group("settings", localFields)};
-inline constexpr ts::CommandCatalogTable commands{ts::group("control", localCommands)};
-inline constexpr ts::ServiceCatalogTable services{ts::group("queries", localServices)};
-inline constexpr ts::Model model{fields, commands, services};
-
-inline constexpr auto configId = ts::makeId<0, 0>();
-inline constexpr auto queryId = ts::makeId<0, 0>();
-
-int main()
-{
-    const auto native = fields.read<configId>();
-    assert(native && native.valueOrNull() == &device.config);
-
-    const auto nativeReply = services.call<queryId>(Query{2});
-    assert(nativeReply.hasValue() && nativeReply.value().channel == 2);
-
-    const auto view = model.view();
-    assert(view.fieldTypeId(configId) == model.typeId<Config>());
-    const auto serviceTypes = view.serviceTypeIds(queryId);
-    assert(serviceTypes && serviceTypes->requestTypeId == model.typeId<Query>());
-    assert(serviceTypes->responseTypeId == model.typeId<Response>());
-    assert(model.types().find(model.typeId<Config>())->kind == ts::TypeKind::Struct);
-
-    std::array<std::byte, model.maxScratch()> scratch{};
-    ts::Workspace workspace{scratch};
-    std::array<std::byte, ts::wireSize<Config>> configBytes{};
-    const Config next{240.0f, true};
-    assert(ts::encode(next, configBytes) == ts::CodecStatus::Ok);
-
-    const auto written = ts::writeFieldEncoded(view, configId, configBytes, workspace);
-    assert(written.dispatch == ts::DispatchStatus::Ok);
-    assert(written.endpointStatus == ts::WriteResult::Applied);
-    assert(device.config.limit == 240.0f);
-
-    std::array<std::byte, ts::wireSize<Query>> requestBytes{};
-    std::array<std::byte, ts::wireSize<Response>> responseBytes{};
-    const Query request{1};
-    assert(ts::encode(request, requestBytes) == ts::CodecStatus::Ok);
-    const auto reply = ts::callServiceEncoded(view, queryId, requestBytes,
-                                            responseBytes, workspace);
-    assert(reply.dispatch == ts::DispatchStatus::Ok);
-    assert(reply.endpointStatus == ts::ServiceStatus::Ok);
-    assert(reply.written == responseBytes.size());
-    assert(workspace.used() == 0);
-}
-```
-
-Для compiled calls у прикладі потрібно лінкувати
-[Adapter.cpp](../../lib/telemetry/model/Adapter.cpp) і
-[StructuredAbi.cpp](../../lib/telemetry/abi/StructuredAbi.cpp).
-[telemetry.pri](../../lib/telemetry/telemetry.pri) додає їх один раз у qmake build.
-Manual C++20 build має include roots `lib`, `lib/boost_pfr/include` і `lib/magic_enum`.
-
-Числові значення `configId` і `queryId` однакові: families мають окремі логічні
-простори. Transport передає також вид операції, який вибирає потрібний index.

@@ -18,6 +18,7 @@ API не надаються. Нове підключення починайте 
 - [Declarations і callback signatures](#declarations-і-callback-signatures)
 - [Native access та lifetimes](#native-access-та-lifetimes)
 - [Encoded transport і resources](#encoded-transport-і-resources)
+- [One way: the group tree, paths and handles](#one-way-the-group-tree-paths-and-handles)
 - [Descriptor v3.1: імена типів і дерево груп](#descriptor-v31-імена-типів-і-дерево-груп)
 - [Перевірка перенесення](#перевірка-перенесення)
 - [Походження попередніх результатів](#походження-попередніх-результатів)
@@ -97,8 +98,9 @@ binding forms — у [Native API](user/NativeApi.md).
 
 Збережіть local table ordering та packed global IDs, якщо вони потрібні
 consumer. Local Position вибирає entry; PackedId містить 16-bit group та
-16-bit entry. Для зовнішніх значень перевіряйте ширину до cast; використовуйте
-`tryMakeId`, а lookup нехай перевіряє actual catalog bounds.
+16-bit entry. Для зовнішніх значень перевіряйте ширину до cast: runtime-ID
+методи `model.fields()`, `commands()` і `services()` роблять це самі й
+перевіряють actual catalog bounds.
 
 Compile-time `read/write/call`, typed `forEach`, runtime `visit` та erased
 encoded API — різні шляхи до тих самих endpoints.
@@ -142,21 +144,105 @@ committed payload bytes. Деталі — у [wire reference](WireV3.md),
 [transport walkthrough](user/TransportWalkthrough.md) та
 [optional protocol example](../examples/structured_protocol/README.md).
 
+## One way: the group tree, paths and handles
+
+One way to write a device: the group tree, paths and handles, on the device,
+the generated Static clients and the Dynamic clients. The flat Model, the
+public `makeId` and the per-family generated symbols are removed. No device
+used the SDK in its released form yet, so nothing is kept for compatibility;
+hosts still read v3.0 descriptors from older devices.
+
+### What was removed and what replaces it
+
+| Removed | Use instead |
+| --- | --- |
+| `Model{fields, commands, services}` over `FieldCatalogTable`, `CommandCatalogTable`, `ServiceCatalogTable` | `Model{branches...}`, each branch a `ts::group(name, items...)` |
+| `ts::group(name, table)` over a local table, `emptyFields`, `emptyCommands` | `ts::group(name, items...)` holding the definitions, subgroups and nothing for an absent family |
+| `ts::makeId<group, entry>()`, `ts::makeId(group, entry)`, `ts::tryMakeId` | `ts::idOf<model, "path">()`, `model.idOf<"path">()`, `handle.id`; `groupOf`/`indexOf` still split a PackedId |
+| Typed access by a compile-time ID: `fields.read<id>()`, `write<id>(v)`, `get<id>()`, `readAs<T, id>()`, `commands.call<id>()`, `services.call<id>()` | A handle, `ts::endpoint<model, "path">`, with `.read()`, `.write(v)`, `.call(args...)` and its `Definition`; or `ts::read/write/call<model, "path">()` |
+| `model.flat()`, a catalog's `index()` without a Model | `model.view()`, `model.fieldIndex()`, `commandIndex()`, `serviceIndex()` |
+| Generated `api::motor::fields::RPM`, `motor::commands::Reset`, TS `motor.fields.RPM` | `api::motor::RPM`, `api::motor::Reset`, TS `motor.RPM`; `device.read<"motor/RPM">(callback)`, `await device.read('motor/RPM')` |
+
+Runtime IDs stay: an ID from a packet goes through `model.fields()`,
+`model.commands()` and `model.services()` (`readAs<T>(id)`, `writeAs(id, v)`,
+`visit(id, visitor)`, `call(id[, request])`, `callAs<R>(id[, request])`) or the
+encoded functions over `model.view()`. Local tables (`FieldTable`,
+`CommandTable`, `ServiceTable`) stay for native access without a Model. The
+catalog engine under the tree is internal (`telemetry::detail`); the
+testing-only `telemetry/testing/V30Model.hpp` names it for v3.0 checks and is
+neither installed nor included by `Telemetry.hpp`.
+
+### Before and after
+
+Before, the flat form:
+
+```cpp
+inline constexpr ts::FieldTable motorFields{
+    ts::field<&Motor::rpm>("RPM", motor),
+    ts::field<&Motor::config, &Motor::setConfig>("Config", motor)};
+inline constexpr ts::CommandTable motorCommands{ts::command<&Motor::reset>("Reset", motor)};
+inline constexpr ts::FieldCatalogTable fields{ts::group("motor", motorFields)};
+inline constexpr ts::CommandCatalogTable commands{ts::group("motor", motorCommands)};
+inline constexpr ts::ServiceCatalogTable<> services{};
+inline constexpr ts::Model model{fields, commands, services};
+
+const auto rpm = fields.read<ts::makeId<0, 0>()>();
+const auto reset = commands.call<ts::makeId<0, 0>()>();
+const auto converted = fields.readAs<double>(runtimeId);
+```
+
+After, the group tree:
+
+```cpp
+inline constexpr auto motorBranch = ts::group("motor",
+    ts::field<&Motor::rpm>("RPM", motor),
+    ts::field<&Motor::config, &Motor::setConfig>("Config", motor),
+    ts::command<&Motor::reset>("Reset", motor));
+inline constexpr ts::Model model{motorBranch};
+inline constexpr auto rpmHandle = ts::endpoint<model, "motor/RPM">;
+
+const auto rpm = rpmHandle.read();                     // or ts::read<model, "motor/RPM">()
+const auto reset = ts::call<model, "motor/Reset">();
+const auto converted = model.fields().readAs<double>(runtimeId);
+static_assert(rpmHandle.id == ts::idOf<model, "motor/RPM">());
+```
+
+Generated clients, before and after:
+
+```cpp
+client.read(api::motor::fields::RPM, callback);   // before
+client.read(api::motor::RPM, callback);           // after: the group's constant
+device.read<"motor/RPM">(callback);               // after: the path form
+```
+
+### What changes on the wire
+
+- **IDs.** A group's position is its pre-order position in the tree, shared by
+  the three families, so moving a flat model to a tree can renumber the IDs
+  of the second and later groups. Paths do not change; a hand-written client
+  that stores an ID stores it with the descriptor's fingerprint
+  ([WireV3: PackedId](WireV3.md#packedid)).
+- **Descriptor.** A tree always carries the GroupTree flag, so its descriptor
+  is v3.1 even with `TELEMETRY_TYPE_NAMES 0`. Hosts built with this SDK read
+  v3.0 and v3.1 alike; a host older than descriptor v3.1 needs rebuilding.
+- **v3.0 input to the generator.** A v3.0 descriptor generates the same group
+  form: its catalogs of one name are one root group of the three families, and
+  a Field and a Command sharing a name there get a kind suffix
+  (`control::Reset_Field`, `control::Reset_Command`) and no path form.
+
 ## Descriptor v3.1: імена типів і дерево груп
 
-SDK, у якому з'явився descriptor v3.1, нічого не вимагає від наявного коду
-пристрою: `Model{fields, commands, services}`, tables, `ts::group(name, table)`,
-`makeId<group, entry>()`, typed `fields.read<id>()`, `write<id>()` і
-`call<id>()` компілюються й поводяться як раніше. Змінюються лише байти
-descriptor: імена типів увімкнені за замовчуванням, тож пристрій з enum чи
-struct після перезбірки надсилає v3.1 з новим fingerprint.
+Descriptor v3.1 з'явився адитивно (2026-11-20); тепер пристрій описують лише
+деревом груп ([вище](#one-way-the-group-tree-paths-and-handles)), тож його
+descriptor завжди v3.1. Імена типів увімкнені за замовчуванням: пристрій з
+enum чи struct надсилає їх і має відповідний fingerprint.
 
 | Ситуація | Що зробити |
 | --- | --- |
 | Host зібраний з цим SDK (Dynamic client, UX, Inspector) | Нічого: hosts читають v3.0 і v3.1 |
 | Host старший за цей SDK | Він відмовляє descriptor v3.1: перезберіть host, або вимкніть імена на пристрої |
-| Static SDK, згенерований зі старого descriptor | Перегенеруйте його один раз; ваш код компілюється без змін, generated symbols лише додаються |
-| Потрібні точні байти v3.0 (плоска модель; дерево груп завжди v3.1) | `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp` пристрою на include path, або `-DTELEMETRY_TYPE_NAMES=0` для кожного translation unit |
+| Static SDK, згенерований зі старого descriptor | Перегенеруйте його; per-family symbols (`fields::`) замініть символами групи ([вище](#one-way-the-group-tree-paths-and-handles)) |
+| Пристрій без імен типів | `#define TELEMETRY_TYPE_NAMES 0` у `telemetry_config.hpp` пристрою на include path, або `-DTELEMETRY_TYPE_NAMES=0` для кожного translation unit; дерево лишається v3.1 |
 | Два типи з однаковим ім'ям (`DuplicateName`) | `TypeReflection<T>` з `typeName("...")` для одного з них або `noTypeName()` |
 | Записані сесії, прив'язані до fingerprint | Новий fingerprint відкриває нову сесію; старі записи відкриваються як раніше |
 
@@ -166,11 +252,10 @@ object files SDK з однаковими перемикачами, інакше 
 злінкуються. Translation unit, у якого на include path немає
 `telemetry_config.hpp`, мовчки бере значення за замовчуванням.
 
-Перехід на дерево груп добровільний. Нова форма `Model{branches...}` дає
-шляхи (`adc/channel1/Gain`) і named handles
-(`telemetry::endpoint<model, "adc/channel1/Gain">`) замість позиційних IDs.
-Перенесена модель може отримати інші IDs, бо в дереві позицію групи
-рахують у pre-order, спільно для всіх трьох families; шляхи від цього не
+Дерево груп — єдина форма. `Model{branches...}` дає шляхи (`adc/channel1/Gain`)
+і named handles (`telemetry::endpoint<model, "adc/channel1/Gain">`) замість
+позиційних IDs. Перенесена модель може отримати інші IDs, бо в дереві позицію
+групи рахують у pre-order, спільно для всіх трьох families; шляхи від цього не
 змінюються. [Model: group tree](user/Model.md#group-tree-модель-із-файлів-гілок),
 [release note](ReleaseNotes.md#сумісність-старі-hosts-і-новий-пристрій).
 

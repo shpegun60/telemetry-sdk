@@ -9,11 +9,10 @@ static void mixedScalars() noexcept
 	Harness<Codec> h;
 	const auto binding = rm::bindReadMany(
 	    h.client, h.backend, h.capability,
-	    rm::fields(api::mixed::fields::Bool, api::mixed::fields::U8, api::mixed::fields::S8,
-	               api::mixed::fields::U16, api::mixed::fields::S16, api::mixed::fields::U32,
-	               api::mixed::fields::S32, api::mixed::fields::U64, api::mixed::fields::S64,
-	               api::mixed::fields::F32, api::mixed::fields::F64, api::mixed::fields::Enum,
-	               api::mixed::fields::Unavailable));
+	    rm::fields(api::mixed::Bool, api::mixed::U8, api::mixed::S8, api::mixed::U16,
+	               api::mixed::S16, api::mixed::U32, api::mixed::S32, api::mixed::U64,
+	               api::mixed::S64, api::mixed::F32, api::mixed::F64, api::mixed::Enum,
+	               api::mixed::Unavailable));
 	CHECK(binding);
 	Observed observed;
 	CHECK(rm::readMany(h.client, binding.binding, [&observed](const auto& result) noexcept {
@@ -98,11 +97,10 @@ static void sameFifo() noexcept
 	Harness<> h;
 	std::array<unsigned, 3> order{};
 	unsigned completed = 0;
-	const auto binding =
-	    rm::bindReadMany(h.client, h.backend, h.capability,
-	                     rm::fields(api::right::fields::F31, api::left::fields::F03));
+	const auto binding = rm::bindReadMany(h.client, h.backend, h.capability,
+	                                      rm::fields(api::right::F31, api::left::F03));
 	CHECK(binding);
-	CHECK(h.client.read(api::ordinary::fields::Value, [&](const auto& result) noexcept {
+	CHECK(h.client.read(api::ordinary::Value, [&](const auto& result) noexcept {
 		CHECK(result.succeeded() && result.hasValue() && result.value() == 0xa1b2c3d4u);
 		order[completed++] = 1;
 	}));
@@ -114,7 +112,7 @@ static void sameFifo() noexcept
 		      result.template get<1>().value() == native::word(3));
 		order[completed++] = 2;
 	}));
-	CHECK(h.client.read(api::ordinary::fields::Value, [&](const auto& result) noexcept {
+	CHECK(h.client.read(api::ordinary::Value, [&](const auto& result) noexcept {
 		CHECK(result.succeeded() && result.hasValue() && result.value() == 0xa1b2c3d4u);
 		order[completed++] = 3;
 	}));
@@ -134,7 +132,7 @@ static void sameFifo() noexcept
 static void refusals() noexcept
 {
 	Harness<> h;
-	const auto two = rm::fields(api::left::fields::F00, api::right::fields::F17);
+	const auto two = rm::fields(api::left::F00, api::right::F17);
 	auto capability = h.capability;
 	++capability.session;
 	CHECK(rm::bindReadMany(h.client, h.backend, capability, two).status == cl::Status::NotAdmitted);
@@ -158,17 +156,17 @@ static void refusals() noexcept
 	CHECK(rm::bindReadMany(h.client, h.backend, capability, two).status ==
 	      cl::Status::InvalidArgument);
 	CHECK(rm::bindReadMany(h.client, h.backend, h.capability,
-	                       rm::fields(api::left::fields::F00, api::left::fields::F00))
+	                       rm::fields(api::left::F00, api::left::F00))
 	          .status == cl::Status::InvalidArgument);
-	auto metadata = api::left::fields::F00;
+	auto metadata = api::left::F00;
 	metadata.capabilities = 0;
 	CHECK(rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(metadata)).status ==
 	      cl::Status::InvalidArgument);
-	metadata = api::left::fields::F00;
+	metadata = api::left::F00;
 	metadata.valueBytes = 8;
 	CHECK(rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(metadata)).status ==
 	      cl::Status::InvalidArgument);
-	metadata = api::left::fields::F00;
+	metadata = api::left::F00;
 	metadata.fingerprint ^= 1;
 	CHECK(rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(metadata)).status ==
 	      cl::Status::NotAdmitted);
@@ -193,9 +191,8 @@ static void lifecycle() noexcept
 	for (bool cancel : {false, true}) {
 		for (unsigned phase = 0; phase < 3; ++phase) {
 			Harness<> h;
-			const auto binding =
-			    rm::bindReadMany(h.client, h.backend, h.capability,
-			                     rm::fields(api::left::fields::F00, api::right::fields::F17));
+			const auto binding = rm::bindReadMany(h.client, h.backend, h.capability,
+			                                      rm::fields(api::left::F00, api::right::F17));
 			CHECK(binding);
 			Observed observed;
 			const auto submitted = rm::readMany(
@@ -237,7 +234,7 @@ static void lifecycle() noexcept
 	for (unsigned phase = 0; phase < 3; ++phase) {
 		Harness<> h;
 		const auto binding =
-		    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::fields::F00));
+		    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::F00));
 		Observed observed;
 		CHECK(rm::readMany(
 		    h.client, binding.binding,
@@ -265,9 +262,8 @@ static void malformed() noexcept
 {
 	for (unsigned mutation = 0; mutation < 10; ++mutation) {
 		Harness<> h;
-		const auto binding =
-		    rm::bindReadMany(h.client, h.backend, h.capability,
-		                     rm::fields(api::left::fields::F00, api::mixed::fields::Bool));
+		const auto binding = rm::bindReadMany(h.client, h.backend, h.capability,
+		                                      rm::fields(api::left::F00, api::mixed::Bool));
 		Observed observed;
 		CHECK(rm::readMany(h.client, binding.binding, [&observed](const auto& result) noexcept {
 			observed.record(result);
@@ -330,9 +326,8 @@ static void perItemStatuses() noexcept
 {
 	for (unsigned status = 1; status <= 4; ++status) {
 		Harness<> h;
-		const auto binding =
-		    rm::bindReadMany(h.client, h.backend, h.capability,
-		                     rm::fields(api::left::fields::F00, api::mixed::fields::Bool));
+		const auto binding = rm::bindReadMany(h.client, h.backend, h.capability,
+		                                      rm::fields(api::left::F00, api::mixed::Bool));
 		Observed observed;
 		CHECK(rm::readMany(h.client, binding.binding, [&observed](const auto& result) noexcept {
 			observed.record(result);
@@ -360,7 +355,7 @@ static void boundedSubmission() noexcept
 {
 	Harness<api::client::CodecPolicy, 1> h;
 	const auto binding =
-	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::fields::F00));
+	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::F00));
 	Observed accepted, rejected;
 	CHECK(rm::readMany(h.client, binding.binding, [&accepted](const auto& result) noexcept {
 		accepted.record(result);
@@ -375,8 +370,8 @@ static void boundedSubmission() noexcept
 	h.stop();
 
 	Harness<api::client::CodecPolicy, 2, 5> small;
-	const auto smallBinding = rm::bindReadMany(small.client, small.backend, small.capability,
-	                                           rm::fields(api::left::fields::F00));
+	const auto smallBinding =
+	    rm::bindReadMany(small.client, small.backend, small.capability, rm::fields(api::left::F00));
 	CHECK(smallBinding);
 	CHECK(
 	    rm::readMany(small.client, smallBinding.binding, [&rejected](const auto& result) noexcept {
@@ -390,21 +385,21 @@ static void boundedSubmission() noexcept
 static void bindingOwnershipAndSessions() noexcept
 {
 	Harness<> h;
-	auto source = rm::fields(api::left::fields::F00, api::right::fields::F31);
+	auto source = rm::fields(api::left::F00, api::right::F31);
 	auto binding = rm::bindReadMany(h.client, h.backend, h.capability, source);
 	CHECK(binding);
-	std::get<0>(source.endpoints).id = api::left::fields::F09.id;
+	std::get<0>(source.endpoints).id = api::left::F09.id;
 	Observed observed;
 	CHECK(rm::readMany(h.client, binding.binding, [&observed](const auto& result) noexcept {
 		observed.record(result);
 	}));
 	binding = {}; // Accepted completion owns its normalized binding.
 	h.send(h.offered());
-	CHECK(observed.ids[0] == api::left::fields::F00.id && observed.values[0] == native::word(0));
-	CHECK(observed.ids[1] == api::right::fields::F31.id && observed.values[1] == native::word(31));
+	CHECK(observed.ids[0] == api::left::F00.id && observed.values[0] == native::word(0));
+	CHECK(observed.ids[1] == api::right::F31.id && observed.values[1] == native::word(31));
 
 	const auto old =
-	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::fields::F00));
+	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::F00));
 	Harness<> foreign;
 	CHECK(rm::readMany(foreign.client, old.binding, [&observed](const auto& result) noexcept {
 		      observed.record(result);
@@ -422,7 +417,7 @@ static void bindingOwnershipAndSessions() noexcept
 	      }).status == cl::Status::NotAdmitted);
 	h.capability.session = 18;
 	const auto current =
-	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::fields::F00));
+	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::F00));
 	CHECK(current);
 	CHECK(rm::readMany(h.client, current.binding, [&observed](const auto& result) noexcept {
 		observed.record(result);
@@ -452,8 +447,8 @@ static Harness<HookCodec>* hookOwner = nullptr;
 static void handwrittenAndDecodeReentry() noexcept
 {
 	Harness<HookCodec> h;
-	const static_many_contracts::Field<std::uint32_t> a{api::left::fields::F00.id};
-	const static_many_contracts::Field<bool> b{api::mixed::fields::Bool.id};
+	const static_many_contracts::Field<std::uint32_t> a{api::left::F00.id};
+	const static_many_contracts::Field<bool> b{api::mixed::Bool.id};
 	const auto binding = rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(a, b));
 	CHECK(binding);
 	for (bool revoke : {false, true}) {
@@ -548,7 +543,7 @@ static void callbacksAndReentry() noexcept
 {
 	Harness<> h;
 	const auto binding =
-	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::fields::F00));
+	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::F00));
 	using Result = rm::StaticReadManyResult<std::uint32_t>;
 	void (*nullFunction)(const Result&) noexcept = nullptr;
 	CHECK(rm::readMany(h.client, binding.binding, nullFunction).status ==
@@ -586,9 +581,8 @@ static void callbacksAndReentry() noexcept
 
 	for (unsigned trigger = 1; trigger <= 3; ++trigger) {
 		Harness<> changing;
-		const auto selectedBinding =
-		    rm::bindReadMany(changing.client, changing.backend, changing.capability,
-		                     rm::fields(api::left::fields::F00));
+		const auto selectedBinding = rm::bindReadMany(
+		    changing.client, changing.backend, changing.capability, rm::fields(api::left::F00));
 		Observed refused;
 		OwnershipProbe probe{&changing, &refused, 0, 0, trigger};
 		{
@@ -607,9 +601,8 @@ template<class Codec>
 static void floatingBits() noexcept
 {
 	Harness<Codec> h;
-	const auto binding =
-	    rm::bindReadMany(h.client, h.backend, h.capability,
-	                     rm::fields(api::mixed::fields::F32, api::mixed::fields::F64));
+	const auto binding = rm::bindReadMany(h.client, h.backend, h.capability,
+	                                      rm::fields(api::mixed::F32, api::mixed::F64));
 	CHECK(binding);
 	constexpr std::array<std::uint32_t, 6> f32{0x7fc12345u, 0xffc23456u, 0x7f812345u,
 	                                           0xff823456u, 0u,          0x80000000u};
@@ -671,7 +664,7 @@ static void destructorReentry() noexcept
 {
 	Harness<> h;
 	const auto binding =
-	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::fields::F00));
+	    rm::bindReadMany(h.client, h.backend, h.capability, rm::fields(api::left::F00));
 	Observed observed;
 	DestructorProbe probe{&h, binding.binding, &observed};
 	CHECK(rm::readMany(h.client, binding.binding, SubmitOnDestroy{probe}));
@@ -686,7 +679,7 @@ static void destructorReentry() noexcept
 struct ReentrantField {
 	static constexpr unsigned category = 1;
 	using Value = std::uint32_t;
-	std::uint32_t id = api::left::fields::F00.id;
+	std::uint32_t id = api::left::F00.id;
 	Harness<>* owner;
 	bool close;
 
@@ -706,7 +699,7 @@ static void bindingReentry() noexcept
 		Harness<> h;
 		const auto bound =
 		    rm::bindReadMany(h.client, h.backend, h.capability,
-		                     rm::fields(ReentrantField{api::left::fields::F00.id, &h, close}));
+		                     rm::fields(ReentrantField{api::left::F00.id, &h, close}));
 		CHECK(!bound);
 		CHECK(bound.status == (close ? cl::Status::Closed : cl::Status::NotAdmitted));
 		CHECK(h.client.pending() == 0 && native::owner.calls() == 0);
@@ -718,7 +711,7 @@ static void bindingReentry() noexcept
 static void pureRecoveryGate() noexcept
 {
 	Harness<> h;
-	const auto selection = rm::fields(api::left::fields::F00);
+	const auto selection = rm::fields(api::left::F00);
 	const auto binding = rm::bindReadMany(h.client, h.backend, h.capability, selection);
 	Observed observed;
 	CHECK(rm::readMany(

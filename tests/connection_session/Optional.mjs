@@ -7,7 +7,7 @@ import {FakeClock, flush, u32Bytes} from './Trace.mjs';
 import * as sdk from './generated/js/device.js';
 
 const descriptor = new Uint8Array(await readFile(new URL('./descriptor.bin', import.meta.url)));
-const F = sdk.control.fields, C = sdk.control.commands;
+const F = sdk.control, C = sdk.control;
 const fingerprint = new DataView(descriptor.buffer).getBigUint64(16, true);
 let checks = 0, cases = 0;
 const equal = (a, b, label) => {

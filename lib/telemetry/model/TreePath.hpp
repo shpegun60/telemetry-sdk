@@ -40,6 +40,7 @@
 #pragma once
 
 #include "../core/Id.hpp"
+#include "Catalog.hpp"
 #include "../reflection/Aggregate.hpp"
 #include "../reflection/Callable.hpp"
 #include "../result/EndpointStatus.hpp"
@@ -383,7 +384,7 @@ template<const auto& M, EndpointPath P>
 	constexpr auto at = detail::locatePath(M, P.view());
 	static_assert(detail::PathFound<P, at.error>::value);
 	static_assert(detail::PathWhole<P, at.memberStart == P.view().size()>::value);
-	return makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	return detail::makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
 }
 
 // Read a Field, or one member or element of it, by path. The whole Field's
@@ -396,11 +397,12 @@ template<const auto& M, EndpointPath P>
 	constexpr auto at = detail::locatePath(M, P.view());
 	static_assert(detail::PathFound<P, at.error>::value);
 	static_assert(detail::PathCategory<P, at.category, 1>::value);
-	constexpr auto id = makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	constexpr auto id =
+	    detail::makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
 	if constexpr (at.memberStart == P.view().size()) {
-		return M.fields().template read<id>();
+		return detail::CatalogAccess::read<id>(M.fields());
 	} else {
-		const auto whole = M.fields().template read<id>();
+		const auto whole = detail::CatalogAccess::read<id>(M.fields());
 		using Value = std::remove_cvref_t<decltype(*whole)>;
 		using Selected = detail::PathMember<Value, P, at.memberStart>;
 		using Part = std::remove_cvref_t<typename Selected::Type>;
@@ -410,7 +412,7 @@ template<const auto& M, EndpointPath P>
 	}
 }
 
-// Write a whole Field by path; the value type is checked as for fields().write<id>().
+// Write a whole Field by path; the value type is checked as by the Field's own write.
 template<const auto& M, EndpointPath P, class Argument>
 [[nodiscard]] WriteResult write(Argument&& value) noexcept
 {
@@ -420,8 +422,9 @@ template<const auto& M, EndpointPath P, class Argument>
 	static_assert(detail::PathFound<P, at.error>::value);
 	static_assert(detail::PathCategory<P, at.category, 1>::value);
 	static_assert(detail::PathWhole<P, at.memberStart == P.view().size()>::value);
-	constexpr auto id = makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
-	return M.fields().template write<id>(std::forward<Argument>(value));
+	constexpr auto id =
+	    detail::makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	return detail::CatalogAccess::write<id>(M.fields(), std::forward<Argument>(value));
 }
 
 // Call a Command or Service by path, with its native arguments.
@@ -434,11 +437,12 @@ template<const auto& M, EndpointPath P, class... Args>
 	static_assert(detail::PathFound<P, at.error>::value);
 	static_assert(detail::PathCategory<P, at.category, 2, 3>::value);
 	static_assert(detail::PathWhole<P, at.memberStart == P.view().size()>::value);
-	constexpr auto id = makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	constexpr auto id =
+	    detail::makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
 	if constexpr (at.category == 2)
-		return M.commands().template call<id>(std::forward<Args>(args)...);
+		return detail::CatalogAccess::call<id>(M.commands(), std::forward<Args>(args)...);
 	else
-		return M.services().template call<id>(std::forward<Args>(args)...);
+		return detail::CatalogAccess::call<id>(M.services(), std::forward<Args>(args)...);
 }
 
 namespace detail {
@@ -476,11 +480,11 @@ template<const auto& M, PackedId Id, reflection::EndpointKind Kind>
 constexpr const auto& handleDefinition() noexcept
 {
 	if constexpr (Kind == reflection::EndpointKind::Field)
-		return M.fields().template get<Id>();
+		return detail::CatalogAccess::get<Id>(M.fields());
 	else if constexpr (Kind == reflection::EndpointKind::Command)
-		return M.commands().template get<Id>();
+		return detail::CatalogAccess::get<Id>(M.commands());
 	else
-		return M.services().template get<Id>();
+		return detail::CatalogAccess::get<Id>(M.services());
 }
 
 } // namespace detail
@@ -491,8 +495,8 @@ constexpr const auto& handleDefinition() noexcept
 // The path is checked where the handle is declared; a path that names
 // nothing is a build error whose trace shows it. The handle is an empty
 // object: its PackedId, family and value type are part of its type, so a
-// call compiles to the same typed call as read<model, path>() or as
-// model.fields().read<id>(), and no path text reaches the image. A handle to
+// call compiles to the same typed call as read<model, path>(), and no path
+// text reaches the image. A handle to
 // a member or element of a Field reads only; write() takes whole Fields and
 // call() Commands and Services, with the arguments they take natively.
 template<const auto& M, PackedId Id, reflection::EndpointKind Kind, class Select = void>
@@ -517,9 +521,9 @@ public:
 		if constexpr (Kind != reflection::EndpointKind::Field) {
 			return;
 		} else if constexpr (!member) {
-			return M.fields().template read<Id>();
+			return detail::CatalogAccess::read<Id>(M.fields());
 		} else {
-			const auto whole = M.fields().template read<Id>();
+			const auto whole = detail::CatalogAccess::read<Id>(M.fields());
 			using Part = std::remove_cvref_t<Value>;
 			if (!whole)
 				return std::optional<Part>{};
@@ -527,7 +531,7 @@ public:
 		}
 	}
 
-	// Write the whole Field; the value type is checked as for fields().write<id>().
+	// Write the whole Field; the value type is checked as by the Field's own write.
 	template<class Argument>
 	[[nodiscard]] WriteResult write(Argument&& value) const noexcept
 	{
@@ -538,7 +542,7 @@ public:
 		if constexpr (Kind != reflection::EndpointKind::Field || member)
 			return WriteResult::NotFound;
 		else
-			return M.fields().template write<Id>(std::forward<Argument>(value));
+			return detail::CatalogAccess::write<Id>(M.fields(), std::forward<Argument>(value));
 	}
 
 	// Call the Command or Service with its native arguments.
@@ -548,9 +552,9 @@ public:
 		static_assert(Kind != reflection::EndpointKind::Field,
 		              "call() takes a Command or Service handle; this handle names a Field");
 		if constexpr (Kind == reflection::EndpointKind::Command)
-			return M.commands().template call<Id>(std::forward<Args>(args)...);
+			return detail::CatalogAccess::call<Id>(M.commands(), std::forward<Args>(args)...);
 		else if constexpr (Kind == reflection::EndpointKind::Service)
-			return M.services().template call<Id>(std::forward<Args>(args)...);
+			return detail::CatalogAccess::call<Id>(M.services(), std::forward<Args>(args)...);
 	}
 };
 
@@ -567,7 +571,8 @@ template<const auto& M, EndpointPath P>
 consteval auto makeTreeEndpoint() noexcept
 {
 	constexpr auto at = locatePath(M, P.view());
-	constexpr auto id = makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
+	constexpr auto id =
+	    detail::makeId(static_cast<GroupId>(at.group), static_cast<EntryOffset>(at.entry));
 	constexpr auto kind = handleKind<at.category>;
 	constexpr bool whole = at.memberStart == P.view().size();
 	if constexpr (!PathFound<P, at.error>::value) {

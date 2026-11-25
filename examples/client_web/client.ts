@@ -46,8 +46,8 @@ export function encodedClient(send: EncodedSend, header: Uint8Array, freshSessio
 export async function run(client: DeviceClient, config: device.types.Config)
 {
 	// Snapshot and enqueue immediately. The FIFO sends one transaction at a time.
-	const update = client.write(device.fields.Config, config);
-	const current = client.read(device.fields.Config);
+	const update = client.write(device.Config, config);
+	const current = client.read(device.Config);
 	const results = await Promise.all([ update, current ]);
 	if (!results.every(result => result.succeeded))
 		return results;
