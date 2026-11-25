@@ -112,11 +112,12 @@ def program(rows, family, layout, shard_rows, targets):
 """)
     native = []
     if "field" in active:
-        native.append("check(fields.read<0>().has_value());")
+        native.append("check(ts::testing::CatalogAccess::read<0>(fields).has_value());")
     if "command" in active:
-        native.append("check(commands.call<0>(Payload{11, 2, true}) == ts::CommandResult::Executed);")
+        native.append("check(ts::testing::CatalogAccess::call<0>(commands, Payload{11, 2, true}) == "
+                      "ts::CommandResult::Executed);")
     if "service" in active:
-        native.append("check(services.call<0>(Payload{11, 2, true}).hasValue());")
+        native.append("check(ts::testing::CatalogAccess::call<0>(services, Payload{11, 2, true}).hasValue());")
     source = """/* Generated homogeneous endpoint scaling probe; inputs live outside the repository.
  * Public Device methods read/write native Payload, configure a Command, and echo a Service.
  * Distinct helpers deliberately create separate endpoint target specializations. */
