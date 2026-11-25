@@ -21,8 +21,8 @@ int main()
 	api::device::types::InspectResponse response{};
 	if (api::codec::decode(input, request) != api::codec::Status::Ok)
 		return 3;
-	const auto result = api::encoded::callService(ex::model.view(), api::device::services::Inspect,
-	                                              request, input, output, ex::workspace, response);
+	const auto result = api::encoded::callService(ex::model.view(), api::device::Inspect, request,
+	                                              input, output, ex::workspace, response);
 	if (!result.ok() || response.checksum != 263168)
 		return 4;
 	std::printf("codegen_encoded checksum=%u checks=4 failures=0\n", response.checksum);

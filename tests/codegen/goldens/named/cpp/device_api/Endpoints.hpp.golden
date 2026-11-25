@@ -42,62 +42,18 @@ template<class Q, class R> struct Service {
 };
 } // namespace endpoint
 
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_1> Enabled{0, 1, 1, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_4> RPM{1, 4, 2, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_10> Temperature{2, 10, 4, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_11> Precise{3, 11, 8, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_12> Mode{4, 12, 1, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_13> Samples{5, 13, 6, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_14> State{6, 14, 5, 1};
-} // namespace motor::fields
-
-namespace motor::fields {
-inline constexpr endpoint::Field<detail::Type_15> Config{7, 15, 7, 3};
-} // namespace motor::fields
-
-namespace motor::commands {
-inline constexpr endpoint::Command<detail::Type_15> Configure{0, 15, 7};
-} // namespace motor::commands
-
-namespace motor::commands {
-inline constexpr endpoint::Command<detail::Type_0> Reset{1, 0, 0};
-} // namespace motor::commands
-
-namespace motor::services {
-inline constexpr endpoint::Service<detail::Type_15, detail::Type_15> Echo{0, 15, 15, 7, 7};
-} // namespace motor::services
-
 // Groups: the catalogs of one name are one group; api::motor::Config is the path motor/Config.
 namespace motor {
-inline constexpr auto Enabled = fields::Enabled;
-inline constexpr auto RPM = fields::RPM;
-inline constexpr auto Temperature = fields::Temperature;
-inline constexpr auto Precise = fields::Precise;
-inline constexpr auto Mode = fields::Mode;
-inline constexpr auto Samples = fields::Samples;
-inline constexpr auto State = fields::State;
-inline constexpr auto Config = fields::Config;
-inline constexpr auto Configure = commands::Configure;
-inline constexpr auto Reset = commands::Reset;
-inline constexpr auto Echo = services::Echo;
+inline constexpr endpoint::Field<detail::Type_1> Enabled{0, 1, 1, 1};
+inline constexpr endpoint::Field<detail::Type_4> RPM{1, 4, 2, 1};
+inline constexpr endpoint::Field<detail::Type_10> Temperature{2, 10, 4, 1};
+inline constexpr endpoint::Field<detail::Type_11> Precise{3, 11, 8, 1};
+inline constexpr endpoint::Field<detail::Type_12> Mode{4, 12, 1, 1};
+inline constexpr endpoint::Field<detail::Type_13> Samples{5, 13, 6, 1};
+inline constexpr endpoint::Field<detail::Type_14> State{6, 14, 5, 1};
+inline constexpr endpoint::Field<detail::Type_15> Config{7, 15, 7, 3};
+inline constexpr endpoint::Command<detail::Type_15> Configure{0, 15, 7};
+inline constexpr endpoint::Command<detail::Type_0> Reset{1, 0, 0};
+inline constexpr endpoint::Service<detail::Type_15, detail::Type_15> Echo{0, 15, 15, 7, 7};
 } // namespace motor
 } // namespace device_api

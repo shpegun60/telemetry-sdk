@@ -27,7 +27,7 @@ int main()
 	if (client.admitDescriptor(api::schema::descriptorHeader, 17) != cl::Status::Ok)
 		return 1;
 	const auto binding = rm::bindReadMany(client, backend, {17, api::schema::fingerprint},
-	                                      rm::fields(api::left::fields::F05));
+	                                      rm::fields(api::left::F05));
 	if (!binding)
 		return 2;
 	const auto submitted = rm::readMany(client, binding.binding, completed);

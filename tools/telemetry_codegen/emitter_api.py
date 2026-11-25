@@ -13,7 +13,9 @@ from .naming import KEYWORDS, identifier
 from .generators.cpp import _reachable, _string
 
 API_VERSION = 1
-IR_VERSION = 1
+# IR 2: one group form. An Endpoint's symbol is its symbol in its group
+# (Schema.api_groups/api_symbols); there are no per-family generated symbols.
+IR_VERSION = 2
 SDK_VERSION = __version__
 
 

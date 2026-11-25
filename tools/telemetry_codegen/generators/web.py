@@ -384,9 +384,6 @@ def _named_types_declarations(schema) -> list[str]:
     return lines + ["}"]
 
 
-_FAMILIES = ((1, "fields"), (2, "commands"), (3, "services"))
-
-
 def _tree_members(schema):
     """Per group index: its endpoints with their sibling symbols, and its child groups."""
     endpoints, children = {}, {}
@@ -406,10 +403,10 @@ def _group_comment(schema, separator):
 
 
 def _tree_runtime_js(schema, wire_editing=False) -> list[str]:
-    """Nested frozen objects mirror the groups; the family objects keep the flat form.
+    """Nested frozen objects mirror the groups: adc.channel1.Gain is an endpoint object.
 
-    adc.channel1.Gain and adc.channel1.fields.Gain are the same endpoint object.
-    Children are built before their parents, so every reference is defined.
+    One form, with no per-family objects. Children are built before their
+    parents, so every reference is defined.
     """
     endpoints, children = _tree_members(schema)
     lines = [_group_comment(schema, ".")]
@@ -424,12 +421,6 @@ def _tree_runtime_js(schema, wire_editing=False) -> list[str]:
         if not aliases:
             lines.append("    _empty: undefined,")
         lines.append("  }),")
-        for category, family in _FAMILIES:
-            lines.append(f"  {family}: Object.freeze({{")
-            for number, endpoint, _ in rows:
-                if endpoint.category == category:
-                    lines.append(f"    [{_quote(endpoint.symbol)}]: _e{number},")
-            lines.append("  }),")
         for child in children.get(group.index, ()):
             lines.append(f"  [{_quote(child.symbol)}]: _g{child.index},")
         for number, _, symbol in rows:
@@ -455,17 +446,10 @@ def _tree_runtime_ts(schema, wire_editing=False) -> list[str]:
         if not aliases:
             lines.append(f"{pad}    export const _empty = undefined;")
         lines.append(f"{pad}  }}")
-        for category, family in _FAMILIES:
-            lines.append(f"{pad}  export const {family} = Object.freeze({{")
-            for _, endpoint, _ in rows:
-                if endpoint.category == category:
-                    lines.append(f"{pad}    [{_quote(endpoint.symbol)}]: {_endpoint_expression(schema, endpoint, wire_editing)},")
-            lines.append(f"{pad}  }});")
         for child in children.get(group.index, ()):
             emit(child, depth + 1)
         for _, endpoint, symbol in rows:
-            family = _FAMILIES[endpoint.category - 1][1]
-            lines.append(f"{pad}  export const {symbol} = {family}[{_quote(endpoint.symbol)}];")
+            lines.append(f"{pad}  export const {symbol} = {_endpoint_expression(schema, endpoint, wire_editing)};")
         lines.append(f"{pad}}}")
 
     for group in schema.api_groups:
@@ -519,17 +503,10 @@ def _tree_declarations(schema, wire_editing=False) -> list[str]:
         if not aliases:
             lines.append(f"{pad}    const _empty: undefined;")
         lines.append(f"{pad}  }}")
-        for category, family in _FAMILIES:
-            lines.append(f"{pad}  const {family}: Readonly<{{")
-            for _, endpoint, _ in rows:
-                if endpoint.category == category:
-                    lines.append(f"{pad}    readonly {_quote(endpoint.symbol)}: {_endpoint_declaration(schema, endpoint, wire_editing)};")
-            lines.append(f"{pad}  }}>;")
         for child in children.get(group.index, ()):
             emit(child, depth + 1)
         for _, endpoint, symbol in rows:
-            family = _FAMILIES[endpoint.category - 1][1]
-            lines.append(f"{pad}  const {symbol}: (typeof {family})[{_quote(endpoint.symbol)}];")
+            lines.append(f"{pad}  const {symbol}: {_endpoint_declaration(schema, endpoint, wire_editing)};")
         lines.append(f"{pad}}}")
 
     for group in schema.api_groups:

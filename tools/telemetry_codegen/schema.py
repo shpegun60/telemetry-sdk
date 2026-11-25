@@ -2,14 +2,14 @@
 
 Type IDs remain the descriptor's original positional IDs, including when a
 backend emits only reachable definitions. No native C++ offsets are inferred.
-Descriptor v3.1 adds two symbol scopes, both additions to the v3.0 symbols:
-named types live in a dedicated `types` scope, nested by their own scope
-(`adc::Config` -> `types::adc::Config`), and a GroupTree descriptor maps every
-group to a nested scope that holds its subgroups and endpoints side by side.
-Every descriptor has that group form (`api_groups`, `api_symbols`): a catalog
-descriptor's catalogs of one name are one root group of all three families,
-and two endpoints of different families sharing a name there take a kind
-suffix (`Reset_Field`, `Reset_Command`), as their path names neither.
+Named types (v3.1) live in a dedicated `types` scope, nested by their own
+scope (`adc::Config` -> `types::adc::Config`). Endpoints have one form, the
+group form (`api_groups`, `api_symbols`): every group is a nested scope that
+holds its subgroups and endpoints side by side. A GroupTree descriptor gives
+its own groups; a catalog descriptor's (v3.0) catalogs of one name are one
+root group of all three families, and two endpoints of different families
+sharing a name there take a kind suffix (`Reset_Field`, `Reset_Command`), as
+their path names neither. An endpoint's `symbol` is its symbol in its group.
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 """
 
@@ -229,14 +229,13 @@ def load_schema(data: bytes, namespace="device_api", limits=Limits()):
         for catalog in catalogs:
             rows = raw["endpoints"][category - 1][catalog["first"]:
                                                     catalog["first"] + catalog["count"]]
-            symbols = allocate(row["name"] for row in rows)
             group = (groups[catalog["group"]].qualified if groups is not None
                      else group_symbols[catalog["name"]])
-            for local, (row, symbol) in enumerate(zip(rows, symbols)):
+            for local, row in enumerate(rows):
                 pending.append(dict(
                     category=category, id=row["id"], catalog_index=catalog["group"],
                     catalog_name=catalog["name"], name=row["name"],
-                    group=group, symbol=symbol,
+                    group=group, symbol="",  # its symbol in its group, set below
                     value_type=row["type"] if category == 1 else 0,
                     request_type=row["type"] if category != 1 else 0,
                     response_type=row.get("response", 0),
@@ -270,6 +269,9 @@ def load_schema(data: bytes, namespace="device_api", limits=Limits()):
             item["catalog_index"] for item in pending), tuple(siblings)
     else:
         api_groups, api_group_of, api_symbols = _catalog_groups(catalog_names, group_symbols, pending)
+    # One form: an endpoint's public symbol is the one beside its group's other items.
+    for item, symbol in zip(pending, api_symbols):
+        item["symbol"] = symbol
     return Schema(_freeze(raw), namespace, hashlib.sha256(data).hexdigest(),
                   tuple(Endpoint(**item) for item in pending), member_names, enum_names,
                   _type_symbols(raw), groups, tuple(siblings), api_groups, api_group_of, api_symbols)

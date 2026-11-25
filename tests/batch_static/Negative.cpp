@@ -31,7 +31,7 @@ struct HugeCodec : api::client::CodecPolicy {
 template<std::size_t... I>
 auto tooMany(std::index_sequence<I...>) noexcept
 {
-	return bt::items(((void)I, bt::read(api::control::fields::Counter))...);
+	return bt::items(((void)I, bt::read(api::control::Counter))...);
 }
 
 void probe()
@@ -47,20 +47,20 @@ void probe()
 	api::client::DeviceClient<2, 256> client{backend, clock};
 #endif
 	api::control::types::Config argument{};
-	const auto request = bt::items(bt::write(api::control::fields::Config, argument));
+	const auto request = bt::items(bt::write(api::control::Config, argument));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto bound = bt::bindBatch(client, backend, {17, api::schema::fingerprint}, request);
 #if defined(STATIC_BATCH_TEMP_WRITE)
-	(void)bt::write(api::control::fields::Config, api::control::types::Config{});
+	(void)bt::write(api::control::Config, api::control::types::Config{});
 #elif defined(STATIC_BATCH_TEMP_COMMAND)
-	(void)bt::command(api::control::commands::Configure, api::control::types::ConfigureRequest{});
+	(void)bt::command(api::control::Configure, api::control::types::ConfigureRequest{});
 #elif defined(STATIC_BATCH_TEMP_SERVICE)
-	(void)bt::service(api::control::services::Echo, api::control::types::EchoRequest{});
+	(void)bt::service(api::control::Echo, api::control::types::EchoRequest{});
 #elif defined(STATIC_BATCH_CONVERSION)
 	std::uint16_t value = 7;
-	(void)bt::write(api::control::fields::Counter, value);
+	(void)bt::write(api::control::Counter, value);
 #elif defined(STATIC_BATCH_WRONG_CATEGORY)
-	(void)bt::read(api::control::commands::Reset);
+	(void)bt::read(api::control::Reset);
 #elif defined(STATIC_BATCH_EMPTY)
 	(void)bt::items();
 #elif defined(STATIC_BATCH_33)
@@ -74,7 +74,7 @@ void probe()
 	(void)bt::batch(client, bound.binding, request, storage, [](const auto&) noexcept {
 	});
 #elif defined(STATIC_BATCH_HUGE)
-	const auto big = bt::items(bt::read(api::control::fields::Counter));
+	const auto big = bt::items(bt::read(api::control::Counter));
 	bt::StaticBatchStorage<HugeCodec, decltype(big)> huge;
 	(void)huge;
 #elif defined(STATIC_BATCH_PRIVATE_VALUE)
@@ -87,7 +87,7 @@ void probe()
 	auto copied = storage;
 	(void)copied;
 #elif defined(STATIC_BATCH_VOID_VALUE)
-	using Item = decltype(bt::write(api::control::fields::Config, argument));
+	using Item = decltype(bt::write(api::control::Config, argument));
 	bt::StaticBatchResult<api::client::CodecPolicy, Item> result;
 	(void)result.get<0>()->value();
 #else

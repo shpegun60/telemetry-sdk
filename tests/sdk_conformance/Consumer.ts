@@ -17,13 +17,13 @@ export async function configure(client: DeviceClient, trm1: Uint8Array, tbm1: Ui
 		f32 : 4.25,
 		f64 : -0
 	};
-	await client.write(control.fields.Config, draft);
-	const read = await client.read(control.fields.Config);
+	await client.write(control.Config, draft);
+	const read = await client.read(control.Config);
 	const number: number|undefined = read.value?.number;
-	await client.command(control.commands.Configure, draft);
-	const response = await client.service(control.services.Echo, draft);
+	await client.command(control.Configure, draft);
+	const response = await client.service(control.Echo, draft);
 	const large: bigint|undefined = response.value?.large;
-	const watch = client.bindReadMany(trm1, [ control.fields.Counter, control.fields.Bool ]);
+	const watch = client.bindReadMany(trm1, [ control.Counter, control.Bool ]);
 	if (watch.status === 0) {
 		const values = await client.readMany(watch.binding);
 		if (values.value?.[0].status === 0) {
@@ -36,18 +36,18 @@ export async function configure(client: DeviceClient, trm1: Uint8Array, tbm1: Ui
 		}
 	}
 	const batch =
-	    await client.batch(tbm1, Batch.items(Batch.write(control.fields.Config, draft),
-	                                         Batch.read(control.fields.Config),
-	                                         Batch.command(control.commands.Accepted, draft),
-	                                         Batch.service(control.services.Echo, draft)));
+	    await client.batch(tbm1, Batch.items(Batch.write(control.Config, draft),
+	                                         Batch.read(control.Config),
+	                                         Batch.command(control.Accepted, draft),
+	                                         Batch.service(control.Echo, draft)));
 	if (batch.items?.[1].valueStatus === 'Ok') {
 		const value: number = batch.items[1].value.number;
 		void value;
 	}
 	// @ts-expect-error Static DTOs require their exact declared member types.
-	await client.write(control.fields.Config, {...draft, large : 7});
+	await client.write(control.Config, {...draft, large : 7});
 	// @ts-expect-error Read-only fields cannot be written.
-	Batch.write(control.fields.Counter, 42);
+	Batch.write(control.Counter, 42);
 	const category: 1|2|3|undefined = structuralMetadata.endpoints[0]?.category;
 	return {number, large, category};
 }

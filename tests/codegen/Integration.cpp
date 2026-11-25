@@ -108,8 +108,8 @@ static void canonical(const std::filesystem::path& directory)
 	malformed[28] = std::byte{2}; // Config bool follows u64/i64/f32/f64.
 	CHECK(api::codec::decode(malformed, output) == Status::InvalidValue);
 	CHECK(output.serial == savedSerial && output.enabled);
-	CHECK(api::codec::encode(api::device::commands::Reset, {}) == Status::Ok);
-	CHECK(api::codec::decodeResponse(api::device::services::Ping, {}) == Status::Ok);
+	CHECK(api::codec::encode(api::device::Reset, {}) == Status::Ok);
+	CHECK(api::codec::decodeResponse(api::device::Ping, {}) == Status::Ok);
 }
 
 static void direct()
@@ -122,26 +122,26 @@ static void direct()
 	std::array<std::byte, 41> requestBytes{};
 	std::array<std::byte, 128> outputBytes{};
 	Config config{};
-	auto result = api::encoded::readField(model, api::device::fields::Config, outputBytes,
-	                                      cf::workspace, config);
+	auto result =
+	    api::encoded::readField(model, api::device::Config, outputBytes, cf::workspace, config);
 	CHECK(result.ok() && result.operation == api::endpoint::Operation::FieldRead &&
 	      result.written == 37);
 	CHECK(config.serial == UINT64_MAX && config.offset == INT64_MIN);
 	config.serial = 123;
-	result = api::encoded::writeField(model, api::device::fields::Config, config, configBytes,
-	                                  cf::workspace);
+	result =
+	    api::encoded::writeField(model, api::device::Config, config, configBytes, cf::workspace);
 	CHECK(result.ok() && result.operation == api::endpoint::Operation::FieldWrite);
 	CHECK(ex::device.config.serial == 123 && ex::device.calls == 1);
 	config.serial = 456;
-	result = api::encoded::executeCommand(model, api::device::commands::Apply, config, configBytes,
-	                                      cf::workspace);
+	result =
+	    api::encoded::executeCommand(model, api::device::Apply, config, configBytes, cf::workspace);
 	CHECK(result.ok() && result.operation == api::endpoint::Operation::Command);
 	CHECK(ex::device.config.serial == 456 && ex::device.calls == 2);
-	result = api::encoded::executeCommand(model, api::device::commands::Reset, cf::workspace);
+	result = api::encoded::executeCommand(model, api::device::Reset, cf::workspace);
 	CHECK(result.ok() && ex::device.config.serial == UINT64_MAX && ex::device.calls == 3);
 	Request request{config, 4};
 	Response response{};
-	result = api::encoded::callService(model, api::device::services::Inspect, request, requestBytes,
+	result = api::encoded::callService(model, api::device::Inspect, request, requestBytes,
 	                                   outputBytes, cf::workspace, response);
 	CHECK(result.ok() && result.written == 41 && response.config.serial == 456);
 	CHECK(response.checksum == (1u + 256u + 65535u) * 4u);
@@ -151,65 +151,61 @@ static void direct()
 	for (unsigned i = 0; i < refusals.size(); ++i) {
 		request.multiplier = i;
 		response.checksum = 0x87654321u;
-		result = api::encoded::callService(model, api::device::services::Inspect, request,
-		                                   requestBytes, outputBytes, cf::workspace, response);
+		result = api::encoded::callService(model, api::device::Inspect, request, requestBytes,
+		                                   outputBytes, cf::workspace, response);
 		CHECK(!result.ok() && result.dispatched &&
 		      result.dispatch == telemetry::DispatchStatus::Ok);
 		CHECK(result.endpointStatus == unsigned(refusals[i]) && result.written == 0);
 		CHECK(response.checksum == 0x87654321u);
 	}
 	request.multiplier = 4;
-	result = api::encoded::callService(model, api::device::services::Offline, request, requestBytes,
+	result = api::encoded::callService(model, api::device::Offline, request, requestBytes,
 	                                   outputBytes, cf::workspace, response);
 	CHECK(!result.ok() && result.dispatch == telemetry::DispatchStatus::Unavailable);
 	Empty empty{};
-	result = api::encoded::callService(model, api::edge::services::Good, outputBytes, cf::workspace,
-	                                   empty);
+	result = api::encoded::callService(model, api::edge::Good, outputBytes, cf::workspace, empty);
 	CHECK(result.ok() && result.written == 0 && cf::edge.calls == 1);
-	result = api::encoded::callService(model, api::edge::services::Fail, outputBytes, cf::workspace,
-	                                   empty);
+	result = api::encoded::callService(model, api::edge::Fail, outputBytes, cf::workspace, empty);
 	CHECK(!result.ok() && result.endpointStatus == unsigned(telemetry::ServiceStatus::Busy) &&
 	      result.written == 0);
 	CHECK(!result.commandAccepted());
-	result =
-	    api::encoded::callService(model, api::edge::services::Consume, empty, {}, cf::workspace);
+	result = api::encoded::callService(model, api::edge::Consume, empty, {}, cf::workspace);
 	CHECK(result.ok() && result.written == 0 && cf::edge.calls == 3);
-	result =
-	    api::encoded::executeCommand(model, api::edge::commands::Accept, empty, {}, cf::workspace);
+	result = api::encoded::executeCommand(model, api::edge::Accept, empty, {}, cf::workspace);
 	CHECK(!result.ok() && result.endpointStatus == unsigned(telemetry::CommandResult::Accepted));
 	CHECK(result.commandAccepted());
 	CHECK(result.operation == api::endpoint::Operation::Command && cf::edge.calls == 4);
-	result = api::encoded::callService(model, api::device::services::Ping, cf::workspace);
+	result = api::encoded::callService(model, api::device::Ping, cf::workspace);
 	CHECK(result.ok() && result.written == 0);
 	api::edge::types::Scalars scalars{};
-	result = api::encoded::readField(model, api::edge::fields::Scalars, outputBytes, cf::workspace,
-	                                 scalars);
+	result =
+	    api::encoded::readField(model, api::edge::Scalars, outputBytes, cf::workspace, scalars);
 	CHECK(result.ok() && result.written == 47 && scalars.u64 == UINT64_MAX &&
 	      scalars.i64 == INT64_MIN);
 	std::array<std::byte, 47> scalarBytes{};
-	result = api::encoded::writeField(model, api::edge::fields::Scalars, scalars, scalarBytes,
-	                                  cf::workspace);
+	result =
+	    api::encoded::writeField(model, api::edge::Scalars, scalars, scalarBytes, cf::workspace);
 	CHECK(!result.ok() && result.dispatch == telemetry::DispatchStatus::Ok &&
 	      result.endpointStatus == unsigned(telemetry::WriteResult::ReadOnly));
 	const auto calls = ex::device.calls;
-	result = api::encoded::executeCommand(model, api::device::commands::Apply, config,
+	result = api::encoded::executeCommand(model, api::device::Apply, config,
 	                                      std::span(configBytes).first(36), cf::workspace);
 	CHECK(!result.dispatched && result.codec == Status::LengthMismatch &&
 	      ex::device.calls == calls);
-	auto missing = api::device::commands::Reset;
+	auto missing = api::device::Reset;
 	missing.id = 0xffffffffu;
 	result = api::encoded::executeCommand(model, missing, cf::workspace);
 	CHECK(result.dispatched && result.dispatch == telemetry::DispatchStatus::NotFound &&
 	      ex::device.calls == calls);
 	const auto bad = telemetry::executeCommandEncoded(
-	    model, api::device::commands::Apply.id, std::span(configBytes).first(36), cf::workspace);
+	    model, api::device::Apply.id, std::span(configBytes).first(36), cf::workspace);
 	CHECK(bad.dispatch == telemetry::DispatchStatus::InvalidPayload && ex::device.calls == calls);
-	result = api::encoded::readField(model, api::device::fields::Config,
+	result = api::encoded::readField(model, api::device::Config,
 	                                 std::as_writable_bytes(std::span(&config, 1)), cf::workspace,
 	                                 config);
 	CHECK(!result.dispatched && result.codec == Status::Overlap);
-	result = api::encoded::readField(model, api::device::fields::Config,
-	                                 std::span(outputBytes).first(36), cf::workspace, config);
+	result = api::encoded::readField(model, api::device::Config, std::span(outputBytes).first(36),
+	                                 cf::workspace, config);
 	CHECK(result.dispatch == telemetry::DispatchStatus::BufferTooSmall);
 	CHECK(cf::workspace.used() == 0);
 }
@@ -244,29 +240,28 @@ static void encodedWorkspaceOverlap()
 			CHECK(ex::device.calls == deviceCalls && cf::edge.calls == edgeCalls);
 		};
 		// The wrapper must reject before encoding into a live native Workspace object.
-		rejected(api::encoded::writeField(model, api::device::fields::Config, config,
+		rejected(api::encoded::writeField(model, api::device::Config, config,
 		                                  std::span(storage).first(37), workspace));
-		rejected(api::encoded::executeCommand(model, api::device::commands::Apply, config,
+		rejected(api::encoded::executeCommand(model, api::device::Apply, config,
 		                                      std::span(storage).first(37), workspace));
-		rejected(api::encoded::callService(model, api::device::services::Inspect, request,
+		rejected(api::encoded::callService(model, api::device::Inspect, request,
 		                                   std::span(storage).first(41), outputBytes, workspace,
 		                                   response));
 		requestBytes.fill(std::byte{0xa5});
 		const auto savedRequest = requestBytes;
-		rejected(api::encoded::callService(model, api::device::services::Inspect, request,
-		                                   requestBytes, std::span(storage).first(128), workspace,
-		                                   response));
+		rejected(api::encoded::callService(model, api::device::Inspect, request, requestBytes,
+		                                   std::span(storage).first(128), workspace, response));
 		CHECK(requestBytes == savedRequest); // Output preflight also precedes request encoding.
-		rejected(api::encoded::readField(model, api::device::fields::Config,
-		                                 std::span(storage).first(128), workspace, config));
-		rejected(api::encoded::callService(model, api::edge::services::Good,
-		                                   std::span(storage).first(1), workspace, empty));
-		rejected(api::encoded::callService(model, api::edge::services::Consume, empty,
+		rejected(api::encoded::readField(model, api::device::Config, std::span(storage).first(128),
+		                                 workspace, config));
+		rejected(api::encoded::callService(model, api::edge::Good, std::span(storage).first(1),
+		                                   workspace, empty));
+		rejected(api::encoded::callService(model, api::edge::Consume, empty,
 		                                   std::span(storage).first(1), workspace));
 		// A response wire buffer cannot write through the const native request reference.
-		rejected(api::encoded::callService(
-		    model, api::device::services::Inspect, request, requestBytes,
-		    std::as_writable_bytes(std::span(&request, 1)), workspace, response));
+		rejected(api::encoded::callService(model, api::device::Inspect, request, requestBytes,
+		                                   std::as_writable_bytes(std::span(&request, 1)),
+		                                   workspace, response));
 		CHECK(request.config.serial == 9 && request.multiplier == 4 &&
 		      requestBytes == savedRequest);
 	}
@@ -280,12 +275,12 @@ static void encodedWorkspaceOverlap()
 		if (!native)
 			return;
 		const auto used = workspace.used();
-		auto result = api::encoded::readField(model, api::device::fields::Config, outputBytes,
-		                                      workspace, *native);
+		auto result =
+		    api::encoded::readField(model, api::device::Config, outputBytes, workspace, *native);
 		CHECK(result.ok() && workspace.used() == used);
 		native->serial = 0x1234;
-		result = api::encoded::writeField(model, api::device::fields::Config, *native, configBytes,
-		                                  workspace);
+		result =
+		    api::encoded::writeField(model, api::device::Config, *native, configBytes, workspace);
 		CHECK(result.ok() && workspace.used() == used && ex::device.config.serial == 0x1234);
 	}
 	CHECK(workspace.used() == 0);
@@ -355,23 +350,21 @@ static void remote()
 	cf::edge = {};
 	Harness h;
 	const auto trust = ::telemetry::client::rpc::trustedRpcMapping;
-	CHECK(h.client.beginReadField(api::rpc::binding(api::device::fields::Config, trust)) == CS::Ok);
+	CHECK(h.client.beginReadField(api::rpc::binding(api::device::Config, trust)) == CS::Ok);
 	h.run();
 	Config config{};
 	CHECK(h.client.decodeResult(config).status == CS::Ok && config.serial == UINT64_MAX);
 	config.serial = 891;
-	CHECK(h.client.beginWriteField(api::rpc::binding(api::device::fields::Config, trust), config) ==
+	CHECK(h.client.beginWriteField(api::rpc::binding(api::device::Config, trust), config) ==
 	      CS::Ok);
 	h.run();
 	CHECK(ex::device.config.serial == 891 && ex::device.calls == 1);
 	config.serial = 1234;
-	CHECK(h.client.beginCommand(api::rpc::binding(api::device::commands::Apply, trust), config) ==
-	      CS::Ok);
+	CHECK(h.client.beginCommand(api::rpc::binding(api::device::Apply, trust), config) == CS::Ok);
 	h.run();
 	CHECK(ex::device.config.serial == 1234 && ex::device.calls == 2);
 	Request request{config, 4};
-	CHECK(h.client.beginService(api::rpc::binding(api::device::services::Inspect, trust),
-	                            request) == CS::Ok);
+	CHECK(h.client.beginService(api::rpc::binding(api::device::Inspect, trust), request) == CS::Ok);
 	Response response{};
 	CHECK(h.client.decodeResult(response).status == CS::ResultUnavailable);
 	h.run();
@@ -387,25 +380,24 @@ static void remote()
 	CHECK(h.packets > 10); // Actual forty-byte MTU requests and fragmented READs were exercised.
 	for (unsigned multiplier = 0; multiplier < 4; ++multiplier) {
 		request.multiplier = multiplier;
-		CHECK(h.client.beginService(api::rpc::binding(api::device::services::Inspect, trust),
-		                            request) == CS::Ok);
+		CHECK(h.client.beginService(api::rpc::binding(api::device::Inspect, trust), request) ==
+		      CS::Ok);
 		h.run();
 		CHECK(h.client.completed() &&
 		      h.client.diagnostic().dispatch == telemetry::DispatchStatus::Ok);
 		CHECK(h.client.diagnostic().endpointStatus != 0 && h.client.resultBytes().empty());
 		CHECK(h.client.decodeResult(response).status == CS::ResultUnavailable);
 	}
-	CHECK(h.client.beginService(api::rpc::binding(api::edge::services::Fail, trust)) == CS::Ok);
+	CHECK(h.client.beginService(api::rpc::binding(api::edge::Fail, trust)) == CS::Ok);
 	h.run();
 	Empty empty{};
 	CHECK(h.client.resultBytes().empty());
 	CHECK(h.client.decodeResult(empty).status == CS::ResultUnavailable);
 	CHECK(h.client.diagnostic().endpointStatus == unsigned(telemetry::ServiceStatus::Busy));
-	CHECK(h.client.beginCommand(api::rpc::binding(api::edge::commands::Accept, trust), empty) ==
-	      CS::Ok);
+	CHECK(h.client.beginCommand(api::rpc::binding(api::edge::Accept, trust), empty) == CS::Ok);
 	h.run();
 	CHECK(h.client.diagnostic().endpointStatus == unsigned(telemetry::CommandResult::Accepted));
-	CHECK(h.client.beginService(api::rpc::binding(api::device::services::Ping, trust)) == CS::Ok);
+	CHECK(h.client.beginService(api::rpc::binding(api::device::Ping, trust)) == CS::Ok);
 	h.run();
 	CHECK(h.client.resultBytes().empty() && h.client.diagnostic().endpointStatus == 0);
 }
@@ -416,7 +408,7 @@ static void pendingRetryAndSessions()
 	cf::edge = {};
 	const auto trust = ::telemetry::client::rpc::trustedRpcMapping;
 	Harness h;
-	CHECK(h.client.beginService(api::rpc::binding(api::edge::services::Good, trust)) == CS::Ok);
+	CHECK(h.client.beginService(api::rpc::binding(api::edge::Good, trust)) == CS::Ok);
 	// Deliver the WRITE and pending READ without letting the application dispatch.
 	auto pending = h.client.nextPacket();
 	h.deliver(pending);
@@ -434,8 +426,8 @@ static void pendingRetryAndSessions()
 	Harness retry;
 	Request request{};
 	request.multiplier = 4;
-	CHECK(retry.client.beginService(api::rpc::binding(api::device::services::Inspect, trust),
-	                                request) == CS::Ok);
+	CHECK(retry.client.beginService(api::rpc::binding(api::device::Inspect, trust), request) ==
+	      CS::Ok);
 	const auto calls = ex::device.calls;
 	bool dropped = false;
 	for (unsigned step = 0; !dropped && step < 20; ++step) {
@@ -474,8 +466,7 @@ static void pendingRetryAndSessions()
 	CHECK(retry.client.decodeResult(response).status == CS::Ok);
 
 	Harness lost;
-	CHECK(lost.client.beginCommand(api::rpc::binding(api::device::commands::Reset, trust)) ==
-	      CS::Ok);
+	CHECK(lost.client.beginCommand(api::rpc::binding(api::device::Reset, trust)) == CS::Ok);
 	pending = lost.client.nextPacket();
 	lost.deliver(pending, false);
 	const auto beforeLoss = ex::device.calls;
@@ -489,11 +480,9 @@ static void pendingRetryAndSessions()
 	auto wrongHeader = api::schema::descriptorHeader;
 	wrongHeader[16] ^= std::byte{1};
 	CHECK(!lost.admit(wrongHeader, 2));
-	CHECK(lost.client.beginCommand(api::rpc::binding(api::device::commands::Reset, trust)) ==
-	      CS::NoSession);
+	CHECK(lost.client.beginCommand(api::rpc::binding(api::device::Reset, trust)) == CS::NoSession);
 	CHECK(lost.admit(api::schema::descriptorHeader, 2));
-	CHECK(lost.client.beginCommand(api::rpc::binding(api::device::commands::Reset, trust)) ==
-	      CS::Ok);
+	CHECK(lost.client.beginCommand(api::rpc::binding(api::device::Reset, trust)) == CS::Ok);
 	lost.run();
 	CHECK(ex::device.calls == beforeLoss + 1);
 }

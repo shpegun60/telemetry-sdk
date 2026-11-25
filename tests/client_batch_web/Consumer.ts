@@ -1,7 +1,7 @@
 // Inferred generated DTO/tuple API. Negative controls must remain strict TypeScript errors. MIT.
 import {DeviceClient, EncodedBackend, Batch, BatchValueStatus} from './runtime/Client.js';
 import {control, matchesHeader} from './sdk/device.js';
-const F = control.fields, C = control.commands, S = control.services;
+const F = control, C = control, S = control;
 const client = new DeviceClient({
 	backend : new EncodedBackend(
 	    () => {

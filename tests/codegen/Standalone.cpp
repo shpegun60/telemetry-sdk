@@ -54,9 +54,9 @@ int main()
 		CHECK(!api::schema::matchesHeader(header));
 	}
 	CHECK(!api::schema::matchesHeader(std::span(api::schema::descriptorHeader).first(63)));
-	CHECK(api::codec::encode(api::motor::commands::Apply, input, wire) == S::Ok);
+	CHECK(api::codec::encode(api::motor::Apply, input, wire) == S::Ok);
 	CHECK(wire[0] == std::byte{255} && wire[15] == std::byte{128} && wire[16] == std::byte{1});
-	CHECK(api::codec::decodeResponse(api::motor::services::Read, wire, output) == S::Ok);
+	CHECK(api::codec::decodeResponse(api::motor::Read, wire, output) == S::Ok);
 	CHECK(output.unsignedValue == UINT64_MAX && output.signedValue == INT64_MIN && output.valid);
 	CHECK(std::bit_cast<std::uint32_t>(output.single) == 0x80000000u);
 	CHECK(std::bit_cast<std::uint64_t>(output.real) == 0x8000000000000000ULL);
@@ -71,10 +71,10 @@ int main()
 	CHECK(api::codec::encode(output, std::as_writable_bytes(std::span(&output, 1)).first(57)) ==
 	      S::Overlap);
 	CHECK(api::codec::decode(std::as_bytes(std::span(&output, 1)).first(57), output) == S::Overlap);
-	CHECK(api::codec::encode(api::motor::commands::Reset, {}) == S::Ok);
-	CHECK(api::codec::encode(api::motor::services::Read, {}) == S::Ok);
-	CHECK(api::codec::decodeResponse(api::motor::services::Noop, {}) == S::Ok);
-	CHECK(api::codec::encode(api::motor::commands::Large, large, largeWire) == S::Ok);
+	CHECK(api::codec::encode(api::motor::Reset, {}) == S::Ok);
+	CHECK(api::codec::encode(api::motor::Read, {}) == S::Ok);
+	CHECK(api::codec::decodeResponse(api::motor::Noop, {}) == S::Ok);
+	CHECK(api::codec::encode(api::motor::Large, large, largeWire) == S::Ok);
 	largeWire[10000] = std::byte{2};
 	CHECK(api::codec::decode(largeWire, large) == S::InvalidValue && !large.valid);
 	// Nested aggregate/array cursors must advance exactly once at each boundary.
@@ -128,8 +128,8 @@ int main()
 		      edgeGenerated == edgeNative);
 	}
 	const auto binding =
-	    api::rpc::binding(api::motor::commands::Apply, ::telemetry::client::rpc::trustedRpcMapping);
-	CHECK(binding.id == api::motor::commands::Apply.id);
+	    api::rpc::binding(api::motor::Apply, ::telemetry::client::rpc::trustedRpcMapping);
+	CHECK(binding.id == api::motor::Apply.id);
 #endif
 	std::printf("codegen standalone checks=%u failures=%u\n", checks, failures);
 	return failures ? 1 : 0;

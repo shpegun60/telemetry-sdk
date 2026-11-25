@@ -92,60 +92,29 @@ export declare namespace adc {
     type CalibrateResponse = Type_18;
     const CalibrateResponse: typeof codecs.Type_18;
   }
-  const fields: Readonly<{
-    readonly "Config": Readonly<{readonly id: 0; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 12; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 0; typeId: 12; requestBytes: 0; responseBytes: 7; decode: ValueCodec<Type_12>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 0; typeId: 12; requestBytes: 7; responseBytes: 0; encode: ValueCodec<Type_12>['encode']; encodeInto: ValueCodec<Type_12>['encodeInto']}>}>;
-    readonly "Status_value": Readonly<{readonly id: 1; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 14; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 1; typeId: 14; requestBytes: 0; responseBytes: 6; decode: ValueCodec<Type_14>['decode']}>}>;
-  }>;
-  const commands: Readonly<{
-    readonly "Reset": Readonly<{readonly id: 0; readonly category: 2; readonly catalogName: string; readonly name: string; readonly path: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Command'; readonly requestTypeId: 0; readonly requestBytes: 0; readonly responseBytes: 0; readonly encode: ValueCodec<Type_0>['encode']; readonly encodeInto: ValueCodec<Type_0>['encodeInto']}>;
-  }>;
-  const services: Readonly<{
-    readonly "Calibrate": Readonly<{readonly id: 0; readonly category: 3; readonly catalogName: string; readonly name: string; readonly path: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Service'; readonly requestTypeId: 17; readonly requestBytes: 4; readonly responseBytes: 4; readonly encode: ValueCodec<Type_17>['encode']; readonly encodeInto: ValueCodec<Type_17>['encodeInto']; readonly responseTypeId: 18; readonly decodeResponse: ValueCodec<Type_18>['decode']}>;
-  }>;
   namespace channel1 {
     namespace types {
       type Gain = Type_10;
       const Gain: typeof codecs.Type_10;
     }
-    const fields: Readonly<{
-      readonly "Gain": Readonly<{readonly id: 65536; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 10; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 65536; typeId: 10; requestBytes: 0; responseBytes: 4; readonly readManyScalar: 10; decode: ValueCodec<Type_10>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 65536; typeId: 10; requestBytes: 4; responseBytes: 0; encode: ValueCodec<Type_10>['encode']; encodeInto: ValueCodec<Type_10>['encodeInto']}>}>;
-    }>;
-    const commands: Readonly<{
-    }>;
-    const services: Readonly<{
-    }>;
-    const Gain: (typeof fields)["Gain"];
+    const Gain: Readonly<{readonly id: 65536; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 10; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 65536; typeId: 10; requestBytes: 0; responseBytes: 4; readonly readManyScalar: 10; decode: ValueCodec<Type_10>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 65536; typeId: 10; requestBytes: 4; responseBytes: 0; encode: ValueCodec<Type_10>['encode']; encodeInto: ValueCodec<Type_10>['encodeInto']}>}>;
   }
   namespace channel2 {
     namespace types {
       type Gain = Type_10;
       const Gain: typeof codecs.Type_10;
     }
-    const fields: Readonly<{
-      readonly "Gain": Readonly<{readonly id: 131072; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 10; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 131072; typeId: 10; requestBytes: 0; responseBytes: 4; readonly readManyScalar: 10; decode: ValueCodec<Type_10>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 131072; typeId: 10; requestBytes: 4; responseBytes: 0; encode: ValueCodec<Type_10>['encode']; encodeInto: ValueCodec<Type_10>['encodeInto']}>}>;
-    }>;
-    const commands: Readonly<{
-    }>;
-    const services: Readonly<{
-    }>;
-    const Gain: (typeof fields)["Gain"];
+    const Gain: Readonly<{readonly id: 131072; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 10; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 131072; typeId: 10; requestBytes: 0; responseBytes: 4; readonly readManyScalar: 10; decode: ValueCodec<Type_10>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 131072; typeId: 10; requestBytes: 4; responseBytes: 0; encode: ValueCodec<Type_10>['encode']; encodeInto: ValueCodec<Type_10>['encodeInto']}>}>;
   }
-  const Config: (typeof fields)["Config"];
-  const Status_value: (typeof fields)["Status_value"];
-  const Reset: (typeof commands)["Reset"];
-  const Calibrate: (typeof services)["Calibrate"];
+  const Config: Readonly<{readonly id: 0; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 12; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 0; typeId: 12; requestBytes: 0; responseBytes: 7; decode: ValueCodec<Type_12>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 0; typeId: 12; requestBytes: 7; responseBytes: 0; encode: ValueCodec<Type_12>['encode']; encodeInto: ValueCodec<Type_12>['encodeInto']}>}>;
+  const Status_value: Readonly<{readonly id: 1; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 14; readonly capabilities: 1; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 1; typeId: 14; requestBytes: 0; responseBytes: 6; decode: ValueCodec<Type_14>['decode']}>}>;
+  const Reset: Readonly<{readonly id: 0; readonly category: 2; readonly catalogName: string; readonly name: string; readonly path: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Command'; readonly requestTypeId: 0; readonly requestBytes: 0; readonly responseBytes: 0; readonly encode: ValueCodec<Type_0>['encode']; readonly encodeInto: ValueCodec<Type_0>['encodeInto']}>;
+  const Calibrate: Readonly<{readonly id: 0; readonly category: 3; readonly catalogName: string; readonly name: string; readonly path: string; readonly fingerprint: typeof fingerprint; readonly operation: 'Service'; readonly requestTypeId: 17; readonly requestBytes: 4; readonly responseBytes: 4; readonly encode: ValueCodec<Type_17>['encode']; readonly encodeInto: ValueCodec<Type_17>['encodeInto']; readonly responseTypeId: 18; readonly decodeResponse: ValueCodec<Type_18>['decode']}>;
 }
 export declare namespace metrology {
   namespace types {
     type Config = Type_16;
     const Config: typeof codecs.Type_16;
   }
-  const fields: Readonly<{
-    readonly "Config": Readonly<{readonly id: 196608; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 16; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 196608; typeId: 16; requestBytes: 0; responseBytes: 5; decode: ValueCodec<Type_16>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 196608; typeId: 16; requestBytes: 5; responseBytes: 0; encode: ValueCodec<Type_16>['encode']; encodeInto: ValueCodec<Type_16>['encodeInto']}>}>;
-  }>;
-  const commands: Readonly<{
-  }>;
-  const services: Readonly<{
-  }>;
-  const Config: (typeof fields)["Config"];
+  const Config: Readonly<{readonly id: 196608; readonly category: 1; readonly catalogName: string; readonly name: string; readonly path: string; readonly valueTypeId: 16; readonly capabilities: 3; readonly read: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldRead'; id: 196608; typeId: 16; requestBytes: 0; responseBytes: 5; decode: ValueCodec<Type_16>['decode']}>; readonly write: Readonly<{readonly fingerprint: typeof fingerprint; operation: 'FieldWrite'; id: 196608; typeId: 16; requestBytes: 5; responseBytes: 0; encode: ValueCodec<Type_16>['encode']; encodeInto: ValueCodec<Type_16>['encodeInto']}>}>;
 }

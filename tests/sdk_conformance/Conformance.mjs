@@ -120,7 +120,7 @@ async function sequence(dynamic)
 		equal(result.status, Status.Ok);
 		return result.endpoint;
 	};
-	const F = control.fields, C = control.commands, S = control.services;
+	const F = control, C = control, S = control;
 	const read = dynamic ? bind('FieldRead', 65536) : F.Config;
 	const write = dynamic ? bind('FieldWrite', 65536) : F.Config;
 	const command = dynamic ? bind('Command', 65536) : C.Configure;

@@ -9,10 +9,10 @@ int main()
 	auto& client = connection.client;
 	auto& backend = connection.backend;
 	Data arguments = input();
-	const auto request = bt::items(bt::write(api::control::fields::Config, arguments),
-	                               bt::read(api::control::fields::Config),
-	                               bt::command(api::control::commands::Configure, arguments),
-	                               bt::service(api::control::services::Echo, arguments));
+	const auto request =
+	    bt::items(bt::write(api::control::Config, arguments), bt::read(api::control::Config),
+	              bt::command(api::control::Configure, arguments),
+	              bt::service(api::control::Echo, arguments));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto bound = bt::bindBatch(client, backend, connection.capability, request);
 	if (!bound)

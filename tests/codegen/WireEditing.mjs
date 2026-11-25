@@ -217,8 +217,8 @@ for (let pattern = 0; pattern < 4; ++pattern) {
 let writable = 0;
 for (const endpoint of structuralMetadata.endpoints.filter(row => row.category === 1 &&
                                                                   row.capabilities === 3)) {
-	const field = generated[endpoint.groupSymbol].fields[endpoint.symbol];
-	const old = baseline[endpoint.groupSymbol].fields[endpoint.symbol];
+	const field = generated[endpoint.groupSymbol][endpoint.symbol];
+	const old = baseline[endpoint.groupSymbol][endpoint.symbol];
 	equal(field.write.encodePreserving, codec(endpoint.valueType).encodePreserving);
 	check(!Object.hasOwn(old.write, 'encodePreserving'));
 	const value = sample(model.types[endpoint.valueType]), seed = field.write.encode(value);

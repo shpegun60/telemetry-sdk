@@ -42,48 +42,20 @@ template<class Q, class R> struct Service {
 };
 } // namespace endpoint
 
-namespace adc::fields {
-inline constexpr endpoint::Field<detail::Type_12> Config{0, 12, 7, 3};
-} // namespace adc::fields
-
-namespace adc::fields {
-inline constexpr endpoint::Field<detail::Type_14> Status_value{1, 14, 6, 1};
-} // namespace adc::fields
-
-namespace adc::channel1::fields {
-inline constexpr endpoint::Field<detail::Type_10> Gain{65536, 10, 4, 3};
-} // namespace adc::channel1::fields
-
-namespace adc::channel2::fields {
-inline constexpr endpoint::Field<detail::Type_10> Gain{131072, 10, 4, 3};
-} // namespace adc::channel2::fields
-
-namespace metrology::fields {
-inline constexpr endpoint::Field<detail::Type_16> Config{196608, 16, 5, 3};
-} // namespace metrology::fields
-
-namespace adc::commands {
-inline constexpr endpoint::Command<detail::Type_0> Reset{0, 0, 0};
-} // namespace adc::commands
-
-namespace adc::services {
-inline constexpr endpoint::Service<detail::Type_17, detail::Type_18> Calibrate{0, 17, 18, 4, 4};
-} // namespace adc::services
-
 // Group tree (descriptor v3.1): api::adc::channel1::Gain is the path adc/channel1/Gain.
 namespace adc {
-inline constexpr auto Config = fields::Config;
-inline constexpr auto Status_value = fields::Status_value;
-inline constexpr auto Reset = commands::Reset;
-inline constexpr auto Calibrate = services::Calibrate;
+inline constexpr endpoint::Field<detail::Type_12> Config{0, 12, 7, 3};
+inline constexpr endpoint::Field<detail::Type_14> Status_value{1, 14, 6, 1};
+inline constexpr endpoint::Command<detail::Type_0> Reset{0, 0, 0};
+inline constexpr endpoint::Service<detail::Type_17, detail::Type_18> Calibrate{0, 17, 18, 4, 4};
 } // namespace adc
 namespace adc::channel1 {
-inline constexpr auto Gain = fields::Gain;
+inline constexpr endpoint::Field<detail::Type_10> Gain{65536, 10, 4, 3};
 } // namespace adc::channel1
 namespace adc::channel2 {
-inline constexpr auto Gain = fields::Gain;
+inline constexpr endpoint::Field<detail::Type_10> Gain{131072, 10, 4, 3};
 } // namespace adc::channel2
 namespace metrology {
-inline constexpr auto Config = fields::Config;
+inline constexpr endpoint::Field<detail::Type_16> Config{196608, 16, 5, 3};
 } // namespace metrology
 } // namespace device_api

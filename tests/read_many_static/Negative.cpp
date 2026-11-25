@@ -60,7 +60,7 @@ private:
 template<std::size_t... I>
 auto tooMany(std::index_sequence<I...>) noexcept
 {
-	return rm::fields(((void)I, api::left::fields::F00)...);
+	return rm::fields(((void)I, api::left::F00)...);
 }
 
 void probe()
@@ -76,9 +76,9 @@ void probe()
 	api::client::DeviceClient<2, 128> client{backend, clock};
 #endif
 	const auto bound = rm::bindReadMany(client, backend, {17, api::schema::fingerprint},
-	                                    rm::fields(api::left::fields::F00));
+	                                    rm::fields(api::left::F00));
 #if defined(STATIC_MANY_STRUCT)
-	(void)rm::fields(api::mixed::fields::Struct);
+	(void)rm::fields(api::mixed::Struct);
 #elif defined(STATIC_MANY_COMMAND)
 	(void)rm::fields(CommandLike{});
 #elif defined(STATIC_MANY_EMPTY)
@@ -107,11 +107,11 @@ void probe()
 #elif defined(STATIC_MANY_WRONG_WIDTH)
 	cl::DeviceClient<WrongWidthCodec> wrong{backend, clock};
 	(void)rm::bindReadMany(wrong, backend, {17, api::schema::fingerprint},
-	                       rm::fields(api::mixed::fields::Bool));
+	                       rm::fields(api::mixed::Bool));
 #elif defined(STATIC_MANY_NO_FINGERPRINT)
 	cl::DeviceClient<MissingFingerprintCodec> wrong{backend, clock};
 	(void)rm::bindReadMany(wrong, backend, {17, api::schema::fingerprint},
-	                       rm::fields(api::left::fields::F00));
+	                       rm::fields(api::left::F00));
 #else
 	(void)bound;
 #endif

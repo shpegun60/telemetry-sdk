@@ -1,8 +1,8 @@
 """Descriptor v3.1 in the generator: type names, the group tree, attributes, v3.0 identity.
 
 The goldens are the reviewed output of names.write_goldens(); every other file
-is pinned by the golden manifest's hashes. v3.0 identity is pinned by the
-frozen hashes of the UX extension suite, independently of this generator.
+is pinned by the golden manifest's hashes. The v3.0 output is pinned by
+v30_output_hashes.json: the frozen v3.0 descriptors in the one group form.
 Authors: Ruslan Kovtun (shpegun60), codexAi. SPDX-License-Identifier: MIT.
 """
 import contextlib
@@ -25,7 +25,7 @@ from tools.telemetry_codegen.cli import render  # noqa: E402
 from tools.telemetry_codegen.generators.cpp import generate as generate_cpp  # noqa: E402
 from tools.telemetry_codegen.schema import load_schema  # noqa: E402
 
-LEGACY = ROOT / "tests/ux_codegen_extension/legacy_output_hashes.json"
+V30_HASHES = Path(__file__).resolve().parent / "v30_output_hashes.json"
 
 
 def text(data):
@@ -35,8 +35,8 @@ def text(data):
 
 class V30IdentityTests(unittest.TestCase):
     def test_v30_input_gives_the_frozen_output(self):
-        """Every core profile of the three v3.0 goldens matches the frozen hashes of the group form."""
-        baseline = json.loads(LEGACY.read_text())["profiles"]
+        """Every core profile of the three v3.0 goldens matches the pinned hashes of the group form."""
+        baseline = json.loads(V30_HASHES.read_text())["profiles"]
         for fixture in ("empty", "mixed", "edge"):
             schema = load_schema(names.fixture(fixture))
             self.assertEqual(schema.minor, 0)
@@ -46,15 +46,21 @@ class V30IdentityTests(unittest.TestCase):
                 self.assertEqual(hashes, baseline[f"{fixture}-{profile}"]["generated"], fixture + "-" + profile)
 
     def test_v30_input_gets_the_group_form(self):
-        """A v3.0 descriptor generates the group form beside its per-family symbols."""
+        """A v3.0 descriptor generates the one group form, with no per-family symbols."""
         files = render(load_schema(names.fixture("mixed")), ("cpp", "js", "ts"), client_runtime=True)
         endpoints = files["cpp/device_api/Endpoints.hpp"].decode()
-        self.assertIn("namespace motor {\ninline constexpr auto Enabled = fields::Enabled;", endpoints)
-        self.assertIn("namespace motor::fields {", endpoints)  # kept until the old forms go
+        self.assertIn("namespace motor {\ninline constexpr endpoint::Field<detail::Type_1> Enabled{0, 1, 1, 1};",
+                      endpoints)
         declarations = files["js/device.d.ts"].decode()
         self.assertIn("export declare namespace motor {", declarations)
-        self.assertIn("""  const Enabled: (typeof fields)["Enabled"];""", declarations)
+        self.assertIn("  const Enabled: Readonly<{readonly id: 0; readonly category: 1;", declarations)
         self.assertIn("readonly motor: Readonly<{", files["js/handles.d.ts"].decode())
+        for path, data in files.items():
+            text_ = data.decode()
+            for family in ("fields", "commands", "services"):
+                self.assertNotIn(f"::{family}::", text_, path)
+                self.assertNotIn(f"const {family} = Object.freeze", text_, path)
+                self.assertNotIn(f"  {family}: Object.freeze", text_, path)
 
 
 class GoldenTests(unittest.TestCase):
@@ -77,15 +83,15 @@ class GoldenTests(unittest.TestCase):
     def test_tree_nested_scopes_and_aliases(self):
         files = names.golden_render("tree")
         endpoints = files["cpp/device_api/Endpoints.hpp"].decode()
-        self.assertIn("namespace adc::channel1::fields {\ninline constexpr endpoint::Field<detail::Type_10> Gain{65536,",
+        self.assertIn("namespace adc::channel1 {\ninline constexpr endpoint::Field<detail::Type_10> Gain{65536,",
                       endpoints)
-        self.assertIn("namespace adc::channel1 {\ninline constexpr auto Gain = fields::Gain;", endpoints)
-        self.assertIn("namespace adc {\ninline constexpr auto Config = fields::Config;", endpoints)
-        self.assertIn("inline constexpr auto Calibrate = services::Calibrate;", endpoints)
+        self.assertIn("namespace adc {\ninline constexpr endpoint::Field<detail::Type_12> Config{", endpoints)
+        self.assertIn("inline constexpr endpoint::Service<", endpoints)
+        self.assertNotIn("::fields", endpoints)
         declarations = files["js/device.d.ts"].decode()
         self.assertIn("export declare namespace adc {", declarations)
         self.assertIn("  namespace channel1 {", declarations)
-        self.assertIn("""    const Gain: (typeof fields)["Gain"];""", declarations)
+        self.assertIn("    const Gain: Readonly<{readonly id: 65536;", declarations)
         self.assertIn("export declare namespace types {\n  namespace adc {\n    type Config = Type_12;", declarations)
         schema = json.loads(files["metadata/schema.json"])
         self.assertEqual([group["path"] for group in schema["groups"]],
@@ -139,8 +145,8 @@ class SymbolTests(unittest.TestCase):
         self.assertEqual([endpoint.group for endpoint in schema.endpoints],
                          ["types_value", "types_value", "types_value::a_b", "root", "types_value"])
         endpoints = generate_cpp(schema)["cpp/device_api/Endpoints.hpp"]
-        self.assertIn("namespace types_value {\ninline constexpr auto fields_value = fields::fields_value;\n"
-                      "inline constexpr auto a_b_2 = fields::a_b;", endpoints)
+        self.assertIn("namespace types_value {\ninline constexpr endpoint::Field<detail::Type_10> fields_value{0, "
+                      "10, 4, 3};\ninline constexpr endpoint::Field<detail::Type_10> a_b_2{1, 10, 4, 1};", endpoints)
 
 
 class HandleTests(unittest.TestCase):
@@ -182,9 +188,9 @@ class HandleTests(unittest.TestCase):
                              [("read/Reset", False, "read_2.Reset_Field"), ("read/Mode", True, "read_2.Mode"),
                               ("read/Reset", False, "read_2.Reset_Command")])
             endpoints = generate_cpp(schema)["cpp/device_api/Endpoints.hpp"]
-            self.assertIn("namespace read {\ninline constexpr auto Reset_Field = fields::Reset;\n"
-                          "inline constexpr auto Mode = fields::Mode;\n"
-                          "inline constexpr auto Reset_Command = commands::Reset;\n}", endpoints)
+            self.assertIn("namespace read {\ninline constexpr endpoint::Field<detail::Type_2> Reset_Field{0, 2, 1, 1};\n"
+                          "inline constexpr endpoint::Field<detail::Type_2> Mode{1, 2, 1, 1};\n"
+                          "inline constexpr endpoint::Command<detail::Type_0> Reset_Command{0, 0, 0};\n}", endpoints)
 
 
 class AttributeTests(unittest.TestCase):

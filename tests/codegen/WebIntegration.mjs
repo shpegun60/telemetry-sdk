@@ -29,7 +29,7 @@ const reject = async (fn, predicate = RpcError) => {
 	await assert.rejects(fn, predicate);
 	++checks;
 };
-const configField = api.device.fields.Config, inspect = api.device.services.Inspect;
+const configField = api.device.Config, inspect = api.device.Inspect;
 const config = configField.read.decode(read('config'));
 const request = {
 	config,
@@ -40,8 +40,8 @@ check(api.fingerprint === model.fingerprint);
 
 for (const [name, typeId] of [
          [ 'config', configField.valueTypeId ], [ 'request', inspect.requestTypeId ],
-         [ 'response', inspect.responseTypeId ], [ 'scalars', api.edge.fields.Scalars.valueTypeId ],
-         [ 'empty', api.edge.services.Good.responseTypeId ]]) {
+         [ 'response', inspect.responseTypeId ], [ 'scalars', api.edge.Scalars.valueTypeId ],
+         [ 'empty', api.edge.Good.responseTypeId ]]) {
 	const codec = api.codecs['Type_' + typeId], bytes = read(name);
 	const value = codec.decode(bytes);
 	equal(value, oracle.decodeValue(model, typeId, bytes));
@@ -52,7 +52,7 @@ equal(inspect.encode(request), read('request'));
 equal(inspect.decodeResponse(read('response')).config, config);
 check(config.serial === 0xffffffffffffffffn && config.offset === -0x8000000000000000n);
 check(Object.is(config.gain, -0) && config.mode === -2);
-const scalars = api.edge.fields.Scalars.read.decode(read('scalars'));
+const scalars = api.edge.Scalars.read.decode(read('scalars'));
 check(scalars.u64 === 0xffffffffffffffffn && scalars.i64 === -0x8000000000000000n);
 check(Object.is(scalars.f32, -0) && scalars.f64 === Infinity);
 
@@ -76,44 +76,20 @@ function encoded(operation, id, payload)
 let outcome = encoded('read', configField.id, new Uint8Array(0));
 equal(outcome.status, [ 0, 0, read('config').length, 0 ]);
 equal(configField.read.decode(outcome.output), config);
-outcome = encoded('read', api.edge.fields.Scalars.id, new Uint8Array(0));
+outcome = encoded('read', api.edge.Scalars.id, new Uint8Array(0));
 equal(outcome.status, [ 0, 0, read('scalars').length, 0 ]);
-equal(api.edge.fields.Scalars.read.decode(outcome.output), scalars);
+equal(api.edge.Scalars.read.decode(outcome.output), scalars);
 for (const [operation, id, payload, expected] of [
          [ 'write', configField.id, configField.write.encode(config), [ 0, 0, 0, 1 ] ],
-         [
-	         'command', api.device.commands.Apply.id, api.device.commands.Apply.encode(config),
-	         [ 0, 0, 0, 1 ]
-         ],
-         [
-	         'command', api.device.commands.Reset.id, api.device.commands.Reset.encode(undefined),
-	         [ 0, 0, 0, 1 ]
-         ],
-         [
-	         'command', api.edge.commands.Accept.id, api.edge.commands.Accept.encode({}),
-	         [ 0, 1, 0, 1 ]
-         ],
-         [
-	         'service', api.edge.services.Good.id, api.edge.services.Good.encode(undefined),
-	         [ 0, 0, 0, 1 ]
-         ],
-         [
-	         'service', api.edge.services.Fail.id, api.edge.services.Fail.encode(undefined),
-	         [ 0, 3, 0, 1 ]
-         ],
-         [
-	         'service', api.edge.services.Consume.id, api.edge.services.Consume.encode({}),
-	         [ 0, 0, 0, 1 ]
-         ],
-         [
-	         'service', api.device.services.Ping.id, api.device.services.Ping.encode(undefined),
-	         [ 0, 0, 0, 1 ]
-         ],
-         [
-	         'service', api.device.services.Offline.id, api.device.services.Offline.encode(request),
-	         [ 9, 0, 0, 0 ]
-         ],
-         [ 'write', api.edge.fields.Scalars.id, read('scalars'), [ 0, 2, 0, 0 ] ],
+         [ 'command', api.device.Apply.id, api.device.Apply.encode(config), [ 0, 0, 0, 1 ] ],
+         [ 'command', api.device.Reset.id, api.device.Reset.encode(undefined), [ 0, 0, 0, 1 ] ],
+         [ 'command', api.edge.Accept.id, api.edge.Accept.encode({}), [ 0, 1, 0, 1 ] ],
+         [ 'service', api.edge.Good.id, api.edge.Good.encode(undefined), [ 0, 0, 0, 1 ] ],
+         [ 'service', api.edge.Fail.id, api.edge.Fail.encode(undefined), [ 0, 3, 0, 1 ] ],
+         [ 'service', api.edge.Consume.id, api.edge.Consume.encode({}), [ 0, 0, 0, 1 ] ],
+         [ 'service', api.device.Ping.id, api.device.Ping.encode(undefined), [ 0, 0, 0, 1 ] ],
+         [ 'service', api.device.Offline.id, api.device.Offline.encode(request), [ 9, 0, 0, 0 ] ],
+         [ 'write', api.edge.Scalars.id, read('scalars'), [ 0, 2, 0, 0 ] ],
          [ 'read', 0xffffffff, new Uint8Array(0), [ 4, 0, 0, 0 ] ],
          [ 'service', inspect.id, read('request').subarray(1), [ 5, 0, 0, 0 ] ],
 ]) {
@@ -190,7 +166,7 @@ try {
 		const result = await example.run(transport, read('descriptor').subarray(0, 64));
 		check(result.config.gain === 1.5 && result.accepted && result.checksum === 263168);
 		transactionId = 5; // The fresh-session example uses IDs1..5 explicitly.
-		await rpcInvoke(transport, api.device.commands.Reset, undefined, options());
+		await rpcInvoke(transport, api.device.Reset, undefined, options());
 	}
 	let result = await rpcInvoke(transport, configField.read, undefined, options());
 	equal(result.value, config);
@@ -199,22 +175,22 @@ try {
 	check(result.endpointStatus === 0 && result.payload.length === 0 && result.value === undefined);
 	result = await rpcInvoke(transport, configField.read, undefined, options());
 	equal(result.value, Object.assign(Object.create(null), changed));
-	await rpcInvoke(transport, api.device.commands.Apply, config, options());
+	await rpcInvoke(transport, api.device.Apply, config, options());
 	result = await rpcInvoke(transport, inspect, request, options());
 	equal(result.value, inspect.decodeResponse(read('response')));
 	check(result.payload.length === read('response').length);
-	result = await rpcInvoke(transport, api.edge.commands.Accept, {}, options());
+	result = await rpcInvoke(transport, api.edge.Accept, {}, options());
 	check(result.accepted && result.endpointStatus === 1 && result.value === undefined);
-	await rpcInvoke(transport, api.device.commands.Reset, undefined, options());
-	result = await rpcInvoke(transport, api.edge.services.Good, undefined, options());
+	await rpcInvoke(transport, api.device.Reset, undefined, options());
+	result = await rpcInvoke(transport, api.edge.Good, undefined, options());
 	equal(result.value, Object.create(null));
-	result = await rpcInvoke(transport, api.edge.services.Consume, {}, options());
+	result = await rpcInvoke(transport, api.edge.Consume, {}, options());
 	check(result.value === undefined && result.payload.length === 0);
-	result = await rpcInvoke(transport, api.device.services.Ping, undefined, options());
+	result = await rpcInvoke(transport, api.device.Ping, undefined, options());
 	check(result.value === undefined && result.payload.length === 0);
 	let failedDecodeCalls = 0;
 	const fail = {
-		...api.edge.services.Fail,
+		...api.edge.Fail,
 		decodeResponse : () => {
 		    ++failedDecodeCalls;
 		    return {};
@@ -224,7 +200,7 @@ try {
 	             error => error instanceof RpcError && error.endpointStatus === 3);
 	check(failedDecodeCalls === 0);
 	const offline = {
-		...api.device.services.Offline,
+		...api.device.Offline,
 		decodeResponse : () => {
 		    ++failedDecodeCalls;
 		    return {};
@@ -236,9 +212,9 @@ try {
 	for (const [multiplier, status] of [[ 0, 1 ], [ 1, 3 ], [ 2, 2 ], [ 3, 4 ]])
 		await reject(() => rpcInvoke(transport, inspect, {config, multiplier}, options()),
 		             error => error instanceof RpcError && error.endpointStatus === status);
-	await reject(() => rpcExchange(transport, 'FieldWrite', api.edge.fields.Scalars.id,
-	                               read('scalars'), options()),
-	             error => error instanceof RpcError && error.endpointStatus === 2);
+	await reject(
+	    () => rpcExchange(transport, 'FieldWrite', api.edge.Scalars.id, read('scalars'), options()),
+	    error => error instanceof RpcError && error.endpointStatus === 2);
 	await reject(() =>
 	                 rpcExchange(transport, 'FieldRead', 0xffffffff, new Uint8Array(0), options()),
 	             error => error instanceof RpcError && error.dispatchStatus === 4);

@@ -73,7 +73,7 @@ try {
 	equal(dynamicClient.admit(schema, header, 17), Status.Ok);
 	equal(dynamicClient.schema, schema);
 	equal(dynamicClient.session, 17);
-	const F = control.fields, C = control.commands, S = control.services;
+	const F = control, C = control, S = control;
 	const staticWatch = staticClient.bindReadMany(trm, [ F.Counter, F.Bool ]);
 	equal(staticWatch.status, Status.Ok);
 	const staticResults = [

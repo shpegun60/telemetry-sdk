@@ -11,7 +11,7 @@ const {DeviceClient, EncodedBackend, Status, Batch, BatchValueStatus : V} =
 const {control, matchesHeader} = await import(pathToFileURL(sdkPath).href);
 const header = (await readFile(descriptorPath)).subarray(0, 64);
 const capability = await readFile(capabilityPath);
-const F = control.fields, C = control.commands, S = control.services;
+const F = control, C = control, S = control;
 let checks = 0, packets = 0;
 const equal = (a, b) => {
 	++checks;

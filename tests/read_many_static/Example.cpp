@@ -13,7 +13,7 @@ int main()
 	auto& backend = connection.backend;
 	const auto capability = connection.capability;
 
-	const auto selected = rm::fields(api::left::fields::F05, api::mixed::fields::U64);
+	const auto selected = rm::fields(api::left::F05, api::mixed::U64);
 	const auto bound = rm::bindReadMany(client, backend, capability, selected);
 	if (!bound)
 		return 1;

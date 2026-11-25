@@ -20,10 +20,10 @@ int main()
 	if (client.admitDescriptor(api::schema::descriptorHeader, 17) != cl::Status::Ok)
 		return 1;
 	api::control::types::Config arguments{};
-	const auto request = bt::items(bt::write(api::control::fields::Config, arguments),
-	                               bt::read(api::control::fields::Config),
-	                               bt::command(api::control::commands::Configure, arguments),
-	                               bt::service(api::control::services::Echo, arguments));
+	const auto request =
+	    bt::items(bt::write(api::control::Config, arguments), bt::read(api::control::Config),
+	              bt::command(api::control::Configure, arguments),
+	              bt::service(api::control::Echo, arguments));
 	bt::StaticBatchStorage<api::client::CodecPolicy, decltype(request)> storage;
 	const auto binding = bt::bindBatch(client, backend, {17, api::schema::fingerprint}, request);
 	if (!binding)

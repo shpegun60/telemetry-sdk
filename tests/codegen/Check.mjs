@@ -283,30 +283,30 @@ else
 	                  0),
 	      namedCount);
 
-// A group tree nests group objects: subgroups and endpoints side by side, the
-// family objects kept. Each endpoint carries its path, which the JS decoder resolves.
+// Group objects hold their subgroups and endpoints side by side, with no family
+// objects. Each endpoint carries its path, which the JS decoder resolves.
 const familyNames = [ 'fields', 'commands', 'services' ];
-const isGroup = value => value && typeof value === 'object' && value.types && value.fields &&
-                         value.commands && value.services;
+const isEndpoint = value => value && typeof value === 'object' &&
+                            Object.hasOwn(value, 'category') && Object.hasOwn(value, 'path');
+const isGroup = value =>
+    value && typeof value === 'object' && Object.hasOwn(value, 'types') && !isEndpoint(value);
+const endpointsOf = group => Object.values(group).filter(isEndpoint);
 let treeGroups = 0;
 
 function visitTree(value, depth)
 {
 	++treeGroups;
-	const family = new Set(familyNames.flatMap(name => Object.values(value[name])));
-	let direct = 0, prefix;
+	let prefix;
 	for (const [key, child] of Object.entries(value)) {
-		if (key === 'types' || familyNames.includes(key))
+		if (key === 'types')
 			continue;
 		if (isGroup(child)) {
 			visitTree(child, depth + 1);
 			continue;
 		}
-		++direct;
-		check(family.has(child));
+		check(isEndpoint(child));
 	}
-	check(direct === family.size);
-	for (const endpoint of family) {
+	for (const endpoint of endpointsOf(value)) {
 		const segments = endpoint.path.split('/');
 		check(segments.length === depth + 2);
 		const group = segments.slice(0, -1).join('/');
@@ -332,38 +332,36 @@ if (model.groupTree) {
 }
 for (const value of groupObjects) {
 	check(Object.isFrozen(value) && Object.isFrozen(value.types));
+	for (const family of familyNames)
+		check(!Object.hasOwn(value, family)); // one form: no per-family objects
 	for (const alias of Object.values(value.types))
 		check(alias === undefined || Object.isFrozen(alias));
-	for (const category of ['fields', 'commands', 'services']) {
-		check(Object.isFrozen(value[category]));
-		for (const endpoint of Object.values(value[category])) {
-			check(Object.isFrozen(endpoint));
-			if (category === 'fields') {
-				++fieldCount;
-				check(endpoint.category === 1 && endpoint.read.operation === 'FieldRead' &&
-				      Object.isFrozen(endpoint.read));
-				check((endpoint.capabilities === 3) === Object.hasOwn(endpoint, 'write'));
-				if (endpoint.write)
-					check(endpoint.write.operation === 'FieldWrite' &&
-					      Object.isFrozen(endpoint.write));
-				equal(endpoint.read.decode(codec(endpoint.valueTypeId)
-				                               .encode(sample(model.types[endpoint.valueTypeId]))),
-				      sample(model.types[endpoint.valueTypeId]));
-			} else {
-				if (category === 'commands')
-					++commandCount;
-				else
-					++serviceCount;
-				check(endpoint.operation === (category === 'commands' ? 'Command' : 'Service'));
-				equal(endpoint.encode(sample(model.types[endpoint.requestTypeId])),
-				      codec(endpoint.requestTypeId)
-				          .encode(sample(model.types[endpoint.requestTypeId])));
-				if (category === 'services')
-					equal(endpoint.decodeResponse(
-					          codec(endpoint.responseTypeId)
-					              .encode(sample(model.types[endpoint.responseTypeId]))),
-					      sample(model.types[endpoint.responseTypeId]));
-			}
+	for (const endpoint of endpointsOf(value)) {
+		check(Object.isFrozen(endpoint));
+		if (endpoint.category === 1) {
+			++fieldCount;
+			check(endpoint.read.operation === 'FieldRead' && Object.isFrozen(endpoint.read));
+			check((endpoint.capabilities === 3) === Object.hasOwn(endpoint, 'write'));
+			if (endpoint.write)
+				check(endpoint.write.operation === 'FieldWrite' && Object.isFrozen(endpoint.write));
+			equal(
+			    endpoint.read.decode(
+			        codec(endpoint.valueTypeId).encode(sample(model.types[endpoint.valueTypeId]))),
+			    sample(model.types[endpoint.valueTypeId]));
+		} else {
+			if (endpoint.category === 2)
+				++commandCount;
+			else
+				++serviceCount;
+			check(endpoint.operation === (endpoint.category === 2 ? 'Command' : 'Service'));
+			equal(
+			    endpoint.encode(sample(model.types[endpoint.requestTypeId])),
+			    codec(endpoint.requestTypeId).encode(sample(model.types[endpoint.requestTypeId])));
+			if (endpoint.category === 3)
+				equal(endpoint.decodeResponse(
+				          codec(endpoint.responseTypeId)
+				              .encode(sample(model.types[endpoint.responseTypeId]))),
+				      sample(model.types[endpoint.responseTypeId]));
 		}
 	}
 }

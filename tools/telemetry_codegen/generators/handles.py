@@ -20,7 +20,6 @@ from . import cpp
 
 DEVICE_METHODS = ("read", "write", "call", "endpoint")
 KINDS = ("", "Field", "Command", "Service")
-FAMILIES = ("", "fields", "commands", "services")
 
 
 @dataclass
@@ -28,6 +27,7 @@ class Leaf:
     endpoint: object
     path: str
     registered: bool  # has a path form (unambiguous)
+    constant: str = ""  # the endpoint constant relative to the namespace: adc::channel1::Gain
     access: str = ""  # member chain from the device: adc.channel1.Gain
 
 
@@ -49,7 +49,7 @@ def handle_tree(schema):
         if group.parent is not None:
             nodes[group.parent].members.append((group.symbol, nodes[group.index]))
     for endpoint, group, symbol, path in zip(schema.endpoints, schema.api_group_of, schema.api_symbols, paths):
-        leaf = Leaf(endpoint, path, counts[path] == 1)
+        leaf = Leaf(endpoint, path, counts[path] == 1, f"{schema.api_groups[group].qualified}::{symbol}")
         nodes[group].members.append((symbol, leaf))
         leaves.append(leaf)
     roots = [(group.symbol, nodes[group.index]) for group in schema.api_groups if group.parent is None]
@@ -82,9 +82,8 @@ def _nodes(roots):
     return result
 
 
-def _constant(schema, endpoint):
-    family = FAMILIES[endpoint.category]
-    return f"::{schema.namespace}::{endpoint.group}::{family}::{endpoint.symbol}"
+def _constant(schema, leaf):
+    return f"::{schema.namespace}::{leaf.constant}"
 
 
 CPP_HANDLES = r"""
@@ -217,7 +216,7 @@ def cpp_handles(schema):
         initializers = []
         for symbol, child in node.members:
             if isinstance(child, Leaf):
-                constant = _constant(schema, child.endpoint)
+                constant = _constant(schema, child)
                 rows.append(f"    Handle<Client, std::remove_cv_t<decltype({constant})>> {symbol};\n")
                 initializers.append(f"{symbol}{{client, {constant}}}")
             else:
@@ -385,9 +384,8 @@ def web_handles(schema, typed):
     """handles.js (typed=False) or handles.ts: bindDevice(client) over the bundled client."""
     roots, leaves = handle_tree(schema)
     for leaf in leaves:
-        endpoint = leaf.endpoint
-        family = FAMILIES[endpoint.category]
-        leaf.access_api = endpoint.group.replace("::", ".") + "." + family + "[" + _q(endpoint.symbol) + "]"
+        group, _, symbol = leaf.constant.rpartition("::")
+        leaf.access_api = group.replace("::", ".") + "[" + _q(symbol) + "]"
     a = (lambda text: text) if typed else (lambda text: "")
     runtime = (WEB_RUNTIME.replace("@ANY@", a(": unknown")).replace("@ERROR@", a(": Error"))
                .replace("@CLIENT@", a(": DeviceClient")).replace("@STRING@", a(": string"))

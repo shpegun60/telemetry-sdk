@@ -17,9 +17,9 @@ static void qualify(Client<Codec>& client, telemetry::integration::encoded::Enco
                     telemetry::protocol::encoded::read_many::Capability capability,
                     std::uint32_t now) noexcept
 {
-	const auto binding = rm::bindReadMany(
-	    client, backend, capability,
-	    rm::fields(api::mixed::fields::Bool, api::mixed::fields::U64, api::mixed::fields::Enum));
+	const auto binding =
+	    rm::bindReadMany(client, backend, capability,
+	                     rm::fields(api::mixed::Bool, api::mixed::U64, api::mixed::Enum));
 	if (binding) {
 		(void)rm::readMany(client, binding.binding, [](const auto& result) noexcept {
 			if (result.template get<0>().hasValue() && result.template get<1>().hasValue() &&
